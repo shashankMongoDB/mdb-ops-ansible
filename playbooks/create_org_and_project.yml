@@ -1,0 +1,152 @@
+---
+- name: Create MongoDB Ops Manager Organization and Project
+  hosts: localhost
+  gather_facts: false
+  vars_prompt:
+    - name: org_name
+      prompt: "Enter the organization name"
+      private: false
+    - name: project_name
+      prompt: "Enter the project name"
+      private: false
+    - name: project_tags
+      prompt: "Enter project tags (comma-separated, optional)"
+      private: false
+      default: ""
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url is defined
+          - ops_manager_public_key is defined
+          - ops_manager_private_key is defined
+        fail_msg: "Please configure ops_manager credentials in group_vars/all.yml"
+
+    # Step 1: Create Organization
+    - name: Prepare organization creation payload
+      ansible.builtin.set_fact:
+        org_payload:
+          name: "{{ org_name }}"
+
+    - name: Create organization in Ops Manager
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs"
+        method: POST
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ org_payload | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: true
+      register: org_result
+
+    - name: Display organization creation result
+      ansible.builtin.debug:
+        msg:
+          - "Organization created successfully!"
+          - "Organization ID: {{ org_result.json.id }}"
+          - "Organization Name: {{ org_result.json.name }}"
+
+    # Step 2: Create Project in the new Organization
+    - name: Parse tags into list
+      ansible.builtin.set_fact:
+        project_tags_list: "{{ project_tags.split(',') | map('trim') | select() | list }}"
+      when: project_tags | length > 0
+
+    - name: Prepare project creation payload
+      ansible.builtin.set_fact:
+        project_payload:
+          name: "{{ project_name }}"
+          orgId: "{{ org_result.json.id }}"
+          tags: "{{ project_tags_list | default([]) }}"
+
+    - name: Wait a moment for organization to be fully ready
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Create project in Ops Manager
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/groups"
+        method: POST
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ project_payload | to_json }}"
+        body_format: json
+        status_code: 201
+        return_content: true
+      register: project_result
+
+    - name: Display project creation result
+      ansible.builtin.debug:
+        msg:
+          - "Project created successfully!"
+          - "Project ID: {{ project_result.json.id }}"
+          - "Project Name: {{ project_result.json.name }}"
+          - "Agent API Key: {{ project_result.json.agentApiKey }}"
+
+    # Step 3: Save all details
+    - name: Save organization and project details to file
+      ansible.builtin.copy:
+        content: |
+          Organization and Project Details:
+          ==================================
+          
+          ORGANIZATION:
+          -------------
+          Organization ID: {{ org_result.json.id }}
+          Organization Name: {{ org_result.json.name }}
+          
+          PROJECT:
+          --------
+          Project ID: {{ project_result.json.id }}
+          Project Name: {{ project_result.json.name }}
+          Agent API Key: {{ project_result.json.agentApiKey }}
+          Organization ID: {{ project_result.json.orgId }}
+          
+          Created: {{ ansible_date_time.iso8601 }}
+          
+          IMPORTANT NOTES:
+          ================
+          1. Save these IDs for future operations
+          2. The organization was created without an Organization Owner
+          3. Add an Organization Owner via Ops Manager UI
+          4. Use the Project ID and Agent API Key for cluster operations
+          
+          Full Organization Response:
+          {{ org_result.json | to_nice_json }}
+          
+          Full Project Response:
+          {{ project_result.json | to_nice_json }}
+        dest: "./org_{{ org_result.json.id }}_project_{{ project_result.json.id }}_details.txt"
+      delegate_to: localhost
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SUCCESS! Organization and Project Created"
+          - "=========================================="
+          - ""
+          - "Organization: {{ org_name }}"
+          - "  ID: {{ org_result.json.id }}"
+          - ""
+          - "Project: {{ project_name }}"
+          - "  ID: {{ project_result.json.id }}"
+          - "  Agent API Key: {{ project_result.json.agentApiKey }}"
+          - ""
+          - "NEXT STEPS:"
+          - "1. Add Organization Owner in Ops Manager UI"
+          - "2. Install MongoDB agents on VMs"
+          - "3. Deploy MongoDB cluster"
+          - ""
+          - "Details saved to: ./org_{{ org_result.json.id }}_project_{{ project_result.json.id }}_details.txt"
+          - "=========================================="

@@ -1,0 +1,13 @@
+---
+# Ops Manager Configuration
+ops_manager_url: "http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080"
+ops_manager_public_key: "yqhrwzfm"
+ops_manager_private_key: "99ad8914-3721-4249-83eb-d6d4c30b6ae5"
+
+# Organization ID (required for project creation)
+# You can create an organization using create_organization.yml
+# or provide an existing organization ID here
+ops_manager_org_id: "YOUR_ORG_ID_HERE"
+
+# API version
+ops_manager_api_version: "v1.0"

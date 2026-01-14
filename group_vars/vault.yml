@@ -1,0 +1,6 @@
+---
+# Store your API keys here (encrypt this file with ansible-vault)
+# Run: ansible-vault encrypt group_vars/vault.yml
+
+vault_ops_manager_public_key: "yqhrwzfm"
+vault_ops_manager_private_key: "99ad8914-3721-4249-83eb-d6d4c30b6ae5"
