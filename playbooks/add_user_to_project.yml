@@ -1,7 +1,7 @@
 ---
 - name: Add User to Project (Make Project Visible in Dashboard)
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   vars_files:
     - ../group_vars/all.yml
   vars_prompt:

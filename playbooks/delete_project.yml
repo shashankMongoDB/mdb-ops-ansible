@@ -1,7 +1,7 @@
 ---
 - name: Delete Project from Ops Manager
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   vars_files:
     - ../group_vars/all.yml
   vars_prompt:
@@ -75,7 +75,7 @@
         force_basic_auth: false
         headers:
           Accept: "application/json"
-        status_code: [200, 204]
+        status_code: [200, 202, 204]
         return_content: true
       register: delete_result
 
@@ -83,12 +83,22 @@
       ansible.builtin.debug:
         msg:
           - "=========================================="
-          - "Project deleted successfully!"
+          - "PROJECT DELETION {{ 'IN PROGRESS' if delete_result.status == 202 else 'COMPLETED' }}"
+          - "=========================================="
+          - ""
           - "Project ID: {{ project_id }}"
           - "Project Name: {{ project_details.json.name | default('N/A') }}"
+          - "Status Code: {{ delete_result.status }}"
+          - ""
+          - "{% if delete_result.status == 202 %}"
+          - "Note: Deletion accepted (202). The operation is being processed."
+          - "It may take a few moments to complete."
+          - "{% endif %}"
           - ""
           - "IMPORTANT:"
-          - "- All monitoring data for this project has been removed"
-          - "- The project no longer appears in selection lists"
+          - "- All monitoring data for this project will be removed"
+          - "- The project will no longer appear in selection lists"
           - "- This action cannot be undone"
+          - ""
+          - "Verify deletion in Ops Manager dashboard"
           - "=========================================="

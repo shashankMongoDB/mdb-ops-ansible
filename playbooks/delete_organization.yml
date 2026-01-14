@@ -1,7 +1,7 @@
 ---
 - name: Delete Organization from Ops Manager
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   vars_files:
     - ../group_vars/all.yml
   vars_prompt:
@@ -93,7 +93,7 @@
         force_basic_auth: false
         headers:
           Accept: "application/json"
-        status_code: [200, 204]
+        status_code: [200, 202, 204]
         return_content: true
       register: delete_result
 
@@ -101,12 +101,22 @@
       ansible.builtin.debug:
         msg:
           - "=========================================="
-          - "Organization deleted successfully!"
+          - "ORGANIZATION DELETION {{ 'IN PROGRESS' if delete_result.status == 202 else 'COMPLETED' }}"
+          - "=========================================="
+          - ""
           - "Organization ID: {{ org_id }}"
           - "Organization Name: {{ org_details.json.name | default('N/A') }}"
+          - "Status Code: {{ delete_result.status }}"
+          - ""
+          - "{% if delete_result.status == 202 %}"
+          - "Note: Deletion accepted (202). The operation is being processed."
+          - "It may take a few moments to complete."
+          - "{% endif %}"
           - ""
           - "IMPORTANT:"
-          - "- All projects in this organization were also deleted"
-          - "- All monitoring data has been removed"
+          - "- All projects in this organization will be deleted"
+          - "- All monitoring data will be removed"
           - "- This action cannot be undone"
+          - ""
+          - "Verify deletion in Ops Manager dashboard"
           - "=========================================="
