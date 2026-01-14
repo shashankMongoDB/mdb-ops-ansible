@@ -1,0 +1,138 @@
+---
+- name: Create Organization via API and Add Owner
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/vault.yml
+
+  vars_prompt:
+    - name: "org_name"
+      prompt: "Enter the organization name"
+      private: false
+
+    - name: "owner_username"
+      prompt: "Enter the username/email of the Organization Owner"
+      private: false
+
+  tasks:
+    - name: Create Organization via API
+      uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs"
+        method: POST
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          name: "{{ org_name }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: org_response
+
+    - name: Display Organization Created
+      debug:
+        msg: |
+          ==========================================
+          ORGANIZATION CREATED (API)
+          ==========================================
+          Organization ID: {{ org_response.json.id }}
+          Organization Name: {{ org_response.json.name }}
+          
+          NOTE: Organization created without owner - adding owner next...
+
+    - name: Get User ID by Username
+      uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/users/byName/{{ owner_username }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200]
+        return_content: yes
+      register: user_response
+
+    - name: Display User Found
+      debug:
+        msg: |
+          Found User:
+            User ID: {{ user_response.json.id }}
+            Username: {{ user_response.json.username }}
+            Email: {{ user_response.json.emailAddress }}
+
+    - name: Get Current User Roles
+      set_fact:
+        current_roles: "{{ user_response.json.roles | default([]) }}"
+
+    - name: Add ORG_OWNER Role to User's Roles
+      set_fact:
+        updated_roles: "{{ current_roles + [{'orgId': org_response.json.id, 'roleName': 'ORG_OWNER'}] }}"
+
+    - name: Update User with ORG_OWNER Role
+      uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/users/{{ user_response.json.id }}"
+        method: PATCH
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          roles: "{{ updated_roles }}"
+        body_format: json
+        status_code: [200]
+        return_content: yes
+      register: update_response
+
+    - name: Display Final Success
+      debug:
+        msg: |
+          ==========================================
+          ORGANIZATION SETUP COMPLETE!
+          ==========================================
+          
+          Organization Details:
+            Organization ID: {{ org_response.json.id }}
+            Organization Name: {{ org_response.json.name }}
+          
+          Owner Details:
+            User ID: {{ user_response.json.id }}
+            Username: {{ user_response.json.username }}
+            Email: {{ user_response.json.emailAddress }}
+            Role: ORG_OWNER
+          
+          ==========================================
+          NEXT STEPS:
+          ==========================================
+          1. Refresh your Ops Manager dashboard
+          2. The organization should now be visible
+          3. You can now create projects in this organization
+          
+          Organization ID (save this): {{ org_response.json.id }}
+
+    - name: Save Organization Details to File
+      copy:
+        content: |
+          Organization Created: {{ ansible_date_time.iso8601 }}
+          ==========================================
+          Organization ID: {{ org_response.json.id }}
+          Organization Name: {{ org_response.json.name }}
+          
+          Owner User ID: {{ user_response.json.id }}
+          Owner Username: {{ user_response.json.username }}
+          Owner Email: {{ user_response.json.emailAddress }}
+          Owner Role: ORG_OWNER
+          
+          Status: Organization visible in dashboard
+          Created via: API with Global Owner key
+        dest: "./organization_{{ org_response.json.id }}_details.txt"
+
+    - name: Display File Saved
+      debug:
+        msg: "Organization details saved to: organization_{{ org_response.json.id }}_details.txt"
