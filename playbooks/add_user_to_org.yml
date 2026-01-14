@@ -1,0 +1,82 @@
+---
+- name: Add User to Organization (Make Org Visible in Dashboard)
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  vars_prompt:
+    - name: org_id
+      prompt: "Enter the Organization ID"
+      private: false
+    - name: user_id
+      prompt: "Enter the User ID to add"
+      private: false
+    - name: user_role
+      prompt: "Enter role (ORG_OWNER, ORG_MEMBER, ORG_READ_ONLY, ORG_GROUP_CREATOR)"
+      private: false
+      default: "ORG_OWNER"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url is defined
+          - ops_manager_public_key is defined
+          - ops_manager_private_key is defined
+          - org_id is defined
+          - user_id is defined
+          - user_role in ['ORG_OWNER', 'ORG_MEMBER', 'ORG_READ_ONLY', 'ORG_GROUP_CREATOR']
+        fail_msg: "Required variables missing or invalid role"
+
+    - name: Get current user details
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/users/{{ user_id }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: true
+      register: user_details
+
+    - name: Display current user info
+      ansible.builtin.debug:
+        msg:
+          - "User: {{ user_details.json.username }} ({{ user_details.json.emailAddress }})"
+          - "Current roles: {{ user_details.json.roles }}"
+
+    - name: Build updated roles (add org role)
+      ansible.builtin.set_fact:
+        updated_roles: "{{ user_details.json.roles + [{'orgId': org_id, 'roleName': user_role}] }}"
+
+    - name: Add user to organization
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/users/{{ user_id }}"
+        method: PATCH
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          roles: "{{ updated_roles }}"
+        body_format: json
+        status_code: 200
+        return_content: true
+      register: update_result
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "User successfully added to organization!"
+          - "User: {{ update_result.json.username }}"
+          - "Role: {{ user_role }}"
+          - "Organization ID: {{ org_id }}"
+          - ""
+          - "The organization should now be visible in the dashboard for this user."
+          - "Updated roles: {{ update_result.json.roles }}"
+          - "=========================================="

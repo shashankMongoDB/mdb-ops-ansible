@@ -1,0 +1,112 @@
+---
+- name: Delete Organization from Ops Manager
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  vars_prompt:
+    - name: org_id
+      prompt: "Enter the Organization ID to delete"
+      private: false
+    - name: confirm_delete
+      prompt: "Are you sure? Type 'DELETE' to confirm"
+      private: false
+
+  tasks:
+    - name: Validate confirmation
+      ansible.builtin.assert:
+        that:
+          - confirm_delete == "DELETE"
+        fail_msg: "Deletion not confirmed. You must type 'DELETE' exactly. Aborting."
+
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url is defined
+          - ops_manager_public_key is defined
+          - ops_manager_private_key is defined
+          - org_id is defined
+        fail_msg: "Required variables missing"
+
+    - name: Get organization details before deletion
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs/{{ org_id }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: true
+      register: org_details
+      ignore_errors: yes
+
+    - name: Display organization details
+      ansible.builtin.debug:
+        msg:
+          - "Organization to delete:"
+          - "  Name: {{ org_details.json.name }}"
+          - "  ID: {{ org_details.json.id }}"
+      when: org_details.status == 200
+
+    - name: Check for projects in organization
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs/{{ org_id }}/groups"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: true
+      register: org_projects
+
+    - name: Display warning if projects exist
+      ansible.builtin.debug:
+        msg:
+          - "WARNING: Organization has {{ org_projects.json.totalCount }} project(s)!"
+          - "Projects in org:"
+          - "{{ org_projects.json.results | map(attribute='name') | list }}"
+      when: org_projects.json.totalCount > 0
+
+    - name: Confirm deletion despite projects
+      ansible.builtin.pause:
+        prompt: "Organization has projects. Continue deletion? (yes/no)"
+      register: final_confirm
+      when: org_projects.json.totalCount > 0
+
+    - name: Validate final confirmation
+      ansible.builtin.assert:
+        that:
+          - final_confirm.user_input == "yes"
+        fail_msg: "Deletion aborted by user"
+      when: org_projects.json.totalCount > 0
+
+    - name: Delete the organization
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs/{{ org_id }}"
+        method: DELETE
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 204]
+        return_content: true
+      register: delete_result
+
+    - name: Display deletion result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Organization deleted successfully!"
+          - "Organization ID: {{ org_id }}"
+          - "Organization Name: {{ org_details.json.name | default('N/A') }}"
+          - ""
+          - "IMPORTANT:"
+          - "- All projects in this organization were also deleted"
+          - "- All monitoring data has been removed"
+          - "- This action cannot be undone"
+          - "=========================================="

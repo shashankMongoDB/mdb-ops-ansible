@@ -1,0 +1,78 @@
+---
+- name: Add User to Project (Make Project Visible in Dashboard)
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
+  vars_prompt:
+    - name: project_id
+      prompt: "Enter the Project ID"
+      private: false
+    - name: user_id
+      prompt: "Enter the User ID to add"
+      private: false
+    - name: user_role
+      prompt: "Enter role (GROUP_OWNER, GROUP_READ_ONLY, GROUP_AUTOMATION_ADMIN, etc.)"
+      private: false
+      default: "GROUP_OWNER"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url is defined
+          - ops_manager_public_key is defined
+          - ops_manager_private_key is defined
+          - project_id is defined
+          - user_id is defined
+        fail_msg: "Required variables missing"
+
+    - name: Get current user details
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/users/{{ user_id }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: true
+      register: user_details
+
+    - name: Display current user info
+      ansible.builtin.debug:
+        msg:
+          - "User: {{ user_details.json.username }} ({{ user_details.json.emailAddress }})"
+          - "Current roles: {{ user_details.json.roles }}"
+
+    - name: Add user to project
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/groups/{{ project_id }}/users"
+        method: POST
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          - id: "{{ user_id }}"
+            roles:
+              - roleName: "{{ user_role }}"
+        body_format: json
+        status_code: 200
+        return_content: true
+      register: update_result
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "User successfully added to project!"
+          - "Project ID: {{ project_id }}"
+          - "Role: {{ user_role }}"
+          - ""
+          - "The project should now be visible in the dashboard for this user."
+          - "Total users in project: {{ update_result.json.totalCount }}"
+          - "=========================================="

@@ -2,7 +2,7 @@
 - name: Create MongoDB Ops Manager Organization
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   vars_files:
     - ../group_vars/all.yml
   vars_prompt:
@@ -30,7 +30,7 @@
         method: POST
         user: "{{ ops_manager_public_key }}"
         password: "{{ ops_manager_private_key }}"
-        force_basic_auth: true
+        force_basic_auth: false
         headers:
           Accept: "application/json"
           Content-Type: "application/json"

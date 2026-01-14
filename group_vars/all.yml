@@ -7,7 +7,7 @@ ops_manager_private_key: "99ad8914-3721-4249-83eb-d6d4c30b6ae5"
 # Organization ID (required for project creation)
 # You can create an organization using create_organization.yml
 # or provide an existing organization ID here
-ops_manager_org_id: "696746e6d5b6737b8634e543"
+#ops_manager_org_id: "696746e6d5b6737b8634e543"
 
 # API version
 ops_manager_api_version: "v1.0"

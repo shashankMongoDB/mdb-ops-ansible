@@ -1,7 +1,9 @@
 ---
 - name: Create MongoDB Ops Manager Project (Non-Interactive)
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
   vars:
     # Override these variables when running the playbook
     project_name: "MyMongoDB Project"
