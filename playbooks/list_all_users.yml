@@ -1,9 +1,13 @@
 ---
-- name: List All Users in Ops Manager
+- name: List All Users in Organization
   hosts: localhost
   gather_facts: true
   vars_files:
     - ../group_vars/all.yml
+  vars_prompt:
+    - name: org_id
+      prompt: "Enter the Organization ID"
+      private: false
 
   tasks:
     - name: Validate required variables
@@ -12,11 +16,13 @@
           - ops_manager_url is defined
           - ops_manager_public_key is defined
           - ops_manager_private_key is defined
-        fail_msg: "Please configure ops_manager credentials in group_vars/all.yml"
+          - org_id is defined
+          - org_id | length > 0
+        fail_msg: "Please configure ops_manager credentials and provide org_id"
 
-    - name: Get all users in Ops Manager
+    - name: Get all users in organization
       ansible.builtin.uri:
-        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/users"
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs/{{ org_id }}/users"
         method: GET
         user: "{{ ops_manager_public_key }}"
         password: "{{ ops_manager_private_key }}"
@@ -31,9 +37,10 @@
       ansible.builtin.debug:
         msg:
           - "=========================================="
-          - "ALL USERS IN OPS MANAGER"
+          - "ALL USERS IN ORGANIZATION"
           - "=========================================="
           - ""
+          - "Organization ID: {{ org_id }}"
           - "Total Users: {{ users_result.json.totalCount }}"
           - ""
           - "{% for user in users_result.json.results %}"
@@ -43,22 +50,27 @@
           - "  Email: {{ user.emailAddress }}"
           - "  First Name: {{ user.firstName }}"
           - "  Last Name: {{ user.lastName }}"
-          - "  Roles: {{ user.roles | length }} role(s)"
+          - "  Roles in this org: {{ user.roles | selectattr('orgId', 'defined') | list | length }} role(s)"
           - "  ---"
           - "{% endfor %}"
           - ""
           - "=========================================="
           - "IMPORTANT:"
-          - "Find YOUR login username above"
-          - "Copy the User ID for that username"
-          - "Then run: ansible-playbook playbooks/add_user_to_org.yml --ask-vault-pass"
+          - "If you DON'T see your username above, it means:"
+          - "  - Your user is NOT in this organization yet"
+          - "  - You need to add it using: add_user_to_org.yml"
+          - ""
+          - "If you SEE your username:"
+          - "  - Copy the User ID"
+          - "  - The org should be visible in your dashboard"
+          - "  - If not, check your role (should be ORG_OWNER)"
           - "=========================================="
 
     - name: Save users list to file
       ansible.builtin.copy:
         content: |
-          All Ops Manager Users
-          =====================
+          Users in Organization {{ org_id }}
+          ===================================
           Generated: {{ ansible_date_time.iso8601 }}
           Total Users: {{ users_result.json.totalCount }}
           
@@ -75,19 +87,24 @@
           {{ user.roles | to_nice_yaml }}
           
           {% endfor %}
-        dest: "./all_users_list.txt"
+        dest: "./org_{{ org_id }}_users.txt"
       delegate_to: localhost
 
     - name: Final instructions
       ansible.builtin.debug:
         msg:
           - ""
-          - "User list saved to: ./all_users_list.txt"
+          - "User list saved to: ./org_{{ org_id }}_users.txt"
           - ""
-          - "Next Steps:"
-          - "1. Find YOUR login username from the list above"
-          - "2. Copy that user's ID"
-          - "3. Run: ansible-playbook playbooks/add_user_to_org.yml --ask-vault-pass"
-          - "4. Enter the Organization ID and your User ID"
-          - "5. Choose role: ORG_OWNER"
-          - "6. Refresh your Ops Manager dashboard"
+          - "What to do next:"
+          - ""
+          - "IF your username is NOT in the list above:"
+          - "  1. Find YOUR login username (check top-right of dashboard)"
+          - "  2. Get your User ID: ansible-playbook playbooks/get_user_id.yml --ask-vault-pass"
+          - "  3. Add yourself to org: ansible-playbook playbooks/add_user_to_org.yml --ask-vault-pass"
+          - "  4. Choose role: ORG_OWNER"
+          - ""
+          - "IF your username IS in the list above:"
+          - "  1. Check if you have ORG_OWNER role"
+          - "  2. If not, run add_user_to_org.yml again with ORG_OWNER"
+          - "  3. Refresh your dashboard - org should be visible"
