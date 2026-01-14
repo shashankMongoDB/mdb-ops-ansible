@@ -2,6 +2,8 @@
 - name: Create MongoDB Ops Manager Organization and Project
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
   vars_prompt:
     - name: org_name
       prompt: "Enter the organization name"
