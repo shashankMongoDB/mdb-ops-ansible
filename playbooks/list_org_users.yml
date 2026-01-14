@@ -37,46 +37,47 @@
       ansible.builtin.debug:
         msg:
           - "=========================================="
-          - "ALL USERS IN ORGANIZATION"
+          - "USERS IN ORGANIZATION {{ org_id }}"
           - "=========================================="
-          - ""
-          - "Organization ID: {{ org_id }}"
           - "Total Users: {{ users_result.json.totalCount }}"
           - ""
 
     - name: Display each user
       ansible.builtin.debug:
         msg:
-          - "User {{ item_index }}:"
-          - "  User ID: {{ item.id }}"
-          - "  Username: {{ item.username }}"
-          - "  Email: {{ item.emailAddress }}"
-          - "  First Name: {{ item.firstName | default('N/A') }}"
-          - "  Last Name: {{ item.lastName | default('N/A') }}"
-          - "  Total Roles: {{ item.roles | length }}"
-          - "  ---"
+          - "{{ '%02d' | format(idx + 1) }}. {{ item.username }} ({{ item.emailAddress }})"
+          - "    User ID: {{ item.id }}"
+          - "    Name: {{ item.firstName | default('') }} {{ item.lastName | default('') }}"
+          - "    Roles: {{ item.roles | length }} role(s)"
       loop: "{{ users_result.json.results }}"
       loop_control:
-        index_var: item_index
+        index_var: idx
         label: "{{ item.username }}"
 
-    - name: Display footer instructions
+    - name: Display instructions
       ansible.builtin.debug:
         msg:
           - ""
           - "=========================================="
-          - "IMPORTANT:"
-          - "If you DON'T see your username above, it means:"
-          - "  - Your user is NOT in this organization yet"
-          - "  - You need to add it using: add_user_to_org.yml"
+          - "WHAT TO DO NEXT:"
+          - "=========================================="
           - ""
-          - "If you SEE your username:"
-          - "  - Copy the User ID"
-          - "  - The org should be visible in your dashboard"
-          - "  - If not, check your role (should be ORG_OWNER)"
+          - "IF you DON'T see your username above:"
+          - "  → Your user is NOT in this organization"
+          - "  → Get your User ID:"
+          - "    ansible-playbook playbooks/get_user_id.yml"
+          - "  → Add yourself to org:"
+          - "    ansible-playbook playbooks/add_user_to_org.yml"
+          - "    (Use role: ORG_OWNER)"
+          - ""
+          - "IF you SEE your username above:"
+          - "  → Copy your User ID from above"
+          - "  → Organization should be visible in dashboard"
+          - "  → If not visible, check your role is ORG_OWNER"
+          - ""
           - "=========================================="
 
-    - name: Save users list to file
+    - name: Save detailed user list to file
       ansible.builtin.copy:
         content: |
           Users in Organization {{ org_id }}
@@ -85,36 +86,29 @@
           Total Users: {{ users_result.json.totalCount }}
           
           {% for user in users_result.json.results %}
-          User {{ loop.index }}:
-          --------
+          {{ loop.index }}. {{ user.username }}
+          --------------------------------
           User ID: {{ user.id }}
-          Username: {{ user.username }}
           Email: {{ user.emailAddress }}
-          First Name: {{ user.firstName }}
-          Last Name: {{ user.lastName }}
+          First Name: {{ user.firstName | default('N/A') }}
+          Last Name: {{ user.lastName | default('N/A') }}
+          Mobile: {{ user.mobileNumber | default('N/A') }}
           
-          Roles:
-          {{ user.roles | to_nice_yaml }}
+          Roles ({{ user.roles | length }}):
+          {% for role in user.roles %}
+            - {{ role.roleName }}
+          {% if role.orgId is defined %}    Org ID: {{ role.orgId }}{% endif %}
+          {% if role.groupId is defined %}    Project ID: {{ role.groupId }}{% endif %}
+          {% endfor %}
           
           {% endfor %}
         dest: "./org_{{ org_id }}_users.txt"
-      delegate_to: localhost
 
-    - name: Final instructions
+    - name: Summary
       ansible.builtin.debug:
         msg:
           - ""
-          - "User list saved to: ./org_{{ org_id }}_users.txt"
+          - "✓ User list saved to: ./org_{{ org_id }}_users.txt"
           - ""
-          - "What to do next:"
-          - ""
-          - "IF your username is NOT in the list above:"
-          - "  1. Find YOUR login username (check top-right of dashboard)"
-          - "  2. Get your User ID: ansible-playbook playbooks/get_user_id.yml --ask-vault-pass"
-          - "  3. Add yourself to org: ansible-playbook playbooks/add_user_to_org.yml --ask-vault-pass"
-          - "  4. Choose role: ORG_OWNER"
-          - ""
-          - "IF your username IS in the list above:"
-          - "  1. Check if you have ORG_OWNER role"
-          - "  2. If not, run add_user_to_org.yml again with ORG_OWNER"
-          - "  3. Refresh your dashboard - org should be visible"
+          - "Next step: Find YOUR username in the list above"
+          - "Then use get_user_id.yml or add_user_to_org.yml"
