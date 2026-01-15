@@ -1,0 +1,97 @@
+---
+- name: List All Organizations in Ops Manager
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url is defined
+          - ops_manager_public_key is defined
+          - ops_manager_private_key is defined
+        fail_msg: "Required variables missing. Check group_vars/all.yml and vault.yml"
+
+    - name: Get all organizations
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 202, 204]
+        return_content: true
+      register: orgs_response
+
+    - name: Display total count
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "ALL ORGANIZATIONS"
+          - "=========================================="
+          - ""
+          - "Total Organizations: {{ orgs_response.json.totalCount }}"
+          - ""
+
+    - name: Display organizations
+      ansible.builtin.debug:
+        msg:
+          - "{{ index + 1 }}. {{ item.name }}"
+          - "   Organization ID: {{ item.id }}"
+          - "   Links: {{ item.links | length }} link(s)"
+          - ""
+      loop: "{{ orgs_response.json.results }}"
+      loop_control:
+        index_var: index
+      when: orgs_response.json.totalCount > 0
+
+    - name: No organizations message
+      ansible.builtin.debug:
+        msg: "No organizations found."
+      when: orgs_response.json.totalCount == 0
+
+    - name: Save organizations to file
+      ansible.builtin.copy:
+        content: |
+          Organizations List - Retrieved: {{ ansible_date_time.iso8601 }}
+          ==========================================
+          Total Organizations: {{ orgs_response.json.totalCount }}
+          
+          {% for org in orgs_response.json.results %}
+          {{ loop.index }}. {{ org.name }}
+             Organization ID: {{ org.id }}
+          
+          {% endfor %}
+        dest: "./outputs/organizations_list.txt"
+      when: orgs_response.json.totalCount > 0
+
+    - name: Save full JSON response
+      ansible.builtin.copy:
+        content: "{{ orgs_response.json | to_nice_json }}"
+        dest: "./outputs/organizations_full.json"
+      when: orgs_response.json.totalCount > 0
+
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SUMMARY"
+          - "=========================================="
+          - ""
+          - "Total organizations: {{ orgs_response.json.totalCount }}"
+          - ""
+          - "Files saved:"
+          - "  - outputs/organizations_list.txt"
+          - "  - outputs/organizations_full.json"
+          - ""
+          - "To create a project in an organization, use:"
+          - "  ansible-playbook create_project.yml --ask-vault-pass"
+          - ""
+          - "To see projects in an organization, use:"
+          - "  ansible-playbook list_projects_in_org.yml --ask-vault-pass"
+          - "=========================================="
+      when: orgs_response.json.totalCount > 0

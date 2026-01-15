@@ -1,0 +1,138 @@
+---
+- name: List All Projects in Organization
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+  vars_prompt:
+    - name: "org_id"
+      prompt: "Enter the Organization ID"
+      private: false
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url is defined
+          - ops_manager_public_key is defined
+          - ops_manager_private_key is defined
+          - org_id is defined
+        fail_msg: "Required variables missing"
+
+    - name: Get organization details
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs/{{ org_id }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 202, 204]
+        return_content: true
+      register: org_details
+      ignore_errors: yes
+
+    - name: Check if organization exists
+      ansible.builtin.fail:
+        msg: "Organization with ID {{ org_id }} not found!"
+      when: org_details.status != 200
+
+    - name: Get all projects in organization
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs/{{ org_id }}/groups"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 202, 204]
+        return_content: true
+      register: projects_response
+
+    - name: Display organization and projects header
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "PROJECTS IN ORGANIZATION"
+          - "=========================================="
+          - ""
+          - "Organization Name: {{ org_details.json.name }}"
+          - "Organization ID: {{ org_details.json.id }}"
+          - ""
+          - "Total Projects: {{ projects_response.json.totalCount }}"
+          - ""
+
+    - name: Display projects
+      ansible.builtin.debug:
+        msg:
+          - "{{ index + 1 }}. {{ item.name }}"
+          - "   Project ID: {{ item.id }}"
+          - "   Created: {{ item.created | default('N/A') }}"
+          - "   Active Agents: {{ item.activeAgentCount | default(0) }}"
+          - "   Replica Sets: {{ item.replicaSetCount | default(0) }}"
+          - "   Shards: {{ item.shardCount | default(0) }}"
+          - ""
+      loop: "{{ projects_response.json.results }}"
+      loop_control:
+        index_var: index
+      when: projects_response.json.totalCount > 0
+
+    - name: No projects message
+      ansible.builtin.debug:
+        msg:
+          - "No projects found in this organization."
+          - ""
+          - "To create a project, use:"
+          - "  ansible-playbook create_project.yml --ask-vault-pass"
+      when: projects_response.json.totalCount == 0
+
+    - name: Save projects to file
+      ansible.builtin.copy:
+        content: |
+          Projects in Organization - Retrieved: {{ ansible_date_time.iso8601 }}
+          ==========================================
+          Organization Name: {{ org_details.json.name }}
+          Organization ID: {{ org_details.json.id }}
+          Total Projects: {{ projects_response.json.totalCount }}
+          
+          {% for project in projects_response.json.results %}
+          {{ loop.index }}. {{ project.name }}
+             Project ID: {{ project.id }}
+             Created: {{ project.created | default('N/A') }}
+             Active Agents: {{ project.activeAgentCount | default(0) }}
+             Replica Sets: {{ project.replicaSetCount | default(0) }}
+             Shards: {{ project.shardCount | default(0) }}
+          
+          {% endfor %}
+        dest: "./outputs/projects_org_{{ org_id }}.txt"
+      when: projects_response.json.totalCount > 0
+
+    - name: Save full JSON response
+      ansible.builtin.copy:
+        content: "{{ projects_response.json | to_nice_json }}"
+        dest: "./outputs/projects_org_{{ org_id }}.json"
+      when: projects_response.json.totalCount > 0
+
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SUMMARY"
+          - "=========================================="
+          - ""
+          - "Organization: {{ org_details.json.name }}"
+          - "Total projects: {{ projects_response.json.totalCount }}"
+          - ""
+          - "Files saved:"
+          - "  - outputs/projects_org_{{ org_id }}.txt"
+          - "  - outputs/projects_org_{{ org_id }}.json"
+          - ""
+          - "To create a new project in this organization:"
+          - "  ansible-playbook create_project.yml --ask-vault-pass"
+          - ""
+          - "To delete a project:"
+          - "  ansible-playbook delete_project.yml --ask-vault-pass"
+          - "=========================================="
+      when: projects_response.json.totalCount > 0

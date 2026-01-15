@@ -97,21 +97,23 @@
         return_content: true
       register: delete_result
 
+    - name: Set deletion status message
+      ansible.builtin.set_fact:
+        deletion_status: "{{ 'IN PROGRESS' if delete_result.status == 202 else 'COMPLETED' }}"
+        status_note: "{{ 'Note: Deletion accepted (202). The operation is being processed. It may take a few moments to complete.' if delete_result.status == 202 else 'Deletion completed successfully.' }}"
+
     - name: Display deletion result
       ansible.builtin.debug:
         msg:
           - "=========================================="
-          - "ORGANIZATION DELETION {{ 'IN PROGRESS' if delete_result.status == 202 else 'COMPLETED' }}"
+          - "ORGANIZATION DELETION {{ deletion_status }}"
           - "=========================================="
           - ""
           - "Organization ID: {{ org_id }}"
           - "Organization Name: {{ org_details.json.name | default('N/A') }}"
           - "Status Code: {{ delete_result.status }}"
           - ""
-          - "{% if delete_result.status == 202 %}"
-          - "Note: Deletion accepted (202). The operation is being processed."
-          - "It may take a few moments to complete."
-          - "{% endif %}"
+          - "{{ status_note }}"
           - ""
           - "IMPORTANT:"
           - "- All projects in this organization will be deleted"
