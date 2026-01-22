@@ -1,0 +1,98 @@
+---
+- name: Enable Monitoring via monitoringAgentConfig API
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Get current monitoring agent config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig/monitoringAgentConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_monitoring_config
+      ignore_errors: yes
+
+    - name: Display current monitoring config
+      ansible.builtin.debug:
+        msg:
+          - "Current monitoring config:"
+          - "{{ current_monitoring_config.json | default('NOT CONFIGURED') }}"
+
+    - name: Build monitoring agent configuration
+      ansible.builtin.set_fact:
+        monitoring_agent_config:
+          logPath: "/var/log/mongodb-mms-automation/monitoring-agent.log"
+          logRotate:
+            sizeThresholdMB: 1000
+            timeThresholdHrs: 24
+
+    - name: Enable monitoring agent config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig/monitoringAgentConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ monitoring_agent_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: monitoring_result
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ MONITORING ENABLED!"
+          - "=========================================="
+          - ""
+          - "Monitoring Agent Configuration:"
+          - "  Log Path: /var/log/mongodb-mms-automation/monitoring-agent.log"
+          - "  Log Rotation: 1000 MB / 24 hours"
+          - ""
+          - "The MongoDB Agents will now start monitoring processes."
+          - ""
+          - "Check Ops Manager UI in 2-3 minutes:"
+          - "  http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080"
+          - "  → Deployment → Servers"
+          - ""
+          - "You should see:"
+          - "  ✅ CPU, Memory, Disk metrics"
+          - "  ✅ Monitoring status: Active"
+          - "  ✅ Charts and graphs appearing"
+          - ""
+          - "=========================================="
+
+    - name: Wait for monitoring to start
+      ansible.builtin.pause:
+        seconds: 5
+        prompt: "Monitoring configuration applied. Agents starting..."
+
+    - name: Check monitoring status
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: hosts_status
+      ignore_errors: yes
+
+    - name: Display hosts monitoring status
+      ansible.builtin.debug:
+        msg:
+          - "Hosts Status:"
+          - "{{ hosts_status.json | default('Unable to retrieve') }}"
