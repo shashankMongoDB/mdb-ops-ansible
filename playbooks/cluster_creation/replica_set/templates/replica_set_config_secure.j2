@@ -125,12 +125,5 @@
         }
       ]
     }
-  ]{% if enable_monitoring | bool %},
-  "monitoringVersions": [
-    {
-      "hostname": "{{ ops_manager_host | default('localhost') }}",
-      "name": "{{ mongodb_version }}",
-      "platform": "linux"
-    }
-  ]{% endif %}
+  ]
 }
