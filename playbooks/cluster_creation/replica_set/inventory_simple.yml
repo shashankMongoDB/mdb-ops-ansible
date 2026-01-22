@@ -10,6 +10,7 @@ all:
       hosts:
         mongodb-01:
           ansible_host: "{{ lookup('env', 'VM1_IP') | default('172.31.16.76', true) }}"
+          ops_manager_hostname: "ip-172-31-16-76.us-west-2.compute.internal"
           priority: 2
           member_id: 0
           hostname: mongodb-01
@@ -19,12 +20,14 @@ all:
       hosts:
         mongodb-02:
           ansible_host: "{{ lookup('env', 'VM2_IP') | default('172.31.21.74', true) }}"
+          ops_manager_hostname: "ip-172-31-21-74.us-west-2.compute.internal"
           priority: 1
           member_id: 1
           hostname: mongodb-02
         
         mongodb-03:
           ansible_host: "{{ lookup('env', 'VM3_IP') | default('172.31.23.234', true) }}"
+          ops_manager_hostname: "ip-172-31-23-234.us-west-2.compute.internal"
           priority: 1
           member_id: 2
           hostname: mongodb-03

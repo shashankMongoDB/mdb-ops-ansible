@@ -40,7 +40,7 @@
       ansible.builtin.set_fact:
         new_processes:
           - name: "{{ groups['mongodb_primary'][0] }}"
-            hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}"
+            hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
             processType: "mongod"
             version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
             authSchemaVersion: 5
@@ -63,7 +63,7 @@
               timeThresholdHrs: 24
           
           - name: "{{ groups['mongodb_secondary'][0] }}"
-            hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
             processType: "mongod"
             version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
             authSchemaVersion: 5
@@ -86,7 +86,7 @@
               timeThresholdHrs: 24
           
           - name: "{{ groups['mongodb_secondary'][1] }}"
-            hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
             processType: "mongod"
             version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
             authSchemaVersion: 5
@@ -184,7 +184,9 @@
         status_code: 200
         return_content: yes
       register: automation_status
-      until: automation_status.json.goalVersion == automation_status.json.lastGoalVersionAchieved
+      until: >
+        automation_status.json.goalVersion is defined and
+        (automation_status.json.lastGoalVersionAchieved | default(0)) == automation_status.json.goalVersion
       retries: 60
       delay: 10
 
@@ -192,7 +194,7 @@
       ansible.builtin.debug:
         msg:
           - "=========================================="
-          - "REPLICA SET DEPLOYED SUCCESSFULLY!"
+          - "🎉 REPLICA SET DEPLOYED SUCCESSFULLY!"
           - "=========================================="
           - ""
           - "Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}"
@@ -203,8 +205,15 @@
           - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017"
           - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017"
           - ""
+          - "Goal State: {{ automation_status.json | to_json }}"
+          - ""
           - "Connection String (NO AUTH):"
           - "mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017/?replicaSet={{ hostvars[groups['all'][0]]['replica_set_name'] }}"
           - ""
           - "⚠️  Authentication is DISABLED"
+          - ""
+          - "Test connection:"
+          - "  ssh -i ../sp-k8s.pem ubuntu@{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}"
+          - "  mongosh --port 27017"
+          - "  rs.status()"
           - "=========================================="
