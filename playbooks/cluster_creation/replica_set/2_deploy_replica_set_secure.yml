@@ -25,83 +25,13 @@
           - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }} (Secondary)"
           - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }} (Secondary)"
           - ""
+          - "Ops Manager: {{ hostvars[groups['all'][0]]['ops_manager_url'] }}"
+          - "Project ID: {{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}"
+          - ""
 
-    # ============================================
-    # STEP 1: API Access List Whitelisting
-    # ============================================
-    
-    - name: Get control node IP address
-      ansible.builtin.shell: |
-        hostname -I | awk '{print $1}'
-      register: control_node_ip
-      changed_when: false
-
-    - name: Display control node IP
-      ansible.builtin.debug:
-        msg:
-          - "=========================================="
-          - "Step 1: API Access List Whitelisting"
-          - "=========================================="
-          - "Control Node IP: {{ control_node_ip.stdout }}"
-          - "This IP needs API access to Ops Manager"
-
-    - name: Check current global access list
+    - name: Test API connectivity
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/admin/accessList"
-        method: GET
-        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
-        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
-        force_basic_auth: false
-        headers:
-          Accept: "application/json"
-        status_code: [200, 403]
-        return_content: yes
-      register: current_access_list
-      ignore_errors: yes
-
-    - name: Display current access list status
-      ansible.builtin.debug:
-        msg:
-          - "Current access list status: {{ 'Retrieved' if current_access_list.status == 200 else 'Access denied (will add IP)' }}"
-          - "Status code: {{ current_access_list.status }}"
-      when: current_access_list is defined
-
-    - name: Add control node IP to global access list
-      ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/admin/accessList"
-        method: POST
-        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
-        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
-        force_basic_auth: false
-        headers:
-          Accept: "application/json"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          ipAddress: "{{ control_node_ip.stdout }}"
-          cidrBlock: "{{ control_node_ip.stdout }}/32"
-        status_code: [200, 201, 409, 403]
-        return_content: yes
-      register: add_ip_result
-      ignore_errors: yes
-
-    - name: Display IP whitelist result
-      ansible.builtin.debug:
-        msg:
-          - "IP Whitelist Result:"
-          - "  Status: {{ 'Success' if add_ip_result.status in [200, 201] else 'Already exists' if add_ip_result.status == 409 else 'Failed' }}"
-          - "  IP Added: {{ control_node_ip.stdout }}/32"
-          - "  Note: If status is 409, IP is already whitelisted"
-
-    - name: Wait for access list propagation
-      ansible.builtin.pause:
-        seconds: 5
-        prompt: "Waiting 5 seconds for API access list to propagate..."
-      when: add_ip_result.status in [200, 201]
-
-    - name: Verify API access
-      ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}"
         method: GET
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -110,20 +40,14 @@
           Accept: "application/json"
         status_code: 200
         return_content: yes
-      register: verify_access
+      register: api_test
 
-    - name: Display API access verification
+    - name: Display API test result
       ansible.builtin.debug:
         msg:
-          - "=========================================="
-          - "API Access Verified Successfully!"
-          - "=========================================="
-          - "Control node can now access Ops Manager API"
+          - "API Connectivity: SUCCESS"
+          - "Project Name: {{ api_test.json.name }}"
           - ""
-
-    # ============================================
-    # STEP 2: Generate Keyfile and Deploy
-    # ============================================
 
     - name: Generate MongoDB keyfile for authentication
       ansible.builtin.shell: |
