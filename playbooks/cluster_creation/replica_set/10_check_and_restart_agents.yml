@@ -1,0 +1,90 @@
+---
+- name: Check and Restart Agents to Enable Monitoring
+  hosts: all
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Check automation agent status
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: started
+      register: agent_status
+
+    - name: Restart automation agent to pick up monitoring config
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: restarted
+      register: restart_result
+
+    - name: Wait for agent to restart
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Check agent logs for monitoring
+      ansible.builtin.shell: |
+        tail -50 /var/log/mongodb-mms-automation/automation-agent-fatal.log 2>/dev/null || \
+        journalctl -u mongodb-mms-automation-agent -n 50 --no-pager || \
+        echo "NO_LOGS_AVAILABLE"
+      register: agent_logs
+
+    - name: Display agent logs
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Host: {{ inventory_hostname }}"
+          - "=========================================="
+          - "Agent restarted: {{ restart_result.changed }}"
+          - ""
+          - "Recent logs:"
+          - "{{ agent_logs.stdout_lines[-20:] | default(['No logs']) | join('\n') }}"
+          - "=========================================="
+
+    - name: Check if monitoring agent process exists
+      ansible.builtin.shell: |
+        ps aux | grep -i monitoring | grep -v grep || echo "NO_MONITORING_PROCESS"
+      register: monitoring_process
+
+    - name: Display monitoring process status
+      ansible.builtin.debug:
+        msg: "Monitoring process: {{ monitoring_process.stdout }}"
+
+- name: Check Ops Manager Hosts Status
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Get hosts status from Ops Manager
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: hosts_status
+
+    - name: Display monitoring status per host
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "HOSTS MONITORING STATUS"
+          - "=========================================="
+          - "Total hosts: {{ hosts_status.json.results | length }}"
+          - ""
+          - "{% for host in hosts_status.json.results %}"
+          - "Host: {{ host.hostname }}"
+          - "  Type: {{ host.typeName | default('N/A') }}"
+          - "  Monitoring Agent: {{ 'ACTIVE' if host.lastPing is defined else 'NOT REPORTING' }}"
+          - "  Last Ping: {{ host.lastPing | default('Never') }}"
+          - "{% endfor %}"
+          - "=========================================="
+          - ""
+          - "If monitoring is not active:"
+          - "  1. Agents restarted (wait 2-3 minutes)"
+          - "  2. Check Ops Manager UI: Deployment → Servers"
+          - "  3. Verify firewall allows agents to reach Ops Manager"
+          - "=========================================="
