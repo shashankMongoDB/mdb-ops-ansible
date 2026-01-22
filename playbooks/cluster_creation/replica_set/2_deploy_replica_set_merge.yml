@@ -167,7 +167,9 @@
           - "=========================================="
           - "Automation Config Updated!"
           - "=========================================="
-          - "New Version: {{ update_result.json.version }}"
+          - "Status: {{ update_result.status }}"
+          - "Response: {{ update_result.json }}"
+          - ""
           - "Deployment in progress (5-10 minutes)..."
 
     - name: Wait for deployment to reach goal state
