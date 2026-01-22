@@ -1,0 +1,65 @@
+---
+- name: Check MongoDB Detailed Status
+  hosts: all
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Check mongod config
+      ansible.builtin.shell: cat /data/db/automation-mongod.conf
+      register: mongod_config
+      ignore_errors: yes
+
+    - name: Check mongod logs
+      ansible.builtin.shell: tail -100 /var/log/mongodb/mongod.log
+      register: mongod_logs
+      ignore_errors: yes
+
+    - name: Check what ports mongod is listening on
+      ansible.builtin.shell: sudo lsof -i -P -n | grep mongod || echo "NO_PORTS"
+      register: mongod_ports
+      ignore_errors: yes
+
+    - name: Check if mongod has any errors
+      ansible.builtin.shell: journalctl -u mongodb-mms-automation-agent -n 50 --no-pager
+      register: agent_journal
+      ignore_errors: yes
+
+    - name: Display detailed status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Host: {{ inventory_hostname }}"
+          - "=========================================="
+          - ""
+          - "Mongod Configuration:"
+          - "{{ mongod_config.stdout_lines | default(['NO CONFIG FILE']) | join('\n') }}"
+          - ""
+          - "Ports mongod is listening on:"
+          - "{{ mongod_ports.stdout }}"
+          - ""
+          - "Last 30 lines of mongod log:"
+          - "{{ mongod_logs.stdout_lines[-30:] | default(['NO LOGS']) | join('\n') }}"
+          - ""
+          - "=========================================="
+
+- name: Test MongoDB Connection
+  hosts: mongodb_primary
+  gather_facts: no
+  tasks:
+    - name: Try to connect to MongoDB
+      ansible.builtin.shell: |
+        mongosh --port 27017 --eval "db.version()" 2>&1 || echo "CONNECTION_FAILED"
+      register: mongo_test
+      ignore_errors: yes
+
+    - name: Display connection test result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "MongoDB Connection Test (Primary)"
+          - "=========================================="
+          - "{{ mongo_test.stdout }}"
+          - ""
+          - "{% if 'CONNECTION_FAILED' in mongo_test.stdout %}❌ Cannot connect - MongoDB may still be starting{% else %}✅ Connected successfully!{% endif %}"
+          - "=========================================="
