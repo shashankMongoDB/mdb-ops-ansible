@@ -114,20 +114,9 @@
               priority: "{{ hostvars[groups['mongodb_secondary'][1]]['priority'] }}"
               votes: 1
 
-    - name: Check if authSchemaVersion exists in current config
-      ansible.builtin.debug:
-        msg:
-          - "authSchemaVersion in current config: {{ 'authSchemaVersion' in current_config.json }}"
-          - "Value: {{ current_config.json.authSchemaVersion | default('NOT PRESENT') }}"
-
-    - name: Merge with current config (preserve all fields)
+    - name: Merge with current config (preserve all fields, NO authSchemaVersion)
       ansible.builtin.set_fact:
         merged_config: "{{ current_config.json | combine({'processes': new_processes, 'replicaSets': [new_replicaset]}, recursive=True) }}"
-    
-    - name: Add authSchemaVersion if not present
-      ansible.builtin.set_fact:
-        merged_config: "{{ merged_config | combine({'authSchemaVersion': 5}) }}"
-      when: "'authSchemaVersion' not in current_config.json"
 
     - name: Save merged config to file
       ansible.builtin.copy:
