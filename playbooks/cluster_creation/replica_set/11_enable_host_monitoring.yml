@@ -23,11 +23,7 @@
 
     - name: Display current hosts status
       ansible.builtin.debug:
-        msg:
-          - "Found {{ hosts_status.json.results | length }} hosts"
-          - "{% for host in hosts_status.json.results %}"
-          - "  - {{ host.hostname }}: {{ host.typeName }} (ID: {{ host.id }})"
-          - "{% endfor %}"
+        msg: "Found {{ hosts_status.json.results | length }} hosts: {{ hosts_status.json.results | map(attribute='hostname') | list }}"
 
     - name: Enable monitoring on each host
       ansible.builtin.uri:
@@ -51,16 +47,7 @@
 
     - name: Display enable results
       ansible.builtin.debug:
-        msg:
-          - "=========================================="
-          - "Monitoring Enabled on Host"
-          - "=========================================="
-          - "Hostname: {{ item.json.hostname }}"
-          - "Status: {{ item.json.typeName }}"
-          - "Alerts: {{ item.json.alertsEnabled }}"
-          - "Logs: {{ item.json.logsEnabled }}"
-          - "Profiler: {{ item.json.profilerEnabled }}"
-          - "=========================================="
+        msg: "Enabled monitoring on {{ item.json.hostname }}: logs={{ item.json.logsEnabled }}, alerts={{ item.json.alertsEnabled }}"
       loop: "{{ enable_result.results }}"
 
     - name: Wait for monitoring to activate
@@ -84,27 +71,15 @@
     - name: Display final monitoring status
       ansible.builtin.debug:
         msg:
-          - ""
           - "=========================================="
           - "FINAL MONITORING STATUS"
           - "=========================================="
-          - "{% for host in updated_hosts_status.json.results %}"
-          - "Host: {{ host.hostname }}"
-          - "  Type: {{ host.typeName }}"
-          - "  Alerts: {{ host.alertsEnabled }}"
-          - "  Logs: {{ host.logsEnabled }}"
-          - "  Last Ping: {{ host.lastPing | default('Never') }}"
-          - "  Cluster: {{ host.clusterId }}"
+          - "{{ updated_hosts_status.json.results | map(attribute='hostname') | list | join(', ') }}"
           - ""
-          - "{% endfor %}"
-          - "=========================================="
+          - "Types: {{ updated_hosts_status.json.results | map(attribute='typeName') | list }}"
           - ""
-          - "Check Ops Manager UI:"
-          - "  http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080"
-          - "  → Deployment → Servers"
+          - "Check Ops Manager UI: http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080"
+          - "Navigate to: Deployment → Servers"
           - ""
-          - "If still showing 'NO_DATA':"
-          - "  - Wait 5-10 minutes for first metrics"
-          - "  - Check agent logs on VMs"
-          - "  - Verify network connectivity to Ops Manager"
+          - "If still NO_DATA, wait 5-10 minutes for metrics to appear"
           - "=========================================="
