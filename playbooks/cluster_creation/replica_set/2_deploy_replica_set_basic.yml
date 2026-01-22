@@ -1,0 +1,206 @@
+---
+- name: Deploy MongoDB Replica Set (Basic - No Auth)
+  hosts: localhost
+  gather_facts: yes
+
+  vars:
+    automation_config_file: "/tmp/automation_config.json"
+    current_config_file: "/tmp/current_automation_config.json"
+
+  tasks:
+    - name: Display deployment start
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "MongoDB Replica Set Deployment (Basic)"
+          - "=========================================="
+          - "Cluster Type: 3-Node Replica Set"
+          - "MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          - "Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          - "Authentication: DISABLED (will enable later)"
+          - ""
+          - "Nodes:"
+          - "  - {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }} (Primary)"
+          - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }} (Secondary)"
+          - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }} (Secondary)"
+          - ""
+          - "Ops Manager: {{ hostvars[groups['all'][0]]['ops_manager_url'] }}"
+          - "Project ID: {{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}"
+          - ""
+
+    - name: Test API connectivity
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: api_test
+
+    - name: Display API test result
+      ansible.builtin.debug:
+        msg:
+          - "API Connectivity: SUCCESS"
+          - "Project Name: {{ api_test.json.name }}"
+          - ""
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Save current config to file
+      ansible.builtin.copy:
+        content: "{{ current_config.json | to_nice_json }}"
+        dest: "{{ current_config_file }}"
+
+    - name: Display current config version
+      ansible.builtin.debug:
+        msg: "Current automation config version: {{ current_config.json.version }}"
+
+    - name: Build basic replica set automation config
+      ansible.builtin.template:
+        src: templates/replica_set_config_basic.j2
+        dest: "{{ automation_config_file }}"
+      vars:
+        mongodb_version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+        replica_set_name: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+        
+        # Node 1 (Primary candidate)
+        node1_name: "{{ groups['mongodb_primary'][0] }}"
+        node1_hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}"
+        node1_priority: "{{ hostvars[groups['mongodb_primary'][0]]['priority'] }}"
+        node1_member_id: "{{ hostvars[groups['mongodb_primary'][0]]['member_id'] }}"
+        
+        # Node 2 (Secondary)
+        node2_name: "{{ groups['mongodb_secondary'][0] }}"
+        node2_hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}"
+        node2_priority: "{{ hostvars[groups['mongodb_secondary'][0]]['priority'] }}"
+        node2_member_id: "{{ hostvars[groups['mongodb_secondary'][0]]['member_id'] }}"
+        
+        # Node 3 (Secondary)
+        node3_name: "{{ groups['mongodb_secondary'][1] }}"
+        node3_hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}"
+        node3_priority: "{{ hostvars[groups['mongodb_secondary'][1]]['priority'] }}"
+        node3_member_id: "{{ hostvars[groups['mongodb_secondary'][1]]['member_id'] }}"
+
+    - name: Display automation config preview
+      ansible.builtin.shell: |
+        head -50 {{ automation_config_file }}
+      register: config_preview
+
+    - name: Show config preview
+      ansible.builtin.debug:
+        msg: "{{ config_preview.stdout_lines }}"
+
+    - name: Update automation config via API
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ lookup('file', automation_config_file) }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display update result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Automation Config Updated!"
+          - "=========================================="
+          - "New Version: {{ update_result.json.version }}"
+          - ""
+          - "Deployment in progress..."
+          - "Agents will now:"
+          - "  1. Download MongoDB {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          - "  2. Start mongod processes"
+          - "  3. Initialize replica set"
+          - ""
+          - "This will take 5-10 minutes..."
+          - ""
+
+    - name: Wait for deployment to reach goal state
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationStatus"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+      until: automation_status.json.goalVersion == automation_status.json.lastGoalVersionAchieved
+      retries: 60
+      delay: 10
+
+    - name: Display deployment complete
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "REPLICA SET DEPLOYED SUCCESSFULLY!"
+          - "=========================================="
+          - ""
+          - "Status: SUCCESS"
+          - "Goal Version: {{ automation_status.json.goalVersion }}"
+          - "Achieved Version: {{ automation_status.json.lastGoalVersionAchieved }}"
+          - ""
+          - "Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          - "Members:"
+          - "  - {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017"
+          - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017"
+          - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017"
+          - ""
+          - "⚠️  Authentication: DISABLED (open access)"
+          - ""
+          - "Connection String:"
+          - "mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017/?replicaSet={{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          - ""
+          - "Next Steps:"
+          - "1. Test connection: mongosh <connection_string>"
+          - "2. Enable authentication: ansible-playbook 3_enable_authentication.yml"
+          - "3. Create admin user: ansible-playbook 4_create_admin_user.yml"
+          - "4. Enable backup: ansible-playbook 5_enable_backup.yml"
+          - "=========================================="
+
+    - name: Save deployment details
+      ansible.builtin.copy:
+        content: |
+          MongoDB Replica Set Deployment Complete (Basic)
+          ================================================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}
+          MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}
+          
+          Nodes:
+            - {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017
+            - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017
+            - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017
+          
+          Connection String (NO AUTH):
+          mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017/?replicaSet={{ hostvars[groups['all'][0]]['replica_set_name'] }}
+          
+          ⚠️  WARNING: Authentication is DISABLED
+          Next: Run 3_enable_authentication.yml to secure the cluster
+        dest: "./deployment_{{ hostvars[groups['all'][0]]['replica_set_name'] }}_{{ ansible_date_time.epoch }}.txt"
