@@ -1,17 +1,20 @@
 {
   "auth": {
 {% if enable_auth | bool %}
-    "disabled": false,
     "authoritativeSet": true,
     "autoAuthMechanism": "SCRAM-SHA-256",
+    "disabled": false,
     "key": "{{ keyfile_base64 }}",
     "keyfile": "/data/keyfile",
-    "keyfileWindows": "C:\\data\\keyfile"
+    "keyfileWindows": "C:\\data\\keyfile",
+    "usersWanted": [],
+    "usersDeleted": []
 {% else %}
     "disabled": true,
     "authoritativeSet": false
 {% endif %}
   },
+  "authSchemaVersion": 5,
   "processes": [
     {
       "name": "{{ node1_name }}",
