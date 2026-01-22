@@ -1,0 +1,197 @@
+---
+# Standalone playbook to manage Ops Manager API Access List
+# This whitelists IPs that need to call Ops Manager API
+# Can be run independently or is auto-called by deployment playbooks
+
+- name: Manage Ops Manager API Access List
+  hosts: localhost
+  gather_facts: yes
+
+  vars:
+    # Can be overridden with -e "whitelist_mode=add|remove|list"
+    whitelist_mode: "{{ lookup('env', 'WHITELIST_MODE') | default('add', true) }}"
+    
+    # Can whitelist specific IPs or use control node IP
+    whitelist_ips: "{{ lookup('env', 'WHITELIST_IPS') | default('', true) }}"
+
+  tasks:
+    - name: Display operation start
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Ops Manager API Access List Management"
+          - "=========================================="
+          - "Mode: {{ whitelist_mode }}"
+          - "Ops Manager: {{ hostvars[groups['all'][0]]['ops_manager_url'] }}"
+          - "Organization ID: {{ hostvars[groups['all'][0]]['ops_manager_org_id'] }}"
+          - "API Key: {{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+          - ""
+
+    - name: Get control node IP address
+      ansible.builtin.shell: |
+        hostname -I | awk '{print $1}'
+      register: control_node_ip
+      changed_when: false
+
+    - name: Set IPs to whitelist
+      ansible.builtin.set_fact:
+        ips_to_manage: "{{ whitelist_ips.split(',') if whitelist_ips else [control_node_ip.stdout] }}"
+
+    - name: Display IPs to manage
+      ansible.builtin.debug:
+        msg:
+          - "IPs to {{ whitelist_mode }}:"
+          - "{{ ips_to_manage }}"
+          - ""
+
+    # ============================================
+    # LIST: Show current access list
+    # ============================================
+    
+    - name: Get current API access list
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/orgs/{{ hostvars[groups['all'][0]]['ops_manager_org_id'] }}/apiKeys/{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}/accessList"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 403]
+        return_content: yes
+      register: current_access_list
+      ignore_errors: yes
+
+    - name: Display current access list
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Current API Access List:"
+          - "=========================================="
+          - "{{ current_access_list.json.results | default([]) | map(attribute='ipAddress') | list if current_access_list.status == 200 else ['Access denied - unable to retrieve'] }}"
+          - ""
+      when: whitelist_mode in ['list', 'add', 'remove']
+
+    # ============================================
+    # ADD: Whitelist IPs
+    # ============================================
+    
+    - name: Add IPs to access list
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/orgs/{{ hostvars[groups['all'][0]]['ops_manager_org_id'] }}/apiKeys/{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}/accessList"
+        method: POST
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          ipAddress: "{{ item }}"
+          cidrBlock: "{{ item }}/32"
+        status_code: [200, 201, 409]
+        return_content: yes
+      register: add_result
+      loop: "{{ ips_to_manage }}"
+      when: whitelist_mode == 'add'
+      ignore_errors: yes
+
+    - name: Display add results
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "IP Whitelist Results:"
+          - "=========================================="
+          - "{{ add_result.results | map(attribute='item') | zip(add_result.results | map(attribute='status')) | map('join', ': ') | list if add_result.results is defined else ['No IPs added'] }}"
+          - ""
+          - "Status codes:"
+          - "  200/201 = Successfully added"
+          - "  409 = Already exists (OK)"
+          - ""
+      when: whitelist_mode == 'add' and add_result is defined
+
+    # ============================================
+    # REMOVE: De-whitelist IPs
+    # ============================================
+    
+    - name: Remove IPs from access list
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/orgs/{{ hostvars[groups['all'][0]]['ops_manager_org_id'] }}/apiKeys/{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}/accessList/{{ item }}"
+        method: DELETE
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 204, 404]
+        return_content: yes
+      register: remove_result
+      loop: "{{ ips_to_manage }}"
+      when: whitelist_mode == 'remove'
+      ignore_errors: yes
+
+    - name: Display remove results
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "IP De-whitelist Results:"
+          - "=========================================="
+          - "{{ remove_result.results | map(attribute='item') | zip(remove_result.results | map(attribute='status')) | map('join', ': ') | list if remove_result.results is defined else ['No IPs removed'] }}"
+          - ""
+          - "Status codes:"
+          - "  200/204 = Successfully removed"
+          - "  404 = Not found (already removed)"
+          - ""
+      when: whitelist_mode == 'remove' and remove_result is defined
+
+    # ============================================
+    # VERIFICATION
+    # ============================================
+    
+    - name: Wait for access list propagation
+      ansible.builtin.pause:
+        seconds: 5
+        prompt: "Waiting 5 seconds for API access list to propagate..."
+      when: whitelist_mode in ['add', 'remove']
+
+    - name: Verify API access after changes
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 403]
+        return_content: yes
+      register: verify_access
+      when: whitelist_mode == 'add'
+      ignore_errors: yes
+
+    - name: Display verification result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "API Access Verification:"
+          - "=========================================="
+          - "Status: {{ 'SUCCESS - API is accessible' if verify_access.status == 200 else 'FAILED - API still blocked' }}"
+          - "Control node {{ control_node_ip.stdout }} can {{ 'now' if verify_access.status == 200 else 'NOT' }} access Ops Manager API"
+          - ""
+      when: whitelist_mode == 'add' and verify_access is defined
+
+    - name: Final summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Operation Complete!"
+          - "=========================================="
+          - "Mode: {{ whitelist_mode }}"
+          - "IPs processed: {{ ips_to_manage | join(', ') }}"
+          - ""
+          - "Next steps:"
+          - "  - If mode was 'add': Run deployment playbooks"
+          - "  - If mode was 'list': Review current whitelist"
+          - "  - If mode was 'remove': IPs no longer have API access"
+          - "=========================================="
