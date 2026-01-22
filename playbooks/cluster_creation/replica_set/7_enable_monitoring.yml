@@ -1,0 +1,114 @@
+---
+- name: Enable Monitoring in Ops Manager
+  hosts: localhost
+  gather_facts: yes
+
+  tasks:
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Build monitoring agent configs
+      ansible.builtin.set_fact:
+        monitoring_agents:
+          - hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+            logPath: "/var/log/mongodb-mms-automation/monitoring-agent.log"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+            logPath: "/var/log/mongodb-mms-automation/monitoring-agent.log"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
+            logPath: "/var/log/mongodb-mms-automation/monitoring-agent.log"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+
+    - name: Build backup agent configs
+      ansible.builtin.set_fact:
+        backup_agents:
+          - hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+            logPath: "/var/log/mongodb-mms-automation/backup-agent.log"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+            logPath: "/var/log/mongodb-mms-automation/backup-agent.log"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
+            logPath: "/var/log/mongodb-mms-automation/backup-agent.log"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+
+    - name: Update config with monitoring and backup agents
+      ansible.builtin.set_fact:
+        updated_config: "{{ current_config.json | combine({'monitoringVersions': [{'hostname': hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'], 'name': 'latest'}], 'backupVersions': [{'hostname': hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'], 'name': 'latest'}]}, recursive=True) }}"
+
+    - name: Add monitoring agents to config
+      ansible.builtin.set_fact:
+        updated_config: "{{ updated_config | combine({'monitoring': monitoring_agents}, recursive=True) }}"
+
+    - name: Add backup agents to config
+      ansible.builtin.set_fact:
+        updated_config: "{{ updated_config | combine({'backup': backup_agents}, recursive=True) }}"
+
+    - name: Display config preview
+      ansible.builtin.debug:
+        msg:
+          - "Enabling monitoring on:"
+          - "  - {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+          - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+          - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
+
+    - name: Update automation config with monitoring
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ updated_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Monitoring Enabled!"
+          - "=========================================="
+          - ""
+          - "Monitoring agents will start on all 3 servers."
+          - "Check Ops Manager UI in 2-3 minutes."
+          - ""
+          - "Navigate to: Deployment → Servers"
+          - "You should see monitoring data appearing."
+          - "=========================================="
+
+    - name: Wait for monitoring to activate
+      ansible.builtin.pause:
+        prompt: "Monitoring configuration updated. Check Ops Manager UI in 2-3 minutes. Press Enter when ready..."
