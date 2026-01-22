@@ -1,0 +1,195 @@
+---
+- name: Deploy MongoDB Replica Set (Merge Approach)
+  hosts: localhost
+  gather_facts: yes
+
+  vars:
+    automation_config_file: "/tmp/automation_config.json"
+
+  tasks:
+    - name: Display deployment start
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "MongoDB Replica Set Deployment (Merge)"
+          - "=========================================="
+          - "Strategy: Modify existing config (not replace)"
+          - ""
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Display current config version
+      ansible.builtin.debug:
+        msg: 
+          - "Current config version: {{ current_config.json.version }}"
+          - "Current processes: {{ current_config.json.processes | length }}"
+          - "Current replica sets: {{ current_config.json.replicaSets | length }}"
+
+    - name: Build process definitions
+      ansible.builtin.set_fact:
+        new_processes:
+          - name: "{{ groups['mongodb_primary'][0] }}"
+            hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}"
+            args2_6:
+              net:
+                port: 27017
+              storage:
+                dbPath: "/data/db"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/mongod.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          
+          - name: "{{ groups['mongodb_secondary'][0] }}"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}"
+            args2_6:
+              net:
+                port: 27017
+              storage:
+                dbPath: "/data/db"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/mongod.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          
+          - name: "{{ groups['mongodb_secondary'][1] }}"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}"
+            args2_6:
+              net:
+                port: 27017
+              storage:
+                dbPath: "/data/db"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/mongod.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+
+    - name: Build replica set definition
+      ansible.builtin.set_fact:
+        new_replicaset:
+          _id: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          members:
+            - _id: "{{ hostvars[groups['mongodb_primary'][0]]['member_id'] }}"
+              host: "{{ groups['mongodb_primary'][0] }}"
+              priority: "{{ hostvars[groups['mongodb_primary'][0]]['priority'] }}"
+              votes: 1
+            - _id: "{{ hostvars[groups['mongodb_secondary'][0]]['member_id'] }}"
+              host: "{{ groups['mongodb_secondary'][0] }}"
+              priority: "{{ hostvars[groups['mongodb_secondary'][0]]['priority'] }}"
+              votes: 1
+            - _id: "{{ hostvars[groups['mongodb_secondary'][1]]['member_id'] }}"
+              host: "{{ groups['mongodb_secondary'][1] }}"
+              priority: "{{ hostvars[groups['mongodb_secondary'][1]]['priority'] }}"
+              votes: 1
+
+    - name: Merge with current config
+      ansible.builtin.set_fact:
+        merged_config: "{{ current_config.json | combine({'processes': new_processes, 'replicaSets': [new_replicaset]}) }}"
+
+    - name: Save merged config to file
+      ansible.builtin.copy:
+        content: "{{ merged_config | to_nice_json }}"
+        dest: "{{ automation_config_file }}"
+
+    - name: Display merged config preview
+      ansible.builtin.shell: |
+        head -100 {{ automation_config_file }}
+      register: config_preview
+
+    - name: Show config preview
+      ansible.builtin.debug:
+        msg: "{{ config_preview.stdout_lines }}"
+
+    - name: Update automation config via API
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ merged_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display update result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Automation Config Updated!"
+          - "=========================================="
+          - "New Version: {{ update_result.json.version }}"
+          - "Deployment in progress (5-10 minutes)..."
+
+    - name: Wait for deployment to reach goal state
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationStatus"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+      until: automation_status.json.goalVersion == automation_status.json.lastGoalVersionAchieved
+      retries: 60
+      delay: 10
+
+    - name: Display deployment complete
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "REPLICA SET DEPLOYED SUCCESSFULLY!"
+          - "=========================================="
+          - ""
+          - "Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          - "MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          - ""
+          - "Members:"
+          - "  - {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017"
+          - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017"
+          - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017"
+          - ""
+          - "Connection String (NO AUTH):"
+          - "mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017/?replicaSet={{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          - ""
+          - "⚠️  Authentication is DISABLED"
+          - "=========================================="
