@@ -6,9 +6,19 @@
   serial: 3  # Install on all VMs in parallel
 
   vars:
-    agent_download_url: "{{ ops_manager_url }}/download/agent/automation/mongodb-mms-automation-agent-manager_latest_amd64.ubuntu2204.deb"
     agent_config_path: "/etc/mongodb-mms/automation-agent.config"
     agent_service: "mongodb-mms-automation-agent"
+    
+    # Agent download URL patterns for different OS
+    # From MongoDB docs: All Ubuntu versions (16.04/18.04/20.04/22.04/24.04) use ubuntu1604.deb
+    # All Debian versions (9/10/11/12) use ubuntu1604.deb
+    # This is a universal package that works across versions
+    agent_package_map:
+      ubuntu: "ubuntu1604"
+      debian: "ubuntu1604"
+      rhel: "rhel7"
+      centos: "rhel7"
+      amzn: "amazon2"
 
   tasks:
     - name: Display installation start
@@ -70,6 +80,34 @@
       loop:
         - /data/db
         - /var/log/mongodb
+
+    - name: Detect OS and architecture
+      ansible.builtin.set_fact:
+        detected_os_name: "{{ ansible_distribution | lower }}"
+        detected_os_version: "{{ ansible_distribution_version }}"
+        detected_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+
+    - name: Display detected system info
+      ansible.builtin.debug:
+        msg:
+          - "Detected OS: {{ detected_os_name }}"
+          - "OS Version: {{ detected_os_version }}"
+          - "Architecture: {{ detected_arch }}"
+          - "Distribution: {{ ansible_distribution }}"
+
+    - name: Determine agent package suffix
+      ansible.builtin.set_fact:
+        agent_package_suffix: "{{ agent_package_map[detected_os_name] | default('ubuntu1604') }}"
+
+    - name: Build agent download URL
+      ansible.builtin.set_fact:
+        agent_download_url: "{{ ops_manager_url }}/download/agent/automation/mongodb-mms-automation-agent-manager_latest_{{ detected_arch }}.{{ agent_package_suffix }}.deb"
+
+    - name: Display agent download URL
+      ansible.builtin.debug:
+        msg:
+          - "Agent Download URL: {{ agent_download_url }}"
+          - "This URL will be used to download the automation agent"
 
     - name: Check if agent already installed
       ansible.builtin.stat:
