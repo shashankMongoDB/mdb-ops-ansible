@@ -45,9 +45,9 @@
           - "Control Node IP: {{ control_node_ip.stdout }}"
           - "This IP needs API access to Ops Manager"
 
-    - name: Check current API key access list
+    - name: Check current global access list
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/orgs/{{ hostvars[groups['all'][0]]['ops_manager_org_id'] }}/apiKeys/{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}/accessList"
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/admin/accessList"
         method: GET
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -66,9 +66,9 @@
           - "Status code: {{ current_access_list.status }}"
       when: current_access_list is defined
 
-    - name: Add control node IP to API access list
+    - name: Add control node IP to global access list
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/orgs/{{ hostvars[groups['all'][0]]['ops_manager_org_id'] }}/apiKeys/{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}/accessList"
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/admin/accessList"
         method: POST
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -80,7 +80,7 @@
         body:
           ipAddress: "{{ control_node_ip.stdout }}"
           cidrBlock: "{{ control_node_ip.stdout }}/32"
-        status_code: [200, 201, 409]
+        status_code: [200, 201, 409, 403]
         return_content: yes
       register: add_ip_result
       ignore_errors: yes
