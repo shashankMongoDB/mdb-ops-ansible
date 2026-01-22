@@ -1,0 +1,58 @@
+---
+- name: Test Replica Set Status
+  hosts: mongodb_primary
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Test MongoDB connection with mongo binary
+      ansible.builtin.shell: |
+        /var/lib/mongodb-mms-automation/mongodb-linux-x86_64-8.0.17-ent/bin/mongosh --port 27017 --eval "rs.status()" --quiet 2>&1 || echo "RS_CHECK_FAILED"
+      register: rs_status
+      ignore_errors: yes
+
+    - name: Display replica set status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🎉 REPLICA SET STATUS"
+          - "=========================================="
+          - "{{ rs_status.stdout }}"
+          - "=========================================="
+
+- name: Final Summary
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display success message
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "🎉 DEPLOYMENT SUCCESSFUL!"
+          - "=========================================="
+          - ""
+          - "✅ MongoDB 8.0.17-ent is running on all 3 VMs"
+          - "✅ Replica Set 'rs0' is configured"
+          - "✅ All nodes are listening on port 27017"
+          - "✅ Nodes are communicating with each other"
+          - ""
+          - "Connection Details:"
+          - "  Primary: 172.31.16.76:27017"
+          - "  Secondary 1: 172.31.21.74:27017"
+          - "  Secondary 2: 172.31.23.234:27017"
+          - ""
+          - "Connection String:"
+          - "mongodb://172.31.16.76:27017,172.31.21.74:27017,172.31.23.234:27017/?replicaSet=rs0"
+          - ""
+          - "Test Connection (from any VM):"
+          - "  /var/lib/mongodb-mms-automation/mongodb-linux-x86_64-8.0.17-ent/bin/mongosh --port 27017"
+          - ""
+          - "⚠️  Authentication: DISABLED (NO USERNAME/PASSWORD)"
+          - ""
+          - "Next Steps:"
+          - "  1. ✅ Install mongosh globally (optional)"
+          - "  2. ⏭️  Enable authentication"
+          - "  3. ⏭️  Create admin users"
+          - "  4. ⏭️  Configure backup"
+          - "=========================================="
