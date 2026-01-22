@@ -1,0 +1,106 @@
+---
+- name: Enable Monitoring on Each Host
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Get all hosts from Ops Manager
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: hosts_status
+
+    - name: Display current hosts status
+      ansible.builtin.debug:
+        msg:
+          - "Found {{ hosts_status.json.results | length }} hosts"
+          - "{% for host in hosts_status.json.results %}"
+          - "  - {{ host.hostname }}: {{ host.typeName }} (ID: {{ host.id }})"
+          - "{% endfor %}"
+
+    - name: Enable monitoring on each host
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts/{{ item.id }}"
+        method: PATCH
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          alertsEnabled: true
+          logsEnabled: true
+          profilerEnabled: false
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      loop: "{{ hosts_status.json.results }}"
+      register: enable_result
+
+    - name: Display enable results
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Monitoring Enabled on Host"
+          - "=========================================="
+          - "Hostname: {{ item.json.hostname }}"
+          - "Status: {{ item.json.typeName }}"
+          - "Alerts: {{ item.json.alertsEnabled }}"
+          - "Logs: {{ item.json.logsEnabled }}"
+          - "Profiler: {{ item.json.profilerEnabled }}"
+          - "=========================================="
+      loop: "{{ enable_result.results }}"
+
+    - name: Wait for monitoring to activate
+      ansible.builtin.pause:
+        seconds: 30
+        prompt: "Waiting 30 seconds for monitoring agents to start collecting data..."
+
+    - name: Check hosts status again
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: updated_hosts_status
+
+    - name: Display final monitoring status
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "FINAL MONITORING STATUS"
+          - "=========================================="
+          - "{% for host in updated_hosts_status.json.results %}"
+          - "Host: {{ host.hostname }}"
+          - "  Type: {{ host.typeName }}"
+          - "  Alerts: {{ host.alertsEnabled }}"
+          - "  Logs: {{ host.logsEnabled }}"
+          - "  Last Ping: {{ host.lastPing | default('Never') }}"
+          - "  Cluster: {{ host.clusterId }}"
+          - ""
+          - "{% endfor %}"
+          - "=========================================="
+          - ""
+          - "Check Ops Manager UI:"
+          - "  http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080"
+          - "  → Deployment → Servers"
+          - ""
+          - "If still showing 'NO_DATA':"
+          - "  - Wait 5-10 minutes for first metrics"
+          - "  - Check agent logs on VMs"
+          - "  - Verify network connectivity to Ops Manager"
+          - "=========================================="
