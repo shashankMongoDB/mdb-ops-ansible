@@ -41,6 +41,12 @@
         new_processes:
           - name: "{{ groups['mongodb_primary'][0] }}"
             hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
             args2_6:
               net:
                 port: 27017
@@ -55,11 +61,15 @@
             logRotate:
               sizeThresholdMB: 1000
               timeThresholdHrs: 24
-            processType: "mongod"
-            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
           
           - name: "{{ groups['mongodb_secondary'][0] }}"
             hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
             args2_6:
               net:
                 port: 27017
@@ -74,11 +84,15 @@
             logRotate:
               sizeThresholdMB: 1000
               timeThresholdHrs: 24
-            processType: "mongod"
-            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
           
           - name: "{{ groups['mongodb_secondary'][1] }}"
             hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
             args2_6:
               net:
                 port: 27017
@@ -93,8 +107,6 @@
             logRotate:
               sizeThresholdMB: 1000
               timeThresholdHrs: 24
-            processType: "mongod"
-            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
 
     - name: Build replica set definition
       ansible.builtin.set_fact:
@@ -114,7 +126,7 @@
               priority: "{{ hostvars[groups['mongodb_secondary'][1]]['priority'] }}"
               votes: 1
 
-    - name: Merge with current config (preserve all fields, NO authSchemaVersion)
+    - name: Merge with current config (add processes and replicaSets)
       ansible.builtin.set_fact:
         merged_config: "{{ current_config.json | combine({'processes': new_processes, 'replicaSets': [new_replicaset]}, recursive=True) }}"
 
