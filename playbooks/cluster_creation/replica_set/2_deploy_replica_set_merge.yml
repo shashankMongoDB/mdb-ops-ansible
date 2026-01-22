@@ -112,6 +112,7 @@
       ansible.builtin.set_fact:
         new_replicaset:
           _id: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          protocolVersion: 1
           members:
             - _id: "{{ hostvars[groups['mongodb_primary'][0]]['member_id'] }}"
               host: "{{ groups['mongodb_primary'][0] }}"
