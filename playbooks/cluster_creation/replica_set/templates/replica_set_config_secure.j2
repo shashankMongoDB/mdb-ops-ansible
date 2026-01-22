@@ -1,0 +1,136 @@
+{
+  "auth": {
+{% if enable_auth | bool %}
+    "disabled": false,
+    "authoritativeSet": true,
+    "autoAuthMechanism": "SCRAM-SHA-256",
+    "key": "{{ keyfile_base64 }}",
+    "keyfile": "/data/keyfile",
+    "keyfileWindows": "C:\\data\\keyfile"
+{% else %}
+    "disabled": true,
+    "authoritativeSet": false
+{% endif %}
+  },
+  "processes": [
+    {
+      "name": "{{ node1_name }}",
+      "hostname": "{{ node1_hostname }}",
+      "args2_6": {
+        "net": {
+          "port": 27017
+        },
+        "storage": {
+          "dbPath": "/data/db"
+        },
+        "systemLog": {
+          "destination": "file",
+          "path": "/var/log/mongodb/mongod.log",
+          "logAppend": true
+        },
+        "replication": {
+          "replSetName": "{{ replica_set_name }}"
+        }{% if enable_auth | bool %},
+        "security": {
+          "authorization": "enabled"
+        }{% endif %}
+      },
+      "logRotate": {
+        "sizeThresholdMB": 1000,
+        "timeThresholdHrs": 24
+      },
+      "processType": "mongod",
+      "version": "{{ mongodb_version }}"
+    },
+    {
+      "name": "{{ node2_name }}",
+      "hostname": "{{ node2_hostname }}",
+      "args2_6": {
+        "net": {
+          "port": 27017
+        },
+        "storage": {
+          "dbPath": "/data/db"
+        },
+        "systemLog": {
+          "destination": "file",
+          "path": "/var/log/mongodb/mongod.log",
+          "logAppend": true
+        },
+        "replication": {
+          "replSetName": "{{ replica_set_name }}"
+        }{% if enable_auth | bool %},
+        "security": {
+          "authorization": "enabled"
+        }{% endif %}
+      },
+      "logRotate": {
+        "sizeThresholdMB": 1000,
+        "timeThresholdHrs": 24
+      },
+      "processType": "mongod",
+      "version": "{{ mongodb_version }}"
+    },
+    {
+      "name": "{{ node3_name }}",
+      "hostname": "{{ node3_hostname }}",
+      "args2_6": {
+        "net": {
+          "port": 27017
+        },
+        "storage": {
+          "dbPath": "/data/db"
+        },
+        "systemLog": {
+          "destination": "file",
+          "path": "/var/log/mongodb/mongod.log",
+          "logAppend": true
+        },
+        "replication": {
+          "replSetName": "{{ replica_set_name }}"
+        }{% if enable_auth | bool %},
+        "security": {
+          "authorization": "enabled"
+        }{% endif %}
+      },
+      "logRotate": {
+        "sizeThresholdMB": 1000,
+        "timeThresholdHrs": 24
+      },
+      "processType": "mongod",
+      "version": "{{ mongodb_version }}"
+    }
+  ],
+  "replicaSets": [
+    {
+      "_id": "{{ replica_set_name }}",
+      "members": [
+        {
+          "_id": {{ node1_member_id }},
+          "host": "{{ node1_name }}",
+          "priority": {{ node1_priority }},
+          "votes": 1
+        },
+        {
+          "_id": {{ node2_member_id }},
+          "host": "{{ node2_name }}",
+          "priority": {{ node2_priority }},
+          "votes": 1
+        },
+        {
+          "_id": {{ node3_member_id }},
+          "host": "{{ node3_name }}",
+          "priority": {{ node3_priority }},
+          "votes": 1
+        }
+      ]
+    }
+  ]{% if enable_monitoring | bool %},
+  "monitoringVersions": [
+    {
+      "hostname": "{{ ops_manager_host | default('localhost') }}",
+      "name": "{{ mongodb_version }}",
+      "platform": "linux"
+    }
+  ]{% endif %}
+}

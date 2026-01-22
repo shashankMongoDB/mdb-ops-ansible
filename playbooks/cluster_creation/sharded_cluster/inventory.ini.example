@@ -1,0 +1,114 @@
+# MongoDB Sharded Cluster Inventory
+# EC2 Instances - Ubuntu 22.04 LTS - Same VPC (Private IPs)
+#
+# This inventory defines a sharded cluster configuration:
+# - 2 Shards (each with 3-node replica set)
+# - 3 Config Servers (replica set)
+# - 2 Mongos Routers
+# Total: 11 MongoDB processes across available VMs
+
+# ============================================
+# MONGOS ROUTERS (Query Routers)
+# ============================================
+[mongos]
+mongos-01 ansible_host=172.31.16.76 mongos_port=27017
+mongos-02 ansible_host=172.31.21.74 mongos_port=27017
+
+# ============================================
+# CONFIG SERVERS (Metadata Storage)
+# ============================================
+[config_servers]
+config-01 ansible_host=172.31.16.76 mongodb_port=27019 priority=2 member_id=0
+config-02 ansible_host=172.31.21.74 mongodb_port=27019 priority=1 member_id=1
+config-03 ansible_host=172.31.23.234 mongodb_port=27019 priority=1 member_id=2
+
+# ============================================
+# SHARD 1 (3-node Replica Set)
+# ============================================
+[shard1_primary]
+shard1-01 ansible_host=172.31.16.76 mongodb_port=27018 priority=2 member_id=0
+
+[shard1_secondary]
+shard1-02 ansible_host=172.31.21.74 mongodb_port=27018 priority=1 member_id=1
+shard1-03 ansible_host=172.31.23.234 mongodb_port=27018 priority=1 member_id=2
+
+[shard1:children]
+shard1_primary
+shard1_secondary
+
+# ============================================
+# SHARD 2 (3-node Replica Set) - REQUIRES MORE VMs
+# ============================================
+# Note: This requires 3 additional VMs
+# Uncomment and configure when VMs are available
+
+# [shard2_primary]
+# shard2-01 ansible_host=172.31.x.x mongodb_port=27020 priority=2 member_id=0
+
+# [shard2_secondary]
+# shard2-02 ansible_host=172.31.x.x mongodb_port=27020 priority=1 member_id=1
+# shard2-03 ansible_host=172.31.x.x mongodb_port=27020 priority=1 member_id=2
+
+# [shard2:children]
+# shard2_primary
+# shard2_secondary
+
+# ============================================
+# ALL SHARDS (for bulk operations)
+# ============================================
+[all_shards:children]
+shard1
+# shard2  # Uncomment when shard2 is configured
+
+# ============================================
+# ALL MONGODB PROCESSES
+# ============================================
+[mongodb_all:children]
+mongos
+config_servers
+all_shards
+
+[mongodb_all:vars]
+# SSH Configuration - PEM file required
+ansible_user=ubuntu
+ansible_ssh_private_key_file=../sp-k8s.pem
+ansible_become=yes
+ansible_become_method=sudo
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+# Sharded Cluster Specific Configuration
+cluster_type=sharded_cluster
+config_server_replica_set=configRS
+shard1_replica_set=shard1RS
+# shard2_replica_set=shard2RS  # Uncomment when ready
+
+# MongoDB Configuration
+mongodb_version=8.0.17-ent
+mongodb_data_path=/data/db
+mongodb_log_path=/var/log/mongodb
+
+# Ops Manager Configuration
+ops_manager_url=http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080
+ops_manager_host=ec2-35-88-225-248.us-west-2.compute.amazonaws.com
+ops_manager_project_id=6971cfe1d5b6737b86bacc16
+ops_manager_org_id=69666befd5b6737b862a34b5
+ops_manager_agent_api_key=6971d05fd5b6737b86bad2b6c4251d0bc03c9859405599456d3cfb33
+
+# Feature Flags
+enable_authentication=true
+auth_mechanism=SCRAM-SHA-256
+enable_monitoring=true
+enable_backup=true
+
+# OS Configuration
+os_type=ubuntu
+os_version=22
+
+# ============================================
+# NOTES:
+# ============================================
+# 1. This example uses only 3 VMs with multiple processes per VM
+# 2. Different ports avoid conflicts (27017=mongos, 27018=shard1, 27019=config)
+# 3. For production, use dedicated VMs for each process type
+# 4. Minimum for sharded cluster: 11 VMs (2 mongos, 3 config, 3 per shard x2)

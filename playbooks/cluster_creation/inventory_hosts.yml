@@ -1,0 +1,30 @@
+---
+# Master Inventory - All Available MongoDB Hosts
+# This file lists all VMs that can be used for MongoDB deployments
+# Individual cluster inventories will reference these hosts
+
+all_mongodb_hosts:
+  # Available EC2 instances with private IPs
+  vm1:
+    ansible_host: 172.31.16.76
+    hostname: mongodb-01
+    public_dns: ec2-34-218-243-87.us-west-2.compute.amazonaws.com
+    
+  vm2:
+    ansible_host: 172.31.21.74
+    hostname: mongodb-02
+    public_dns: ec2-44-246-28-156.us-west-2.compute.amazonaws.com
+    
+  vm3:
+    ansible_host: 172.31.23.234
+    hostname: mongodb-03
+    public_dns: ec2-44-249-147-58.us-west-2.compute.amazonaws.com
+
+# Add more VMs here as needed for sharded clusters
+# Example for future expansion:
+#  vm4:
+#    ansible_host: 172.31.x.x
+#    hostname: mongodb-04
+#  vm5:
+#    ansible_host: 172.31.x.x
+#    hostname: mongodb-05

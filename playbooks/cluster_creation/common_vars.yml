@@ -1,0 +1,44 @@
+---
+# Common Variables for All Cluster Types
+# Shared across: replica_set, sharded_cluster, standalone
+
+# SSH Configuration
+ansible_user: ubuntu
+ansible_ssh_private_key_file: ../sp-k8s.pem  # Relative to each cluster type directory
+ansible_become: yes
+ansible_become_method: sudo
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+# Ops Manager Configuration
+ops_manager_url: "http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080"
+ops_manager_host: "ec2-35-88-225-248.us-west-2.compute.amazonaws.com"
+ops_manager_project_id: "6971cfe1d5b6737b86bacc16"
+ops_manager_org_id: "69666befd5b6737b862a34b5"
+ops_manager_agent_api_key: "6971d05fd5b6737b86bad2b6c4251d0bc03c9859405599456d3cfb33"
+ops_manager_api_version: "v1.0"
+
+# MongoDB Configuration
+mongodb_version: "8.0.17-ent"
+mongodb_port: 27017
+mongodb_data_path: "/data/db"
+mongodb_log_path: "/var/log/mongodb"
+
+# Authentication Settings
+enable_authentication: true
+auth_mechanism: "SCRAM-SHA-256"
+
+# Monitoring Settings
+enable_monitoring: true
+
+# Backup Settings
+enable_backup: true
+
+# OS Configuration
+os_type: "ubuntu"
+os_version: "22"
+
+# Agent Configuration
+agent_download_url: "{{ ops_manager_url }}/download/agent/automation/mongodb-mms-automation-agent-manager_latest_amd64.ubuntu2204.deb"
+agent_config_path: "/etc/mongodb-mms/automation-agent.config"
+agent_service: "mongodb-mms-automation-agent"
