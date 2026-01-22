@@ -1,6 +1,6 @@
 ---
 - name: Install MongoDB Automation Agent on EC2 Instances
-  hosts: mongodb_all
+  hosts: all
   gather_facts: yes
   become: yes
   serial: 3  # Install on all VMs in parallel
@@ -188,7 +188,7 @@
           - "Next Steps:"
           - "1. Wait 1-2 minutes for agents to fully connect"
           - "2. Check Ops Manager UI:"
-          - "   {{ hostvars[groups['mongodb_all'][0]]['ops_manager_url'] }}"
+          - "   {{ hostvars[groups['all'][0]]['ops_manager_url'] }}"
           - "   → Deployment → Agents tab"
           - "3. Verify all 3 agents show as 'Active'"
           - ""
@@ -209,7 +209,7 @@
           done
           
           echo "Check Ops Manager UI for agent status:"
-          echo "{{ hostvars[groups['mongodb_all'][0]]['ops_manager_url'] }}/v2/#/deployments/agents"
+          echo "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/v2/#/deployments/agents"
         dest: ./verify_agents.sh
         mode: '0755'
 
