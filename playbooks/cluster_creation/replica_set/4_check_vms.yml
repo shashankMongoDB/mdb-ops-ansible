@@ -1,0 +1,85 @@
+---
+- name: Check MongoDB Status on VMs
+  hosts: all
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Check automation agent status
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: started
+      register: agent_status
+      ignore_errors: yes
+
+    - name: Get agent service status
+      ansible.builtin.command: systemctl status mongodb-mms-automation-agent --no-pager
+      register: agent_service
+      ignore_errors: yes
+
+    - name: Check for mongod processes
+      ansible.builtin.shell: ps aux | grep mongod | grep -v grep || echo "NO_MONGOD"
+      register: mongod_process
+
+    - name: Check if MongoDB port is listening
+      ansible.builtin.shell: netstat -tuln | grep 27017 || echo "NOT_LISTENING"
+      register: port_status
+
+    - name: Check /data/db directory
+      ansible.builtin.stat:
+        path: /data/db
+      register: data_dir
+
+    - name: List /data/db contents
+      ansible.builtin.shell: ls -la /data/db
+      register: data_contents
+      ignore_errors: yes
+      when: data_dir.stat.exists
+
+    - name: Check automation logs
+      ansible.builtin.shell: tail -50 /var/log/mongodb-mms-automation/automation-agent.log
+      register: agent_logs
+      ignore_errors: yes
+
+    - name: Display results
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Host: {{ inventory_hostname }} ({{ ansible_host }})"
+          - "=========================================="
+          - ""
+          - "Agent Status: {{ 'RUNNING' if agent_status.status is defined and agent_status.status.ActiveState == 'active' else 'NOT RUNNING' }}"
+          - ""
+          - "MongoDB Process:"
+          - "{{ mongod_process.stdout }}"
+          - ""
+          - "Port 27017: {{ 'LISTENING' if '27017' in port_status.stdout else 'NOT LISTENING' }}"
+          - ""
+          - "/data/db exists: {{ data_dir.stat.exists }}"
+          - "{% if data_dir.stat.exists %}/data/db owner: {{ data_dir.stat.pw_name }}:{{ data_dir.stat.gr_name }}{% endif %}"
+          - "{% if data_dir.stat.exists %}/data/db permissions: {{ data_dir.stat.mode }}{% endif %}"
+          - ""
+          - "Last 10 lines of agent log:"
+          - "{{ agent_logs.stdout_lines[-10:] | join('\n') if agent_logs.stdout_lines is defined else 'NO LOGS' }}"
+          - "=========================================="
+
+- name: Summary
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "SUMMARY"
+          - "=========================================="
+          - ""
+          - "If MongoDB is NOT running, common issues:"
+          - "  1. /data/db doesn't exist → Create it and set ownership"
+          - "  2. Agent logs show errors → Check last lines above"
+          - "  3. MongoDB binary download failed → Check internet access"
+          - "  4. Permissions issue → /data/db must be owned by mongod user"
+          - ""
+          - "Next step: Check agent logs for errors"
+          - "=========================================="
