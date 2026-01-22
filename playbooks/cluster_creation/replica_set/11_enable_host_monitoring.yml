@@ -3,10 +3,14 @@
   hosts: localhost
   gather_facts: no
 
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
   tasks:
     - name: Get all hosts from Ops Manager
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts"
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/hosts"
         method: GET
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -27,7 +31,7 @@
 
     - name: Enable monitoring on each host
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts/{{ item.id }}"
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/hosts/{{ item.id }}"
         method: PATCH
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -66,7 +70,7 @@
 
     - name: Check hosts status again
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/hosts"
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/hosts"
         method: GET
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
