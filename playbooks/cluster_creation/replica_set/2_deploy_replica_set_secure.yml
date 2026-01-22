@@ -2,8 +2,6 @@
 - name: Deploy MongoDB Replica Set with Authentication and Monitoring
   hosts: localhost
   gather_facts: yes
-  vars_files:
-    - inventory.ini
 
   vars:
     automation_config_file: "/tmp/automation_config.json"
@@ -17,10 +15,10 @@
           - "MongoDB Replica Set Deployment"
           - "=========================================="
           - "Cluster Type: 3-Node Replica Set"
-          - "MongoDB Version: {{ hostvars[groups['mongodb_all'][0]]['mongodb_version'] }}"
-          - "Replica Set: {{ hostvars[groups['mongodb_all'][0]]['replica_set_name'] }}"
-          - "Authentication: {{ hostvars[groups['mongodb_all'][0]]['enable_authentication'] }}"
-          - "Monitoring: {{ hostvars[groups['mongodb_all'][0]]['enable_monitoring'] }}"
+          - "MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          - "Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+          - "Authentication: {{ hostvars[groups['all'][0]]['enable_authentication'] }}"
+          - "Monitoring: {{ hostvars[groups['all'][0]]['enable_monitoring'] }}"
           - ""
           - "Nodes:"
           - "  - {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }} (Primary)"
@@ -32,16 +30,16 @@
       ansible.builtin.shell: |
         openssl rand -base64 756
       register: keyfile_content
-      when: hostvars[groups['mongodb_all'][0]]['enable_authentication'] | bool
+      when: hostvars[groups['all'][0]]['enable_authentication'] | bool
 
     - name: Display keyfile generated
       ansible.builtin.debug:
         msg: "MongoDB keyfile generated ({{ keyfile_content.stdout | length }} characters)"
-      when: hostvars[groups['mongodb_all'][0]]['enable_authentication'] | bool
+      when: hostvars[groups['all'][0]]['enable_authentication'] | bool
 
     - name: Get current automation config
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['mongodb_all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['mongodb_all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['mongodb_all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
         method: GET
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -68,10 +66,10 @@
       vars:
         config_version: "{{ current_config.json.version }}"
         keyfile_base64: "{{ keyfile_content.stdout | b64encode }}"
-        mongodb_version: "{{ hostvars[groups['mongodb_all'][0]]['mongodb_version'] }}"
-        replica_set_name: "{{ hostvars[groups['mongodb_all'][0]]['replica_set_name'] }}"
-        enable_auth: "{{ hostvars[groups['mongodb_all'][0]]['enable_authentication'] }}"
-        enable_monitoring: "{{ hostvars[groups['mongodb_all'][0]]['enable_monitoring'] }}"
+        mongodb_version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+        replica_set_name: "{{ hostvars[groups['all'][0]]['replica_set_name'] }}"
+        enable_auth: "{{ hostvars[groups['all'][0]]['enable_authentication'] }}"
+        enable_monitoring: "{{ hostvars[groups['all'][0]]['enable_monitoring'] }}"
         
         # Node 1 (Primary candidate)
         node1_name: "{{ groups['mongodb_primary'][0] }}"
@@ -102,7 +100,7 @@
 
     - name: Update automation config via API
       ansible.builtin.uri:
-        url: "{{ hostvars[groups['mongodb_all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['mongodb_all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['mongodb_all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/{{ hostvars[groups['all'][0]]['ops_manager_api_version'] | default('v1.0') }}/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
         method: PUT
         user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
         password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
@@ -126,7 +124,7 @@
           - ""
           - "Deployment in progress..."
           - "Agents will now:"
-          - "  1. Download MongoDB {{ hostvars[groups['mongodb_all'][0]]['mongodb_version'] }}"
+          - "  1. Download MongoDB {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
           - "  2. Place keyfile on each node"
           - "  3. Start mongod processes"
           - "  4. Initialize replica set"
@@ -161,14 +159,14 @@
           - "Goal Version: {{ automation_status.json.goalVersion }}"
           - "Achieved Version: {{ automation_status.json.lastGoalVersionAchieved }}"
           - ""
-          - "Replica Set: {{ hostvars[groups['mongodb_all'][0]]['replica_set_name'] }}"
+          - "Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}"
           - "Members:"
           - "  - {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017 (PRIMARY)"
           - "  - {{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017 (SECONDARY)"
           - "  - {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017 (SECONDARY)"
           - ""
-          - "Authentication: {{ 'ENABLED' if hostvars[groups['mongodb_all'][0]]['enable_authentication'] | bool else 'DISABLED' }}"
-          - "Monitoring: {{ 'ENABLED' if hostvars[groups['mongodb_all'][0]]['enable_monitoring'] | bool else 'DISABLED' }}"
+          - "Authentication: {{ 'ENABLED' if hostvars[groups['all'][0]]['enable_authentication'] | bool else 'DISABLED' }}"
+          - "Monitoring: {{ 'ENABLED' if hostvars[groups['all'][0]]['enable_monitoring'] | bool else 'DISABLED' }}"
           - ""
           - "Next Steps:"
           - "1. Create admin user: ansible-playbook 3_create_admin_user.yml"
@@ -182,8 +180,8 @@
           ==========================================
           Timestamp: {{ ansible_date_time.iso8601 }}
           
-          Replica Set: {{ hostvars[groups['mongodb_all'][0]]['replica_set_name'] }}
-          MongoDB Version: {{ hostvars[groups['mongodb_all'][0]]['mongodb_version'] }}
+          Replica Set: {{ hostvars[groups['all'][0]]['replica_set_name'] }}
+          MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}
           
           Nodes:
             Primary:   {{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017
@@ -191,10 +189,10 @@
             Secondary: {{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017
           
           Connection String (without auth):
-          mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017/?replicaSet={{ hostvars[groups['mongodb_all'][0]]['replica_set_name'] }}
+          mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ansible_host'] }}:27017,{{ hostvars[groups['mongodb_secondary'][1]]['ansible_host'] }}:27017/?replicaSet={{ hostvars[groups['all'][0]]['replica_set_name'] }}
           
-          Authentication: {{ 'ENABLED' if hostvars[groups['mongodb_all'][0]]['enable_authentication'] | bool else 'DISABLED' }}
-          Monitoring: {{ 'ENABLED' if hostvars[groups['mongodb_all'][0]]['enable_monitoring'] | bool else 'DISABLED' }}
+          Authentication: {{ 'ENABLED' if hostvars[groups['all'][0]]['enable_authentication'] | bool else 'DISABLED' }}
+          Monitoring: {{ 'ENABLED' if hostvars[groups['all'][0]]['enable_monitoring'] | bool else 'DISABLED' }}
           
           Next: Create admin user with 3_create_admin_user.yml
-        dest: "./deployment_{{ hostvars[groups['mongodb_all'][0]]['replica_set_name'] }}_{{ ansible_date_time.epoch }}.txt"
+        dest: "./deployment_{{ hostvars[groups['all'][0]]['replica_set_name'] }}_{{ ansible_date_time.epoch }}.txt"
