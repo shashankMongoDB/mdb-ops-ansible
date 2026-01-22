@@ -186,7 +186,8 @@
       register: automation_status
       until: >
         automation_status.json.goalVersion is defined and
-        (automation_status.json.lastGoalVersionAchieved | default(0)) == automation_status.json.goalVersion
+        automation_status.json.processes | selectattr('lastGoalVersionAchieved', 'defined') | list | length == automation_status.json.processes | length and
+        (automation_status.json.processes | map(attribute='lastGoalVersionAchieved') | list | unique | first) == automation_status.json.goalVersion
       retries: 60
       delay: 10
 

@@ -1,0 +1,72 @@
+---
+- name: Verify MongoDB Replica Set Deployment
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Get automation status
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationStatus"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🎉 REPLICA SET DEPLOYMENT STATUS"
+          - "=========================================="
+          - ""
+          - "Goal Version: {{ automation_status.json.goalVersion }}"
+          - ""
+          - "Process Status:"
+          - "{% for process in automation_status.json.processes %}"
+          - "  {{ process.name }}:"
+          - "    Hostname: {{ process.hostname }}"
+          - "    Goal Achieved: {{ process.lastGoalVersionAchieved }}"
+          - "    Error Code: {{ process.errorCode }}"
+          - "    Status: {% if process.lastGoalVersionAchieved == automation_status.json.goalVersion %}✅ SUCCESS{% else %}⏳ IN PROGRESS{% endif %}"
+          - "{% endfor %}"
+          - ""
+          - "Overall Status: {% if automation_status.json.processes | selectattr('lastGoalVersionAchieved', 'equalto', automation_status.json.goalVersion) | list | length == automation_status.json.processes | length %}✅ ALL PROCESSES AT GOAL STATE{% else %}⏳ DEPLOYMENT IN PROGRESS{% endif %}"
+          - ""
+          - "Connection String (NO AUTH):"
+          - "mongodb://172.31.16.76:27017,172.31.21.74:27017,172.31.23.234:27017/?replicaSet=rs0"
+          - ""
+          - "Test Connection:"
+          - "  ssh -i ../sp-k8s.pem ubuntu@172.31.16.76"
+          - "  mongosh --port 27017"
+          - "  rs.status()"
+          - "=========================================="
+
+- name: Test MongoDB Connection
+  hosts: mongodb_primary
+  gather_facts: no
+  tasks:
+    - name: Check if mongod is running
+      ansible.builtin.shell: |
+        ps aux | grep mongod | grep -v grep || echo "NOT RUNNING"
+      register: mongod_status
+
+    - name: Display mongod status
+      ansible.builtin.debug:
+        msg: "{{ mongod_status.stdout_lines }}"
+
+    - name: Test MongoDB port
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 27017
+        timeout: 5
+      ignore_errors: yes
+      register: port_check
+
+    - name: Display port status
+      ansible.builtin.debug:
+        msg: "MongoDB port 27017: {% if port_check.failed %}❌ NOT LISTENING{% else %}✅ LISTENING{% endif %}"
