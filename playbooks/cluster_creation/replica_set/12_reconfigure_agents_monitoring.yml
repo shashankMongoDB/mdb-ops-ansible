@@ -1,0 +1,160 @@
+---
+- name: Reconfigure Agents to Enable Monitoring
+  hosts: all
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Display current configuration
+      ansible.builtin.debug:
+        msg:
+          - "Reconfiguring agent on: {{ inventory_hostname }}"
+          - "This will enable monitoring capability"
+
+    - name: Stop automation agent
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: stopped
+
+    - name: Backup current agent config
+      ansible.builtin.copy:
+        src: /etc/mongodb-mms/automation-agent.config
+        dest: /etc/mongodb-mms/automation-agent.config.backup
+        remote_src: yes
+
+    - name: Read current agent config
+      ansible.builtin.slurp:
+        src: /etc/mongodb-mms/automation-agent.config
+      register: agent_config_b64
+
+    - name: Parse current config
+      ansible.builtin.set_fact:
+        current_config: "{{ agent_config_b64.content | b64decode }}"
+
+    - name: Display current config (first 20 lines)
+      ansible.builtin.debug:
+        msg: "{{ current_config.split('\n')[:20] }}"
+
+    - name: Check if monitoring is already enabled
+      ansible.builtin.shell: |
+        grep -i "monitoring" /etc/mongodb-mms/automation-agent.config || echo "NOT_FOUND"
+      register: monitoring_check
+
+    - name: Display monitoring check
+      ansible.builtin.debug:
+        msg: "Monitoring config status: {{ monitoring_check.stdout }}"
+
+    - name: Ensure monitoring is enabled in agent config
+      ansible.builtin.lineinfile:
+        path: /etc/mongodb-mms/automation-agent.config
+        line: "{{ item }}"
+        create: no
+      loop:
+        - "# Monitoring configuration"
+        - "monitoringEnabled=true"
+      when: "'NOT_FOUND' in monitoring_check.stdout"
+
+    - name: Verify agent config has correct project settings
+      ansible.builtin.shell: |
+        cat /etc/mongodb-mms/automation-agent.config | grep -E "(mmsGroupId|mmsApiKey|mmsBaseUrl)"
+      register: agent_settings
+
+    - name: Display agent settings
+      ansible.builtin.debug:
+        msg: "{{ agent_settings.stdout_lines }}"
+
+    - name: Start automation agent
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: started
+        enabled: yes
+
+    - name: Wait for agent to start
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Check agent status
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: started
+      register: agent_status
+
+    - name: Display agent status
+      ansible.builtin.debug:
+        msg: "Agent status: {{ agent_status.status.ActiveState }}"
+
+    - name: Check agent logs for monitoring
+      ansible.builtin.shell: |
+        journalctl -u mongodb-mms-automation-agent -n 30 --no-pager | grep -i monitor || echo "NO_MONITORING_LOGS"
+      register: monitoring_logs
+
+    - name: Display monitoring logs
+      ansible.builtin.debug:
+        msg: "{{ monitoring_logs.stdout_lines }}"
+
+- name: Verify Monitoring via API
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
+  tasks:
+    - name: Wait for agents to register
+      ansible.builtin.pause:
+        seconds: 30
+        prompt: "Waiting for agents to register monitoring capability..."
+
+    - name: Check agents status in Ops Manager
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/agents/MONITORING"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 404]
+        return_content: yes
+      register: monitoring_agents
+      ignore_errors: yes
+
+    - name: Display monitoring agents
+      ansible.builtin.debug:
+        msg:
+          - "Monitoring agents API response:"
+          - "{{ monitoring_agents.json | default('No monitoring agents found') }}"
+
+    - name: Check hosts status again
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/hosts"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: hosts_final
+
+    - name: Display final hosts status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "HOSTS STATUS AFTER RECONFIGURATION"
+          - "=========================================="
+          - "{% for host in hosts_final.json.results %}"
+          - "Host: {{ host.hostname }}"
+          - "  Type: {{ host.typeName }}"
+          - "  Logs Enabled: {{ host.logsEnabled }}"
+          - "  Last Ping: {{ host.lastPing | default('Never') }}"
+          - "{% endfor %}"
+          - "=========================================="
+          - ""
+          - "Next Steps:"
+          - "1. Wait 5-10 minutes for metrics to appear"
+          - "2. Check Ops Manager UI: Deployment → Servers"
+          - "3. If still NO_DATA, check: Deployment → Agents"
+          - "=========================================="
