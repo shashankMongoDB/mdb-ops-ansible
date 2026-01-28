@@ -12,7 +12,7 @@
     ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
     ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
     mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') | default('8.0.17-ent', true) }}"
-    mongodb_port: "{{ lookup('env', 'MONGODB_PORT') | default('27017', true) }}"
+    mongodb_port: "{{ lookup('env', 'STANDALONE_MONGODB_PORT') | default('27017', true) }}"
     mongodb_data_path: "{{ lookup('env', 'MONGODB_DATA_PATH') | default('/data/db', true) }}"
     mongodb_log_path: "{{ lookup('env', 'MONGODB_LOG_PATH') | default('/var/log/mongodb', true) }}"
     standalone_hostname: "{{ lookup('env', 'STANDALONE_HOSTNAME') }}"
