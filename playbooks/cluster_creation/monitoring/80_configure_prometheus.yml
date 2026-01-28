@@ -104,7 +104,7 @@
           enabled: true
           username: "{{ prometheus_username | default('', true) }}"
           # Optional: if you want basic auth; Ops Manager will hash it internally
-          password: "{{ prometheus_password | default('', true) }}"
+#          password: "{{ prometheus_password | default('', true) }}"
           scheme: "{{ prometheus_scheme }}"
           mode: "opsManager"
           listenAddress: "0.0.0.0:{{ prometheus_port }}"
