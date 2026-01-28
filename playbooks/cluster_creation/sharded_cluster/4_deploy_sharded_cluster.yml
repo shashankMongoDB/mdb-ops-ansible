@@ -148,15 +148,15 @@
           protocolVersion: 1
           members:
             - _id: 0
-              host: "config-01:27019"
+              host: "config-01"
               priority: 2
               votes: 1
             - _id: 1
-              host: "config-02:27019"
+              host: "config-02"
               priority: 1
               votes: 1
             - _id: 2
-              host: "config-03:27019"
+              host: "config-03"
               priority: 1
               votes: 1
 
@@ -247,15 +247,15 @@
           protocolVersion: 1
           members:
             - _id: 0
-              host: "shard1-01:27018"
+              host: "shard1-01"
               priority: 2
               votes: 1
             - _id: 1
-              host: "shard1-02:27018"
+              host: "shard1-02"
               priority: 1
               votes: 1
             - _id: 2
-              host: "shard1-03:27018"
+              host: "shard1-03"
               priority: 1
               votes: 1
 
