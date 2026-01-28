@@ -1,0 +1,234 @@
+---
+# Convert Existing Replica Set to Sharded Cluster
+# Prerequisites:
+# - Existing replica set must be deployed
+# - Additional VMs needed for:
+#   - 3 config servers (or can use existing RS as a shard)
+#   - 2 mongos routers
+#
+# Usage: ansible-playbook -i inventory_simple.yml 10_convert_to_sharded_cluster.yml
+#
+# This playbook converts your existing rs0 replica set into a sharded cluster
+
+- name: Convert Replica Set to Sharded Cluster
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    
+    # Configuration for config servers (can be same VMs or new ones)
+    config_server_rs_name: "configRS"
+    config_servers:
+      - hostname: "{{ lookup('env', 'CONFIG_VM1_HOSTNAME') }}"
+        name: "config-01"
+        member_id: 0
+      - hostname: "{{ lookup('env', 'CONFIG_VM2_HOSTNAME') }}"
+        name: "config-02"
+        member_id: 1
+      - hostname: "{{ lookup('env', 'CONFIG_VM3_HOSTNAME') }}"
+        name: "config-03"
+        member_id: 2
+    
+    # Mongos routers
+    mongos_routers:
+      - hostname: "{{ lookup('env', 'MONGOS1_HOSTNAME') }}"
+        name: "mongos-01"
+      - hostname: "{{ lookup('env', 'MONGOS2_HOSTNAME') }}"
+        name: "mongos-02"
+    
+    mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') | default('8.0.17-ent', true) }}"
+    shard_name: "shard1"
+
+  tasks:
+    - name: Display conversion plan
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Convert Replica Set to Sharded Cluster"
+          - "=========================================="
+          - ""
+          - "This will convert your existing replica set to a sharded cluster:"
+          - ""
+          - "1. Deploy config servers ({{ config_server_rs_name }})"
+          - "2. Deploy mongos routers"
+          - "3. Add existing replica set as Shard 1"
+          - ""
+          - "Required environment variables:"
+          - "  CONFIG_VM1_HOSTNAME, CONFIG_VM2_HOSTNAME, CONFIG_VM3_HOSTNAME"
+          - "  MONGOS1_HOSTNAME, MONGOS2_HOSTNAME"
+          - ""
+          - "Continuing in 10 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Get existing replica set name
+      ansible.builtin.set_fact:
+        existing_rs_name: "{{ current_config.json.replicaSets[0]._id }}"
+      when: current_config.json.replicaSets | length > 0
+
+    - name: Display existing deployment
+      ansible.builtin.debug:
+        msg:
+          - "Existing deployment:"
+          - "  Replica Set: {{ existing_rs_name }}"
+          - "  Processes: {{ current_config.json.processes | length }}"
+          - ""
+          - "Will become Shard: {{ shard_name }}"
+
+    - name: Build config server processes
+      ansible.builtin.set_fact:
+        config_processes: >-
+          {{
+            config_processes | default([]) + [{
+              'name': item.name,
+              'hostname': item.hostname,
+              'processType': 'mongod',
+              'version': mongodb_version,
+              'authSchemaVersion': 5,
+              'featureCompatibilityVersion': '8.0',
+              'disabled': false,
+              'manualMode': false,
+              'args2_6': {
+                'net': {
+                  'port': 27019
+                },
+                'storage': {
+                  'dbPath': '/data/configdb'
+                },
+                'systemLog': {
+                  'destination': 'file',
+                  'path': '/var/log/mongodb/config.log',
+                  'logAppend': true
+                },
+                'replication': {
+                  'replSetName': config_server_rs_name
+                },
+                'sharding': {
+                  'clusterRole': 'configsvr'
+                }
+              },
+              'logRotate': {
+                'sizeThresholdMB': 1000,
+                'timeThresholdHrs': 24
+              }
+            }]
+          }}
+      loop: "{{ config_servers }}"
+
+    - name: Build config server replica set
+      ansible.builtin.set_fact:
+        config_replicaset:
+          _id: "{{ config_server_rs_name }}"
+          protocolVersion: 1
+          members: >-
+            {{
+              config_servers | map('combine', {'_id': loop.index0, 'host': item.name + ':27019', 'priority': (1 if loop.index0 > 0 else 2), 'votes': 1}) | list
+            }}
+
+    - name: Build mongos processes
+      ansible.builtin.set_fact:
+        mongos_processes: >-
+          {{
+            mongos_processes | default([]) + [{
+              'name': item.name,
+              'hostname': item.hostname,
+              'processType': 'mongos',
+              'version': mongodb_version,
+              'disabled': false,
+              'manualMode': false,
+              'cluster': config_server_rs_name,
+              'args2_6': {
+                'net': {
+                  'port': 27017
+                },
+                'systemLog': {
+                  'destination': 'file',
+                  'path': '/var/log/mongodb/mongos.log',
+                  'logAppend': true
+                }
+              },
+              'logRotate': {
+                'sizeThresholdMB': 1000,
+                'timeThresholdHrs': 24
+              }
+            }]
+          }}
+      loop: "{{ mongos_routers }}"
+
+    - name: Build sharding configuration
+      ansible.builtin.set_fact:
+        sharding_config:
+          - name: "{{ shard_name }}"
+            rs: "{{ existing_rs_name }}"
+            tags: []
+
+    - name: Merge with current config
+      ansible.builtin.set_fact:
+        merged_config: >-
+          {{
+            current_config.json |
+            combine({
+              'processes': (current_config.json.processes + config_processes + mongos_processes),
+              'replicaSets': (current_config.json.replicaSets + [config_replicaset]),
+              'sharding': sharding_config
+            }, recursive=True)
+          }}
+
+    - name: Update automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ merged_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display conversion status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Sharded Cluster Conversion Initiated"
+          - "=========================================="
+          - ""
+          - "Configuration updated:"
+          - "  Config Servers: {{ config_server_rs_name }} (3 nodes on port 27019)"
+          - "  Mongos Routers: {{ mongos_routers | length }} (port 27017)"
+          - "  Shard 1: {{ existing_rs_name }} (your existing replica set)"
+          - ""
+          - "⏱️  Deployment will complete in 10-15 minutes"
+          - ""
+          - "Connect to sharded cluster via mongos:"
+          - "  mongosh --host {{ mongos_routers[0].hostname }} --port 27017"
+          - ""
+          - "Check sharding status:"
+          - "  sh.status()"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ ops_manager_url }}"
+          - "=========================================="

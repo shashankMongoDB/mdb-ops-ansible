@@ -1,0 +1,121 @@
+---
+# Restart Deployment (Re-enable Processes)
+# This re-enables all MongoDB processes that were shut down
+#
+# Usage: ansible-playbook -i inventory_simple.yml 30_restart_deployment.yml
+#
+# Prerequisites: Deployment must be shut down first (using 20_shutdown_deployment.yml)
+
+- name: Restart MongoDB Deployment
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
+  tasks:
+    - name: Display restart plan
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "▶️  Restart MongoDB Deployment"
+          - "=========================================="
+          - ""
+          - "This will:"
+          - "  ✅ Re-enable all MongoDB processes"
+          - "  ✅ Start MongoDB on all servers"
+          - "  ✅ Restore replica set / sharded cluster"
+          - ""
+          - "Continuing in 5 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Count process status
+      ansible.builtin.set_fact:
+        total_processes: "{{ current_config.json.processes | length }}"
+        disabled_processes: "{{ current_config.json.processes | selectattr('disabled', 'equalto', true) | list | length }}"
+        enabled_processes: "{{ current_config.json.processes | selectattr('disabled', 'equalto', false) | list | length }}"
+
+    - name: Display current status
+      ansible.builtin.debug:
+        msg:
+          - "Current status:"
+          - "  Total processes: {{ total_processes }}"
+          - "  Disabled: {{ disabled_processes }}"
+          - "  Enabled: {{ enabled_processes }}"
+          - ""
+          - "Will enable: {{ disabled_processes }} processes"
+
+    - name: Check if any processes need restart
+      ansible.builtin.fail:
+        msg: "All processes are already enabled. Nothing to restart."
+      when: disabled_processes | int == 0
+
+    - name: Enable all processes
+      ansible.builtin.set_fact:
+        enabled_processes_list: >-
+          {{
+            current_config.json.processes | map('combine', {'disabled': false}) | list
+          }}
+
+    - name: Update automation config with enabled processes
+      ansible.builtin.set_fact:
+        restart_config: "{{ current_config.json | combine({'processes': enabled_processes_list}, recursive=True) }}"
+
+    - name: Apply restart configuration
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ restart_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display restart status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Restart Initiated"
+          - "=========================================="
+          - ""
+          - "Re-enabled {{ disabled_processes }} MongoDB processes"
+          - ""
+          - "⏱️  Processes will start in 3-5 minutes"
+          - ""
+          - "What happens next:"
+          - "  1. Automation agents detect config change"
+          - "  2. MongoDB processes start"
+          - "  3. Replica set election occurs"
+          - "  4. Cluster becomes operational"
+          - ""
+          - "To check status:"
+          - "  ansible-playbook -i inventory_simple.yml 40_list_deployments.yml"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ ops_manager_url }}"
+          - "=========================================="

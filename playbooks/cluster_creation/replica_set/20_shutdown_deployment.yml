@@ -1,0 +1,126 @@
+---
+# Shut Down Deployment (Graceful Stop)
+# This disables all MongoDB processes but keeps them in Ops Manager
+# Agents remain running, data is preserved
+#
+# Usage: ansible-playbook -i inventory_simple.yml 20_shutdown_deployment.yml
+#
+# To restart: Run 30_restart_deployment.yml
+
+- name: Shut Down MongoDB Deployment
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
+  tasks:
+    - name: Display shutdown plan
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "⏹️  Shut Down MongoDB Deployment"
+          - "=========================================="
+          - ""
+          - "This will:"
+          - "  ✅ Gracefully stop all MongoDB processes"
+          - "  ✅ Keep configuration in Ops Manager"
+          - "  ✅ Keep automation agents running"
+          - "  ✅ Preserve all data"
+          - ""
+          - "This will NOT:"
+          - "  ❌ Delete any data"
+          - "  ❌ Remove from Ops Manager"
+          - "  ❌ Uninstall agents"
+          - ""
+          - "To restart: Run 30_restart_deployment.yml"
+          - ""
+          - "Continuing in 10 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Count current processes
+      ansible.builtin.set_fact:
+        total_processes: "{{ current_config.json.processes | length }}"
+        enabled_processes: "{{ current_config.json.processes | selectattr('disabled', 'equalto', false) | list | length }}"
+
+    - name: Display current status
+      ansible.builtin.debug:
+        msg:
+          - "Current deployment:"
+          - "  Total processes: {{ total_processes }}"
+          - "  Enabled processes: {{ enabled_processes }}"
+          - "  Will disable: {{ enabled_processes }} processes"
+
+    - name: Check if processes exist
+      ansible.builtin.fail:
+        msg: "No processes found in deployment. Nothing to shut down."
+      when: total_processes | int == 0
+
+    - name: Disable all processes
+      ansible.builtin.set_fact:
+        disabled_processes: >-
+          {{
+            current_config.json.processes | map('combine', {'disabled': true}) | list
+          }}
+
+    - name: Update automation config with disabled processes
+      ansible.builtin.set_fact:
+        shutdown_config: "{{ current_config.json | combine({'processes': disabled_processes}, recursive=True) }}"
+
+    - name: Apply shutdown configuration
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ shutdown_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display shutdown status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Shutdown Initiated"
+          - "=========================================="
+          - ""
+          - "Disabled {{ enabled_processes }} MongoDB processes"
+          - ""
+          - "⏱️  Processes will stop in 2-3 minutes"
+          - ""
+          - "What's preserved:"
+          - "  ✅ All data in /data/db"
+          - "  ✅ Automation agents still running"
+          - "  ✅ Configuration in Ops Manager"
+          - ""
+          - "To restart deployment:"
+          - "  ansible-playbook -i inventory_simple.yml 30_restart_deployment.yml"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ ops_manager_url }}"
+          - "=========================================="

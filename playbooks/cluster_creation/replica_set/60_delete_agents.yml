@@ -1,0 +1,176 @@
+---
+# Delete Automation Agents from Servers
+# WARNING: This removes agents and ALL MongoDB data!
+# Same as 99_destroy_agents_and_data.yml
+#
+# Usage: ansible-playbook -i inventory_simple.yml 60_delete_agents.yml
+#
+# Prerequisites: Run 50_remove_from_opsmanager.yml first (recommended)
+
+- name: Delete Automation Agents and Data
+  hosts: all
+  gather_facts: no
+  become: yes
+  serial: 1
+
+  tasks:
+    - name: Display warning
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "⚠️  DANGER: COMPLETE CLEANUP"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - ""
+          - "This will PERMANENTLY DELETE:"
+          - "  🗑️  Automation agent"
+          - "  🗑️  All MongoDB data (/data/db)"
+          - "  🗑️  All MongoDB logs"
+          - "  🗑️  Agent configuration"
+          - "  🗑️  MongoDB user"
+          - ""
+          - "⚠️  THIS CANNOT BE UNDONE!"
+          - ""
+          - "Continuing in 10 seconds..."
+          - "Press Ctrl+C NOW to abort!"
+          - "=========================================="
+      delegate_to: localhost
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 10
+      run_once: true
+      delegate_to: localhost
+
+    - name: Stop automation agent service
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        state: stopped
+      ignore_errors: yes
+
+    - name: Check for running MongoDB processes
+      ansible.builtin.shell: ps aux | grep mongod | grep -v grep || true
+      register: mongod_processes
+      changed_when: false
+
+    - name: Display running MongoDB processes
+      ansible.builtin.debug:
+        msg: "{{ mongod_processes.stdout_lines }}"
+      when: mongod_processes.stdout_lines | length > 0
+
+    - name: Kill MongoDB processes (if still running)
+      ansible.builtin.shell: |
+        pkill -9 mongod || true
+        pkill -9 mongos || true
+        sleep 3
+      when: mongod_processes.stdout_lines | length > 0
+
+    - name: Disable automation agent service
+      ansible.builtin.systemd:
+        name: mongodb-mms-automation-agent
+        enabled: no
+      ignore_errors: yes
+
+    - name: Uninstall automation agent package
+      ansible.builtin.apt:
+        name: mongodb-mms-automation-agent
+        state: absent
+        purge: yes
+      ignore_errors: yes
+
+    - name: Remove agent configuration directory
+      ansible.builtin.file:
+        path: /etc/mongodb-mms
+        state: absent
+
+    - name: Remove agent data directory
+      ansible.builtin.file:
+        path: /var/lib/mongodb-mms-automation
+        state: absent
+
+    - name: Remove MongoDB data directory
+      ansible.builtin.file:
+        path: /data
+        state: absent
+
+    - name: Remove MongoDB log directory
+      ansible.builtin.file:
+        path: /var/log/mongodb
+        state: absent
+
+    - name: Remove config server data (if exists)
+      ansible.builtin.file:
+        path: /data/configdb
+        state: absent
+      ignore_errors: yes
+
+    - name: Remove mongodb user
+      ansible.builtin.user:
+        name: mongodb
+        state: absent
+        remove: yes
+      ignore_errors: yes
+
+    - name: Check for remaining MongoDB files
+      ansible.builtin.shell: |
+        find /tmp -name "*mongodb*" -o -name "*mongo*" 2>/dev/null || true
+      register: remaining_files
+      changed_when: false
+
+    - name: Clean up temp files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/mongodb-agent.deb
+        - /tmp/mongodb-mms-automation-agent.deb
+      ignore_errors: yes
+
+    - name: Display completion status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Cleanup Complete"
+          - "=========================================="
+          - "Host: {{ inventory_hostname }}"
+          - ""
+          - "Removed:"
+          - "  ✅ Automation agent"
+          - "  ✅ MongoDB processes"
+          - "  ✅ Data directory (/data)"
+          - "  ✅ Log directory (/var/log/mongodb)"
+          - "  ✅ Agent configuration"
+          - "  ✅ MongoDB user"
+          - ""
+          - "VM is now clean."
+          - "=========================================="
+
+- name: Final Summary
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "🧹 AGENT DELETION COMPLETE"
+          - "=========================================="
+          - ""
+          - "All VMs have been cleaned:"
+          - "  ✅ Agents removed"
+          - "  ✅ MongoDB stopped"
+          - "  ✅ Data deleted"
+          - "  ✅ Logs removed"
+          - ""
+          - "VMs are now ready for:"
+          - "  - Fresh deployment"
+          - "  - Decommissioning"
+          - "  - Other use"
+          - ""
+          - "To redeploy MongoDB:"
+          - "  1. ansible-playbook -i inventory_simple.yml 1_install_agents.yml"
+          - "  2. ansible-playbook -i inventory_simple.yml 2_deploy_replica_set_merge.yml"
+          - ""
+          - "=========================================="

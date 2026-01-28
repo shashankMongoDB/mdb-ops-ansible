@@ -1,0 +1,268 @@
+---
+# Get Connection String for Deployment
+# Returns connection strings for replica set or sharded cluster
+#
+# Usage: ansible-playbook -i inventory_simple.yml 70_get_connection_string.yml
+
+- name: Get MongoDB Connection String
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
+  tasks:
+    - name: Get automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_config
+
+    - name: Check deployment exists
+      ansible.builtin.fail:
+        msg: "No deployment found. Deploy MongoDB first."
+      when: automation_config.json.processes | length == 0
+
+    - name: Determine deployment type
+      ansible.builtin.set_fact:
+        has_sharding: "{{ automation_config.json.sharding | default([]) | length > 0 }}"
+        has_replica_sets: "{{ automation_config.json.replicaSets | length > 0 }}"
+        deployment_type: >-
+          {{
+            'sharded' if (automation_config.json.sharding | default([]) | length > 0)
+            else 'replica_set' if (automation_config.json.replicaSets | length > 0)
+            else 'standalone'
+          }}
+
+    - name: Get mongos processes (for sharded cluster)
+      ansible.builtin.set_fact:
+        mongos_hosts: >-
+          {{
+            automation_config.json.processes |
+            selectattr('processType', 'equalto', 'mongos') |
+            map(attribute='hostname') |
+            list
+          }}
+        mongos_ports: >-
+          {{
+            automation_config.json.processes |
+            selectattr('processType', 'equalto', 'mongos') |
+            map(attribute='args2_6.net.port') |
+            list
+          }}
+      when: deployment_type == 'sharded'
+
+    - name: Build mongos connection string
+      ansible.builtin.set_fact:
+        mongos_connection_string: >-
+          mongodb://{{ mongos_hosts | zip(mongos_ports) | map('join', ':') | join(',') }}
+      when: deployment_type == 'sharded'
+
+    - name: Build replica set connection strings
+      ansible.builtin.set_fact:
+        replica_set_strings: []
+
+    - name: Process each replica set
+      ansible.builtin.set_fact:
+        replica_set_strings: >-
+          {{
+            replica_set_strings + [{
+              'name': item._id,
+              'connection_string': 'mongodb://' +
+                (automation_config.json.processes |
+                selectattr('args2_6.replication.replSetName', 'defined') |
+                selectattr('args2_6.replication.replSetName', 'equalto', item._id) |
+                map(attribute='hostname') |
+                zip(
+                  automation_config.json.processes |
+                  selectattr('args2_6.replication.replSetName', 'defined') |
+                  selectattr('args2_6.replication.replSetName', 'equalto', item._id) |
+                  map(attribute='args2_6.net.port')
+                ) |
+                map('join', ':') |
+                join(',')) +
+                '/?replicaSet=' + item._id
+            }]
+          }}
+      loop: "{{ automation_config.json.replicaSets }}"
+      when: has_replica_sets
+
+    - name: Get standalone connection
+      ansible.builtin.set_fact:
+        standalone_host: "{{ automation_config.json.processes[0].hostname }}"
+        standalone_port: "{{ automation_config.json.processes[0].args2_6.net.port }}"
+        standalone_connection_string: "mongodb://{{ automation_config.json.processes[0].hostname }}:{{ automation_config.json.processes[0].args2_6.net.port }}"
+      when: deployment_type == 'standalone'
+
+    - name: Display connection strings for sharded cluster
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🔗 Connection Strings - Sharded Cluster"
+          - "=========================================="
+          - ""
+          - "Deployment Type: Sharded Cluster"
+          - ""
+          - "PRIMARY CONNECTION (via mongos):"
+          - "  {{ mongos_connection_string }}"
+          - ""
+          - "Mongos Routers:"
+          - "{% for host, port in mongos_hosts | zip(mongos_ports) %}"
+          - "  - {{ host }}:{{ port }}"
+          - "{% endfor %}"
+          - ""
+          - "Individual Shards:"
+          - "{% for rs in replica_set_strings %}"
+          - "  {{ rs.name }}:"
+          - "    {{ rs.connection_string }}"
+          - "{% endfor %}"
+          - ""
+          - "Usage Examples:"
+          - "  # Connect via mongos (recommended)"
+          - "  mongosh '{{ mongos_connection_string }}'"
+          - ""
+          - "  # Python"
+          - "  from pymongo import MongoClient"
+          - "  client = MongoClient('{{ mongos_connection_string }}')"
+          - ""
+          - "  # Node.js"
+          - "  const { MongoClient } = require('mongodb');"
+          - "  const client = new MongoClient('{{ mongos_connection_string }}');"
+          - ""
+          - "=========================================="
+      when: deployment_type == 'sharded'
+
+    - name: Display connection strings for replica set
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🔗 Connection Strings - Replica Set"
+          - "=========================================="
+          - ""
+          - "Deployment Type: Replica Set"
+          - ""
+          - "{% for rs in replica_set_strings %}"
+          - "Replica Set: {{ rs.name }}"
+          - "  Connection String:"
+          - "    {{ rs.connection_string }}"
+          - ""
+          - "{% endfor %}"
+          - "Usage Examples:"
+          - "  # mongosh"
+          - "  mongosh '{{ replica_set_strings[0].connection_string }}'"
+          - ""
+          - "  # Python"
+          - "  from pymongo import MongoClient"
+          - "  client = MongoClient('{{ replica_set_strings[0].connection_string }}')"
+          - ""
+          - "  # Node.js"
+          - "  const { MongoClient } = require('mongodb');"
+          - "  const client = new MongoClient('{{ replica_set_strings[0].connection_string }}');"
+          - ""
+          - "  # Java"
+          - "  MongoClient mongoClient = MongoClients.create(\"{{ replica_set_strings[0].connection_string }}\");"
+          - ""
+          - "=========================================="
+      when: deployment_type == 'replica_set'
+
+    - name: Display connection string for standalone
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "🔗 Connection String - Standalone"
+          - "=========================================="
+          - ""
+          - "Deployment Type: Standalone"
+          - ""
+          - "Connection String:"
+          - "  {{ standalone_connection_string }}"
+          - ""
+          - "Host: {{ standalone_host }}"
+          - "Port: {{ standalone_port }}"
+          - ""
+          - "Usage Examples:"
+          - "  # mongosh"
+          - "  mongosh '{{ standalone_connection_string }}'"
+          - ""
+          - "  # Python"
+          - "  from pymongo import MongoClient"
+          - "  client = MongoClient('{{ standalone_connection_string }}')"
+          - ""
+          - "=========================================="
+      when: deployment_type == 'standalone'
+
+    - name: Save connection strings to file
+      ansible.builtin.copy:
+        content: |
+          MongoDB Connection Strings
+          Generated: {{ ansible_date_time.iso8601 }}
+          Project ID: {{ ops_manager_project_id }}
+          Deployment Type: {{ deployment_type | upper }}
+          
+          {% if deployment_type == 'sharded' %}
+          PRIMARY CONNECTION (via mongos):
+          {{ mongos_connection_string }}
+          
+          Mongos Routers:
+          {% for host, port in mongos_hosts | zip(mongos_ports) %}
+          - {{ host }}:{{ port }}
+          {% endfor %}
+          
+          Individual Shards:
+          {% for rs in replica_set_strings %}
+          {{ rs.name }}:
+            {{ rs.connection_string }}
+          {% endfor %}
+          
+          {% elif deployment_type == 'replica_set' %}
+          {% for rs in replica_set_strings %}
+          Replica Set: {{ rs.name }}
+          {{ rs.connection_string }}
+          
+          {% endfor %}
+          
+          {% else %}
+          Standalone:
+          {{ standalone_connection_string }}
+          {% endif %}
+          
+          Usage Examples:
+          
+          mongosh:
+          {% if deployment_type == 'sharded' %}
+          mongosh '{{ mongos_connection_string }}'
+          {% elif deployment_type == 'replica_set' %}
+          mongosh '{{ replica_set_strings[0].connection_string }}'
+          {% else %}
+          mongosh '{{ standalone_connection_string }}'
+          {% endif %}
+          
+          Python:
+          from pymongo import MongoClient
+          {% if deployment_type == 'sharded' %}
+          client = MongoClient('{{ mongos_connection_string }}')
+          {% elif deployment_type == 'replica_set' %}
+          client = MongoClient('{{ replica_set_strings[0].connection_string }}')
+          {% else %}
+          client = MongoClient('{{ standalone_connection_string }}')
+          {% endif %}
+        dest: "/tmp/mongodb_connection_strings_{{ ops_manager_project_id }}.txt"
+      delegate_to: localhost
+
+    - name: Display save location
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "Connection strings saved to:"
+          - "/tmp/mongodb_connection_strings_{{ ops_manager_project_id }}.txt"
+          - ""
+          - "You can also view in Ops Manager:"
+          - "{{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"

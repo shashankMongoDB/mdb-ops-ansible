@@ -1,0 +1,148 @@
+---
+# Remove Deployment from Ops Manager
+# Same as 99_destroy_deployment.yml - removes MongoDB from Ops Manager
+# but keeps agents and data on VMs
+#
+# Usage: ansible-playbook -i inventory_simple.yml 50_remove_from_opsmanager.yml
+
+- name: Remove Deployment from Ops Manager
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
+  tasks:
+    - name: Display warning
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "⚠️  Remove Deployment from Ops Manager"
+          - "=========================================="
+          - ""
+          - "This will:"
+          - "  ✅ Remove MongoDB processes from Ops Manager"
+          - "  ✅ Stop all MongoDB processes"
+          - "  ✅ Remove replica set configuration"
+          - "  ✅ Remove sharded cluster configuration"
+          - ""
+          - "This will NOT:"
+          - "  ❌ Delete data from /data/db"
+          - "  ❌ Uninstall automation agents"
+          - "  ❌ Remove agent configuration"
+          - ""
+          - "Data and agents remain on VMs."
+          - ""
+          - "To completely clean VMs:"
+          - "  Run: 60_delete_agents.yml"
+          - ""
+          - "Continuing in 10 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Display current deployment
+      ansible.builtin.debug:
+        msg:
+          - "Current deployment:"
+          - "  Processes: {{ current_config.json.processes | length }}"
+          - "  Replica Sets: {{ current_config.json.replicaSets | length }}"
+          - "  Shards: {{ current_config.json.sharding | default([]) | length }}"
+
+    - name: Check if deployment exists
+      ansible.builtin.set_fact:
+        has_processes: "{{ current_config.json.processes | length > 0 }}"
+        has_replicasets: "{{ current_config.json.replicaSets | length > 0 }}"
+        has_sharding: "{{ current_config.json.sharding | default([]) | length > 0 }}"
+
+    - name: Display status
+      ansible.builtin.debug:
+        msg: "{{ 'Deployment found - will remove' if has_processes or has_replicasets else 'No deployment found - nothing to remove' }}"
+
+    - name: Remove all processes, replica sets, and sharding
+      ansible.builtin.set_fact:
+        cleaned_config: >-
+          {{
+            current_config.json |
+            combine({
+              'processes': [],
+              'replicaSets': [],
+              'sharding': []
+            }, recursive=True)
+          }}
+      when: has_processes or has_replicasets or has_sharding
+
+    - name: Update automation config (remove deployment)
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ cleaned_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+      when: has_processes or has_replicasets or has_sharding
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Deployment Removal Initiated"
+          - "=========================================="
+          - ""
+          - "Removed from Ops Manager:"
+          - "  - {{ current_config.json.processes | length }} processes"
+          - "  - {{ current_config.json.replicaSets | length }} replica sets"
+          - "  - {{ current_config.json.sharding | default([]) | length }} shards"
+          - ""
+          - "⏱️  Ops Manager will:"
+          - "  1. Stop MongoDB processes (2-3 minutes)"
+          - "  2. Remove process management"
+          - "  3. Clean up configuration"
+          - ""
+          - "Still on VMs:"
+          - "  ✅ Automation agents (running)"
+          - "  ✅ Data in /data/db"
+          - "  ✅ Logs in /var/log/mongodb"
+          - ""
+          - "To completely clean VMs:"
+          - "  ansible-playbook -i inventory_simple.yml 60_delete_agents.yml"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ ops_manager_url }}"
+          - "=========================================="
+      when: has_processes or has_replicasets or has_sharding
+
+    - name: Nothing to remove
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "No deployment found"
+          - "=========================================="
+          - "Nothing to remove from Ops Manager."
+          - "Project is clean."
+          - "=========================================="
+      when: not (has_processes or has_replicasets or has_sharding)

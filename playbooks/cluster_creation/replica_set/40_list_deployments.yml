@@ -1,0 +1,185 @@
+---
+# List All Deployments Under Project
+# Shows all MongoDB processes, replica sets, and sharded clusters
+#
+# Usage: ansible-playbook -i inventory_simple.yml 40_list_deployments.yml
+
+- name: List All Deployments
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+
+  tasks:
+    - name: Get automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_config
+
+    - name: Get deployment status
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationStatus"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+      ignore_errors: yes
+
+    - name: Count deployment components
+      ansible.builtin.set_fact:
+        total_processes: "{{ automation_config.json.processes | length }}"
+        mongod_processes: "{{ automation_config.json.processes | selectattr('processType', 'equalto', 'mongod') | list | length }}"
+        mongos_processes: "{{ automation_config.json.processes | selectattr('processType', 'equalto', 'mongos') | list | length }}"
+        enabled_processes: "{{ automation_config.json.processes | selectattr('disabled', 'equalto', false) | list | length }}"
+        disabled_processes: "{{ automation_config.json.processes | selectattr('disabled', 'equalto', true) | list | length }}"
+        replica_sets: "{{ automation_config.json.replicaSets | length }}"
+        shards: "{{ automation_config.json.sharding | default([]) | length }}"
+
+    - name: Determine deployment type
+      ansible.builtin.set_fact:
+        deployment_type: >-
+          {{
+            'Sharded Cluster' if shards | int > 0
+            else 'Replica Set' if replica_sets | int > 0
+            else 'Standalone' if total_processes | int > 0
+            else 'No Deployment'
+          }}
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "📊 MongoDB Deployments"
+          - "=========================================="
+          - "Project ID: {{ ops_manager_project_id }}"
+          - ""
+          - "Deployment Type: {{ deployment_type }}"
+          - ""
+          - "Overview:"
+          - "  Total Processes: {{ total_processes }}"
+          - "  - mongod: {{ mongod_processes }}"
+          - "  - mongos: {{ mongos_processes }}"
+          - "  - enabled: {{ enabled_processes }}"
+          - "  - disabled: {{ disabled_processes }}"
+          - ""
+          - "  Replica Sets: {{ replica_sets }}"
+          - "  Shards: {{ shards }}"
+          - "=========================================="
+
+    - name: List replica sets
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "Replica Set: {{ item._id }}"
+          - "  Protocol Version: {{ item.protocolVersion }}"
+          - "  Members: {{ item.members | length }}"
+          - "  Member Details:"
+          - "{% for member in item.members %}"
+          - "    - ID {{ member._id }}: {{ member.host }} (Priority: {{ member.priority }}, Votes: {{ member.votes }})"
+          - "{% endfor %}"
+      loop: "{{ automation_config.json.replicaSets }}"
+      when: replica_sets | int > 0
+
+    - name: List sharded cluster configuration
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "Sharded Cluster Configuration:"
+          - "{% for shard in automation_config.json.sharding %}"
+          - "  Shard: {{ shard.name }}"
+          - "    Replica Set: {{ shard.rs }}"
+          - "    Tags: {{ shard.tags | default([]) | join(', ') or 'None' }}"
+          - "{% endfor %}"
+      when: shards | int > 0
+
+    - name: List all processes
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "All Processes ({{ total_processes }})"
+          - "=========================================="
+          - "{% for process in automation_config.json.processes %}"
+          - ""
+          - "{{ loop.index }}. {{ process.name }} ({{ process.processType }})"
+          - "   Hostname: {{ process.hostname }}"
+          - "   Version: {{ process.version }}"
+          - "   Port: {{ process.args2_6.net.port }}"
+          - "   Status: {{ 'Disabled' if process.disabled else 'Enabled' }}"
+          - "{% if process.processType == 'mongod' %}"
+          - "   Data Path: {{ process.args2_6.storage.dbPath }}"
+          - "   Replica Set: {{ process.args2_6.replication.replSetName | default('N/A') }}"
+          - "{% if process.args2_6.sharding is defined %}"
+          - "   Cluster Role: {{ process.args2_6.sharding.clusterRole }}"
+          - "{% endif %}"
+          - "{% elif process.processType == 'mongos' %}"
+          - "   Config Server: {{ process.cluster }}"
+          - "{% endif %}"
+          - "{% endfor %}"
+
+    - name: Get goal state status
+      ansible.builtin.set_fact:
+        goal_state_info: >-
+          {{
+            automation_status.json.goalVersion | default('Unknown') if automation_status.json is defined
+            else 'Unable to retrieve'
+          }}
+      when: automation_status is defined
+
+    - name: Display goal state
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "Goal State Information"
+          - "=========================================="
+          - "Goal Version: {{ goal_state_info }}"
+          - ""
+          - "Note: Check Ops Manager UI for detailed status"
+          - "{{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
+          - "=========================================="
+
+    - name: Save deployment info to file
+      ansible.builtin.copy:
+        content: |
+          MongoDB Deployment Information
+          Generated: {{ ansible_date_time.iso8601 }}
+          Project ID: {{ ops_manager_project_id }}
+          
+          Deployment Type: {{ deployment_type }}
+          
+          Summary:
+            Total Processes: {{ total_processes }}
+            mongod: {{ mongod_processes }}
+            mongos: {{ mongos_processes }}
+            Enabled: {{ enabled_processes }}
+            Disabled: {{ disabled_processes }}
+            Replica Sets: {{ replica_sets }}
+            Shards: {{ shards }}
+          
+          Full Configuration:
+          {{ automation_config.json | to_nice_yaml }}
+        dest: "/tmp/mongodb_deployment_{{ ops_manager_project_id }}.txt"
+      delegate_to: localhost
+
+    - name: Display save location
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "Full deployment details saved to:"
+          - "/tmp/mongodb_deployment_{{ ops_manager_project_id }}.txt"
