@@ -302,24 +302,35 @@
               timeThresholdHrs: 24
 
     # ===== BUILD SHARDING CONFIGURATION =====
-    # Note: The 'rs' field in sharding config may cause issues with some Ops Manager versions
-    # If you get "Invalid attribute rs" error, the system will auto-detect from replica set name
+    # Proper ShardingConfig object structure for Ops Manager
     
     - name: Build sharding configuration
       ansible.builtin.set_fact:
-        sharding_config:
-          - name: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+        new_sharding_config:
+          - name: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+            configServerReplica: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+            shards:
+              - _id: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+                rs: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+                tags: []
             tags: []
+            draining: []
+            collections: []
 
-    # ===== MERGE AND DEPLOY =====
+    # ===== MERGE WITH EXISTING DEPLOYMENT =====
+    # Preserve existing replica set deployment
     
-    - name: Combine all processes
+    - name: Combine all processes (preserve existing + add new)
       ansible.builtin.set_fact:
-        all_processes: "{{ config_processes + shard1_processes + mongos_processes }}"
+        all_processes: "{{ current_config.json.processes + config_processes + shard1_processes + mongos_processes }}"
 
-    - name: Combine all replica sets
+    - name: Combine all replica sets (preserve existing + add new)
       ansible.builtin.set_fact:
-        all_replicasets: "{{ [config_replicaset, shard1_replicaset] }}"
+        all_replicasets: "{{ current_config.json.replicaSets + [config_replicaset, shard1_replicaset] }}"
+
+    - name: Combine sharding config (add to existing)
+      ansible.builtin.set_fact:
+        all_sharding: "{{ (current_config.json.sharding | default([])) + new_sharding_config }}"
 
     - name: Merge with current config
       ansible.builtin.set_fact:
@@ -329,7 +340,7 @@
             combine({
               'processes': all_processes,
               'replicaSets': all_replicasets,
-              'sharding': sharding_config
+              'sharding': all_sharding
             }, recursive=True)
           }}
 
