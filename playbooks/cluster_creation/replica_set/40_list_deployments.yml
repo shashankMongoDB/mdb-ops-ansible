@@ -83,54 +83,60 @@
 
     - name: List replica sets
       ansible.builtin.debug:
-        msg:
-          - ""
-          - "Replica Set: {{ item._id }}"
-          - "  Protocol Version: {{ item.protocolVersion }}"
-          - "  Members: {{ item.members | length }}"
-          - "  Member Details:"
-          - "{% for member in item.members %}"
-          - "    - ID {{ member._id }}: {{ member.host }} (Priority: {{ member.priority }}, Votes: {{ member.votes }})"
-          - "{% endfor %}"
+        msg: "{{ replica_set_info }}"
+      vars:
+        replica_set_info: |
+          
+          Replica Set: {{ item._id }}
+            Protocol Version: {{ item.protocolVersion }}
+            Members: {{ item.members | length }}
+            Member Details:
+          {% for member in item.members %}
+              - ID {{ member._id }}: {{ member.host }} (Priority: {{ member.priority }}, Votes: {{ member.votes }})
+          {% endfor %}
       loop: "{{ automation_config.json.replicaSets }}"
       when: replica_sets | int > 0
 
     - name: List sharded cluster configuration
       ansible.builtin.debug:
-        msg:
-          - ""
-          - "Sharded Cluster Configuration:"
-          - "{% for shard in automation_config.json.sharding %}"
-          - "  Shard: {{ shard.name }}"
-          - "    Replica Set: {{ shard.rs }}"
-          - "    Tags: {{ shard.tags | default([]) | join(', ') or 'None' }}"
-          - "{% endfor %}"
+        msg: "{{ shard_info }}"
+      vars:
+        shard_info: |
+          
+          Sharded Cluster Configuration:
+          {% for shard in automation_config.json.sharding %}
+            Shard: {{ shard.name }}
+              Replica Set: {{ shard.rs }}
+              Tags: {{ shard.tags | default([]) | join(', ') or 'None' }}
+          {% endfor %}
       when: shards | int > 0
 
     - name: List all processes
       ansible.builtin.debug:
-        msg:
-          - ""
-          - "=========================================="
-          - "All Processes ({{ total_processes }})"
-          - "=========================================="
-          - "{% for process in automation_config.json.processes %}"
-          - ""
-          - "{{ loop.index }}. {{ process.name }} ({{ process.processType }})"
-          - "   Hostname: {{ process.hostname }}"
-          - "   Version: {{ process.version }}"
-          - "   Port: {{ process.args2_6.net.port }}"
-          - "   Status: {{ 'Disabled' if process.disabled else 'Enabled' }}"
-          - "{% if process.processType == 'mongod' %}"
-          - "   Data Path: {{ process.args2_6.storage.dbPath }}"
-          - "   Replica Set: {{ process.args2_6.replication.replSetName | default('N/A') }}"
-          - "{% if process.args2_6.sharding is defined %}"
-          - "   Cluster Role: {{ process.args2_6.sharding.clusterRole }}"
-          - "{% endif %}"
-          - "{% elif process.processType == 'mongos' %}"
-          - "   Config Server: {{ process.cluster }}"
-          - "{% endif %}"
-          - "{% endfor %}"
+        msg: "{{ processes_info }}"
+      vars:
+        processes_info: |
+          
+          ==========================================
+          All Processes ({{ total_processes }})
+          ==========================================
+          {% for process in automation_config.json.processes %}
+          
+          {{ loop.index }}. {{ process.name }} ({{ process.processType }})
+             Hostname: {{ process.hostname }}
+             Version: {{ process.version }}
+             Port: {{ process.args2_6.net.port }}
+             Status: {{ 'Disabled' if process.disabled else 'Enabled' }}
+          {% if process.processType == 'mongod' %}
+             Data Path: {{ process.args2_6.storage.dbPath }}
+             Replica Set: {{ process.args2_6.replication.replSetName | default('N/A') }}
+          {% if process.args2_6.sharding is defined %}
+             Cluster Role: {{ process.args2_6.sharding.clusterRole }}
+          {% endif %}
+          {% elif process.processType == 'mongos' %}
+             Config Server: {{ process.cluster }}
+          {% endif %}
+          {% endfor %}
 
     - name: Get goal state status
       ansible.builtin.set_fact:

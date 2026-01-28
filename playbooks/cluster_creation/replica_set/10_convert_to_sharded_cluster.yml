@@ -134,15 +134,27 @@
           }}
       loop: "{{ config_servers }}"
 
+    - name: Build config server replica set members
+      ansible.builtin.set_fact:
+        config_rs_members: >-
+          {{
+            config_rs_members | default([]) + [{
+              '_id': idx,
+              'host': item.name + ':27019',
+              'priority': (2 if idx == 0 else 1),
+              'votes': 1
+            }]
+          }}
+      loop: "{{ config_servers }}"
+      loop_control:
+        index_var: idx
+
     - name: Build config server replica set
       ansible.builtin.set_fact:
         config_replicaset:
           _id: "{{ config_server_rs_name }}"
           protocolVersion: 1
-          members: >-
-            {{
-              config_servers | map('combine', {'_id': loop.index0, 'host': item.name + ':27019', 'priority': (1 if loop.index0 > 0 else 2), 'votes': 1}) | list
-            }}
+          members: "{{ config_rs_members }}"
 
     - name: Build mongos processes
       ansible.builtin.set_fact:

@@ -104,73 +104,77 @@
 
     - name: Display connection strings for sharded cluster
       ansible.builtin.debug:
-        msg:
-          - "=========================================="
-          - "🔗 Connection Strings - Sharded Cluster"
-          - "=========================================="
-          - ""
-          - "Deployment Type: Sharded Cluster"
-          - ""
-          - "PRIMARY CONNECTION (via mongos):"
-          - "  {{ mongos_connection_string }}"
-          - ""
-          - "Mongos Routers:"
-          - "{% for host, port in mongos_hosts | zip(mongos_ports) %}"
-          - "  - {{ host }}:{{ port }}"
-          - "{% endfor %}"
-          - ""
-          - "Individual Shards:"
-          - "{% for rs in replica_set_strings %}"
-          - "  {{ rs.name }}:"
-          - "    {{ rs.connection_string }}"
-          - "{% endfor %}"
-          - ""
-          - "Usage Examples:"
-          - "  # Connect via mongos (recommended)"
-          - "  mongosh '{{ mongos_connection_string }}'"
-          - ""
-          - "  # Python"
-          - "  from pymongo import MongoClient"
-          - "  client = MongoClient('{{ mongos_connection_string }}')"
-          - ""
-          - "  # Node.js"
-          - "  const { MongoClient } = require('mongodb');"
-          - "  const client = new MongoClient('{{ mongos_connection_string }}');"
-          - ""
-          - "=========================================="
+        msg: "{{ sharded_info }}"
+      vars:
+        sharded_info: |
+          ==========================================
+          🔗 Connection Strings - Sharded Cluster
+          ==========================================
+          
+          Deployment Type: Sharded Cluster
+          
+          PRIMARY CONNECTION (via mongos):
+            {{ mongos_connection_string }}
+          
+          Mongos Routers:
+          {% for host, port in mongos_hosts | zip(mongos_ports) %}
+            - {{ host }}:{{ port }}
+          {% endfor %}
+          
+          Individual Shards:
+          {% for rs in replica_set_strings %}
+            {{ rs.name }}:
+              {{ rs.connection_string }}
+          {% endfor %}
+          
+          Usage Examples:
+            # Connect via mongos (recommended)
+            mongosh '{{ mongos_connection_string }}'
+          
+            # Python
+            from pymongo import MongoClient
+            client = MongoClient('{{ mongos_connection_string }}')
+          
+            # Node.js
+            const { MongoClient } = require('mongodb');
+            const client = new MongoClient('{{ mongos_connection_string }}');
+          
+          ==========================================
       when: deployment_type == 'sharded'
 
     - name: Display connection strings for replica set
       ansible.builtin.debug:
-        msg:
-          - "=========================================="
-          - "🔗 Connection Strings - Replica Set"
-          - "=========================================="
-          - ""
-          - "Deployment Type: Replica Set"
-          - ""
-          - "{% for rs in replica_set_strings %}"
-          - "Replica Set: {{ rs.name }}"
-          - "  Connection String:"
-          - "    {{ rs.connection_string }}"
-          - ""
-          - "{% endfor %}"
-          - "Usage Examples:"
-          - "  # mongosh"
-          - "  mongosh '{{ replica_set_strings[0].connection_string }}'"
-          - ""
-          - "  # Python"
-          - "  from pymongo import MongoClient"
-          - "  client = MongoClient('{{ replica_set_strings[0].connection_string }}')"
-          - ""
-          - "  # Node.js"
-          - "  const { MongoClient } = require('mongodb');"
-          - "  const client = new MongoClient('{{ replica_set_strings[0].connection_string }}');"
-          - ""
-          - "  # Java"
-          - "  MongoClient mongoClient = MongoClients.create(\"{{ replica_set_strings[0].connection_string }}\");"
-          - ""
-          - "=========================================="
+        msg: "{{ rs_info }}"
+      vars:
+        rs_info: |
+          ==========================================
+          🔗 Connection Strings - Replica Set
+          ==========================================
+          
+          Deployment Type: Replica Set
+          
+          {% for rs in replica_set_strings %}
+          Replica Set: {{ rs.name }}
+            Connection String:
+              {{ rs.connection_string }}
+          
+          {% endfor %}
+          Usage Examples:
+            # mongosh
+            mongosh '{{ replica_set_strings[0].connection_string }}'
+          
+            # Python
+            from pymongo import MongoClient
+            client = MongoClient('{{ replica_set_strings[0].connection_string }}')
+          
+            # Node.js
+            const { MongoClient } = require('mongodb');
+            const client = new MongoClient('{{ replica_set_strings[0].connection_string }}');
+          
+            # Java
+            MongoClient mongoClient = MongoClients.create("{{ replica_set_strings[0].connection_string }}");
+          
+          ==========================================
       when: deployment_type == 'replica_set'
 
     - name: Display connection string for standalone
