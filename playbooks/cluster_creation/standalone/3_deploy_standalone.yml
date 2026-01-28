@@ -80,9 +80,18 @@
             sizeThresholdMB: 1000
             timeThresholdHrs: 24
 
+#    - name: Merge with current config
+#      ansible.builtin.set_fact:
+#        merged_config: "{{ current_config.json | combine({'processes': [standalone_process]}, recursive=True) }}"
+
+    - name: Combine processes (keep existing + add standalone)
+      ansible.builtin.set_fact:
+        all_processes: "{{ (current_config.json.processes | default([])) + [standalone_process] }}"
+
     - name: Merge with current config
       ansible.builtin.set_fact:
-        merged_config: "{{ current_config.json | combine({'processes': [standalone_process]}, recursive=True) }}"
+        merged_config: "{{ current_config.json | combine({'processes': all_processes}, recursive=True) }}"
+
 
     - name: Update automation config
       ansible.builtin.uri:
