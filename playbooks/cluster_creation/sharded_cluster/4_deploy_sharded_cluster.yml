@@ -34,7 +34,7 @@
           - ""
           - "Ports:"
           - "  Config Servers: 27019"
-          - "  Mongos Routers: 27017"
+          - "  Mongos Routers: 27020 (avoiding conflict with replica set on 27017)"
           - "  Shard Nodes: 27018"
           - ""
           - "Total: 8 MongoDB processes"
@@ -259,7 +259,8 @@
               priority: 1
               votes: 1
 
-    # ===== BUILD MONGOS ROUTERS (2 nodes, port 27017) =====
+    # ===== BUILD MONGOS ROUTERS (2 nodes, port 27020) =====
+    # Using port 27020 to avoid conflict with replica set on 27017
     
     - name: Build mongos process list
       ansible.builtin.set_fact:
@@ -273,7 +274,7 @@
             cluster: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
             args2_6:
               net:
-                port: 27017
+                port: 27020
               systemLog:
                 destination: "file"
                 path: "/var/log/mongodb/mongos.log"
@@ -291,7 +292,7 @@
             cluster: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
             args2_6:
               net:
-                port: 27017
+                port: 27020
               systemLog:
                 destination: "file"
                 path: "/var/log/mongodb/mongos.log"
@@ -301,12 +302,13 @@
               timeThresholdHrs: 24
 
     # ===== BUILD SHARDING CONFIGURATION =====
+    # Note: The 'rs' field in sharding config may cause issues with some Ops Manager versions
+    # If you get "Invalid attribute rs" error, the system will auto-detect from replica set name
     
     - name: Build sharding configuration
       ansible.builtin.set_fact:
         sharding_config:
           - name: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
-            rs: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
             tags: []
 
     # ===== MERGE AND DEPLOY =====
@@ -357,12 +359,12 @@
           - "Deployed on 3 VMs:"
           - "  VM1 ({{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}):"
           - "    - config-01 on port 27019"
-          - "    - mongos-01 on port 27017"
+          - "    - mongos-01 on port 27020 ← CONNECT HERE"
           - "    - shard1-01 on port 27018"
           - ""
           - "  VM2 ({{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}):"
           - "    - config-02 on port 27019"
-          - "    - mongos-02 on port 27017"
+          - "    - mongos-02 on port 27020"
           - "    - shard1-02 on port 27018"
           - ""
           - "  VM3 ({{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}):"
@@ -372,16 +374,20 @@
           - "Total: 8 MongoDB processes"
           - "MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
           - ""
+          - "Note: Replica set still running on port 27017"
+          - "      Mongos using port 27020 to avoid conflict"
+          - ""
           - "⏱️  Deployment will complete in 15-20 minutes"
           - ""
           - "Connection Strings:"
-          - "  Mongos: mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}:27017,{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}:27017"
+          - "  Mongos: mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}:27020,{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}:27020"
+          - "  Replica Set (existing): mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}:27017"
           - ""
           - "Connect via mongos (recommended):"
-          - "  mongosh --host {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }} --port 27017"
+          - "  mongosh --host {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }} --port 27020"
           - ""
           - "Check sharding status:"
-          - "  mongosh --host {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }} --port 27017"
+          - "  mongosh --host {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }} --port 27020"
           - "  sh.status()"
           - ""
           - "📊 Check Ops Manager UI:"
