@@ -85,22 +85,41 @@
         return_content: yes
       register: current_config
 
-    - name: Build Prometheus monitoring configuration
+#    - name: Build Prometheus monitoring configuration
+#      ansible.builtin.set_fact:
+#        prometheus_config:
+#          prometheus:
+#            enabled: true
+#            scheme: "{{ prometheus_scheme }}"
+#            username: "{{ prometheus_username }}"
+#            password: "{{ prometheus_password }}"
+#            listenAddress: "0.0.0.0:{{ prometheus_port }}"
+#            metricsPath: "/metrics"
+#            tlsEnabled: "{{ true if prometheus_scheme == 'https' else false }}"
+#            discoveryInterval: "{{ discovery_interval | int }}"
+
+    - name: Build Prometheus configuration
       ansible.builtin.set_fact:
         prometheus_config:
-          prometheus:
-            enabled: true
-            scheme: "{{ prometheus_scheme }}"
-            username: "{{ prometheus_username }}"
-            password: "{{ prometheus_password }}"
-            listenAddress: "0.0.0.0:{{ prometheus_port }}"
-            metricsPath: "/metrics"
-            tlsEnabled: "{{ true if prometheus_scheme == 'https' else false }}"
-            discoveryInterval: "{{ discovery_interval | int }}"
+          enabled: true
+          username: "{{ prometheus_username | default('', true) }}"
+          # Optional: if you want basic auth; Ops Manager will hash it internally
+          password: "{{ prometheus_password | default('', true) }}"
+          scheme: "{{ prometheus_scheme }}"
+          mode: "opsManager"
+          listenAddress: "0.0.0.0:{{ prometheus_port }}"
+          metricsPath: "/metrics"
+          # TLS options (leave empty for http)
+          tlsPemPath: ""
+          tlsPemPassword: ""
 
-    - name: Merge monitoring config with automation config
+#    - name: Merge monitoring config with automation config
+#      ansible.builtin.set_fact:
+#        updated_config: "{{ current_config.json | combine({'monitoring': prometheus_config}, recursive=True) }}"
+
+    - name: Merge Prometheus config with automation config
       ansible.builtin.set_fact:
-        updated_config: "{{ current_config.json | combine({'monitoring': prometheus_config}, recursive=True) }}"
+        updated_config: "{{ current_config.json | combine({'prometheus': prometheus_config}, recursive=True) }}"
 
     - name: Update automation config with Prometheus settings
       ansible.builtin.uri:
