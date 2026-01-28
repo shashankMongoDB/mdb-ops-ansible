@@ -269,6 +269,8 @@
             hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
             processType: "mongos"
             version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
             disabled: false
             manualMode: false
             cluster: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
@@ -287,6 +289,8 @@
             hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
             processType: "mongos"
             version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
             disabled: false
             manualMode: false
             cluster: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
