@@ -344,6 +344,11 @@
             }, recursive=True)
           }}
 
+    - name: Dump merged automation config to file
+      copy:
+        dest: /tmp/merged_automation_config.json
+        content: "{{ merged_config | to_nice_json }}"
+
     - name: Update automation config
       ansible.builtin.uri:
         url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
