@@ -1,0 +1,126 @@
+---
+# Deploy MongoDB Standalone Instance
+# Usage: ansible-playbook -i inventory_standalone.yml 3_deploy_standalone.yml
+#
+# This playbook deploys a single MongoDB instance (not a replica set)
+
+- name: Deploy MongoDB Standalone
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') | default('8.0.17-ent', true) }}"
+    mongodb_port: "{{ lookup('env', 'MONGODB_PORT') | default('27017', true) }}"
+    mongodb_data_path: "{{ lookup('env', 'MONGODB_DATA_PATH') | default('/data/db', true) }}"
+    mongodb_log_path: "{{ lookup('env', 'MONGODB_LOG_PATH') | default('/var/log/mongodb', true) }}"
+    standalone_hostname: "{{ lookup('env', 'STANDALONE_HOSTNAME') }}"
+
+  tasks:
+    - name: Display deployment plan
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Deploy MongoDB Standalone Instance"
+          - "=========================================="
+          - ""
+          - "Configuration:"
+          - "  Hostname: {{ standalone_hostname }}"
+          - "  Version: {{ mongodb_version }}"
+          - "  Port: {{ mongodb_port }}"
+          - "  Data Path: {{ mongodb_data_path }}"
+          - "  Log Path: {{ mongodb_log_path }}"
+          - ""
+          - "Note: This deploys a single MongoDB instance."
+          - "For high availability, use replica set instead."
+          - ""
+          - "Continuing in 5 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Build standalone process definition
+      ansible.builtin.set_fact:
+        standalone_process:
+          name: "standalone-01"
+          hostname: "{{ standalone_hostname }}"
+          processType: "mongod"
+          version: "{{ mongodb_version }}"
+          authSchemaVersion: 5
+          featureCompatibilityVersion: "8.0"
+          disabled: false
+          manualMode: false
+          args2_6:
+            net:
+              port: "{{ mongodb_port | int }}"
+            storage:
+              dbPath: "{{ mongodb_data_path }}"
+            systemLog:
+              destination: "file"
+              path: "{{ mongodb_log_path }}/mongod.log"
+              logAppend: true
+          logRotate:
+            sizeThresholdMB: 1000
+            timeThresholdHrs: 24
+
+    - name: Merge with current config
+      ansible.builtin.set_fact:
+        merged_config: "{{ current_config.json | combine({'processes': [standalone_process]}, recursive=True) }}"
+
+    - name: Update automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+        password: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ merged_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Standalone Deployment Initiated"
+          - "=========================================="
+          - ""
+          - "MongoDB Standalone Instance:"
+          - "  Name: standalone-01"
+          - "  Hostname: {{ standalone_hostname }}"
+          - "  Version: {{ mongodb_version }}"
+          - "  Port: {{ mongodb_port }}"
+          - ""
+          - "⏱️  Deployment will complete in 5-10 minutes"
+          - ""
+          - "Connection String:"
+          - "  mongodb://{{ standalone_hostname }}:{{ mongodb_port }}"
+          - ""
+          - "Connect with mongosh:"
+          - "  mongosh --host {{ standalone_hostname }} --port {{ mongodb_port }}"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
+          - "=========================================="

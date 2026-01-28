@@ -1,0 +1,72 @@
+---
+# Inventory for MongoDB Sharded Cluster Deployment
+# Uses the SAME 3 VMs as replica set with different ports
+# Load environment first: source ../load_env.sh
+
+all:
+  children:
+    # Use same VM grouping as replica set
+    mongodb_primary:
+      hosts:
+        mongodb-01:
+          ansible_host: "{{ lookup('env', 'VM1_IP') | default('172.31.16.76', true) }}"
+          ops_manager_hostname: "ip-172-31-16-76.us-west-2.compute.internal"  # MUST match Ops Manager discovered hostname
+          priority: 2
+          member_id: 0
+          hostname: mongodb-01
+    
+    mongodb_secondary:
+      hosts:
+        mongodb-02:
+          ansible_host: "{{ lookup('env', 'VM2_IP') | default('172.31.21.74', true) }}"
+          ops_manager_hostname: "ip-172-31-21-74.us-west-2.compute.internal"  # MUST match Ops Manager discovered hostname
+          priority: 1
+          member_id: 1
+          hostname: mongodb-02
+        
+        mongodb-03:
+          ansible_host: "{{ lookup('env', 'VM3_IP') | default('172.31.23.234', true) }}"
+          ops_manager_hostname: "ip-172-31-23-234.us-west-2.compute.internal"  # MUST match Ops Manager discovered hostname
+          priority: 1
+          member_id: 2
+          hostname: mongodb-03
+  
+  vars:
+    # SSH Configuration
+    ansible_user: "{{ lookup('env', 'SSH_USER') | default('ubuntu', true) }}"
+    ansible_ssh_private_key_file: "{{ lookup('env', 'SSH_KEY_PATH') | default('../sp-k8s.pem', true) }}"
+    ansible_become: true
+    ansible_become_method: sudo
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+    # Sharded Cluster Configuration
+    config_server_rs_name: "configRS"
+    shard1_rs_name: "shard1"
+    cluster_type: sharded_cluster
+
+    # MongoDB Configuration
+    mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') | default('8.0.17-ent', true) }}"
+
+    # Ops Manager Configuration (from environment - REQUIRED)
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_host: "{{ lookup('env', 'OPS_MANAGER_HOST') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_org_id: "{{ lookup('env', 'OPS_MANAGER_ORG_ID') }}"
+    ops_manager_agent_api_key: "{{ lookup('env', 'OPS_MANAGER_AGENT_API_KEY') }}"
+    ops_manager_api_version: "{{ lookup('env', 'OPS_MANAGER_API_VERSION') | default('v1.0', true) }}"
+
+# IMPORTANT: Update ops_manager_hostname values above to match YOUR VMs!
+# The hostnames MUST match what Ops Manager has discovered for your agents.
+#
+# To find the correct hostnames:
+# 1. SSH to each VM: ssh ubuntu@VM_IP
+# 2. Run: hostname -f
+# 3. Copy the output to ops_manager_hostname above
+#
+# Example:
+# ssh ubuntu@172.31.16.76
+# hostname -f
+# Output: ip-172-31-16-76.us-west-2.compute.internal
+#
+# These EXACT hostnames are what Ops Manager uses to identify your VMs!
