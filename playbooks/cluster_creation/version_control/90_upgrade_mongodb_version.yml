@@ -1,34 +1,20 @@
 ---
-# Upgrade MongoDB Version (Selective Deployment)
+# Upgrade MongoDB Version
 # Usage: ansible-playbook -i ../replica_set/inventory.ini 90_upgrade_mongodb_version.yml
 #
 # Environment Variables Required:
 #   TARGET_MONGODB_VERSION - Target version to upgrade to (e.g., "8.0.18-ent", "7.0.15-ent")
-#   DEPLOYMENT_FILTER (optional) - Filter processes by name pattern (e.g., "rs0", "shard", "mongos", "config")
 #
-# Examples:
-#   # Upgrade everything in project
+# Example:
 #   export TARGET_MONGODB_VERSION="8.0.18-ent"
 #   ansible-playbook -i ../replica_set/inventory.ini 90_upgrade_mongodb_version.yml
 #
-#   # Upgrade only replica set (processes matching "rs0")
-#   export TARGET_MONGODB_VERSION="8.0.18-ent"
-#   export DEPLOYMENT_FILTER="rs0"
-#   ansible-playbook -i ../replica_set/inventory.ini 90_upgrade_mongodb_version.yml
-#
-#   # Upgrade only sharded cluster components
-#   export TARGET_MONGODB_VERSION="8.0.18-ent"
-#   export DEPLOYMENT_FILTER="shard|config|mongos"
-#   ansible-playbook -i ../replica_set/inventory.ini 90_upgrade_mongodb_version.yml
-#
-#   # Upgrade only config servers
-#   export DEPLOYMENT_FILTER="config"
-#
-#   # Upgrade only shard nodes
-#   export DEPLOYMENT_FILTER="shard"
-#
-#   # Upgrade only mongos routers
-#   export DEPLOYMENT_FILTER="mongos"
+# Safety Features:
+# - Validates version format
+# - Checks current version
+# - Confirms upgrade is valid (newer version)
+# - Rolling upgrade (one node at a time)
+# - Waits for goals to be reached before proceeding
 
 - name: Upgrade MongoDB Version
   hosts: localhost
@@ -36,7 +22,6 @@
   
   vars:
     target_version: "{{ lookup('env', 'TARGET_MONGODB_VERSION') }}"
-    deployment_filter: "{{ lookup('env', 'DEPLOYMENT_FILTER') | default('', true) }}"
     ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
     ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
     ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
@@ -77,33 +62,10 @@
         return_content: yes
       register: current_config
 
-    - name: Filter processes based on DEPLOYMENT_FILTER
+    - name: Extract current MongoDB version
       ansible.builtin.set_fact:
-        filtered_processes: >-
-          {%- if deployment_filter != '' -%}
-            {{ current_config.json.processes | selectattr('name', 'match', '.*(' + deployment_filter + ').*') | list }}
-          {%- else -%}
-            {{ current_config.json.processes }}
-          {%- endif -%}
-        all_processes: "{{ current_config.json.processes }}"
-
-    - name: Validate filtered processes
-      ansible.builtin.fail:
-        msg: |
-          No processes match filter: "{{ deployment_filter }}"
-          
-          Available processes:
-          {% for proc in current_config.json.processes %}
-            - {{ proc.name }} ({{ proc.processType }})
-          {% endfor %}
-      when: filtered_processes | length == 0
-
-    - name: Extract version information
-      ansible.builtin.set_fact:
-        current_versions: >-
-          {{ filtered_processes | map(attribute='version') | unique | list }}
+        current_version: "{{ current_config.json.processes[0].version }}"
         total_processes: "{{ current_config.json.processes | length }}"
-        filtered_count: "{{ filtered_processes | length }}"
 
     - name: Display upgrade plan
       ansible.builtin.debug:
@@ -112,62 +74,40 @@
           - "MongoDB Version Upgrade"
           - "==========================================="
           - ""
-          - "Deployment Filter: {{ deployment_filter if deployment_filter != '' else 'ALL (no filter)' }}"
+          - "Current Version: {{ current_version }}"
+          - "Target Version:  {{ target_version }}"
           - ""
-          - "Current Version(s): {{ current_versions | join(', ') }}"
-          - "Target Version:     {{ target_version }}"
-          - ""
-          - "Total Processes in Project: {{ total_processes }}"
-          - "Processes to Upgrade:       {{ filtered_count }}"
-          - ""
-          - "Processes that will be upgraded:"
-          - "{% for proc in filtered_processes %}"
-          - "  {{ loop.index }}. {{ proc.name }} ({{ proc.processType }}) - {{ proc.version }} → {{ target_version }}"
-          - "{% endfor %}"
-          - ""
-          - "{% if filtered_count < total_processes | int %}"
-          - "Processes NOT affected ({{ total_processes | int - filtered_count | int }} total):"
-          - "{% for proc in all_processes %}"
-          - "{% if proc.name not in (filtered_processes | map(attribute='name') | list) %}"
-          - "  - {{ proc.name }} ({{ proc.processType }}) - stays at {{ proc.version }}"
-          - "{% endif %}"
-          - "{% endfor %}"
-          - "{% endif %}"
+          - "Total Processes: {{ total_processes }}"
           - ""
           - "Upgrade Strategy:"
           - "  - Rolling upgrade (one process at a time)"
           - "  - Wait for goal state between upgrades"
           - "  - Minimize downtime"
           - ""
-          - "⚠️  WARNING: This will upgrade {{ filtered_count }} MongoDB process(es)"
+          - "⚠️  WARNING: This will upgrade all MongoDB processes"
           - ""
           - "Continuing in 15 seconds..."
           - "Press Ctrl+C to abort!"
           - "==========================================="
 
-    - name: Validate upgrade direction for all filtered processes
+    - name: Validate upgrade direction
       ansible.builtin.fail:
         msg: |
-          ERROR: Cannot upgrade from {{ item }} to {{ target_version }}
+          ERROR: Cannot upgrade from {{ current_version }} to {{ target_version }}
           Target version must be newer than current version.
           For downgrade, use 91_downgrade_mongodb_version.yml
-      when: target_version is version(item, '<=')
-      loop: "{{ current_versions }}"
+      when: target_version is version(current_version, '<=')
 
     - name: Wait for confirmation
       ansible.builtin.pause:
         seconds: 15
 
-    - name: Update filtered processes to target version
+    - name: Update all processes to target version
       ansible.builtin.set_fact:
         updated_processes: >-
           {{
-            all_processes |
-            map('combine', 
-              {'version': target_version, 'featureCompatibilityVersion': target_version.split('-')[0].split('.')[0:2] | join('.')}
-              if item.name in (filtered_processes | map(attribute='name') | list)
-              else {}
-            ) |
+            current_config.json.processes |
+            map('combine', {'version': target_version, 'featureCompatibilityVersion': target_version.split('-')[0].split('.')[0:2] | join('.')}) |
             list
           }}
 
@@ -202,21 +142,10 @@
           - "✅ Upgrade Initiated Successfully"
           - "==========================================="
           - ""
-          - "Filter Applied: {{ deployment_filter if deployment_filter != '' else 'NONE (all processes)' }}"
+          - "Upgrading from: {{ current_version }}"
+          - "Upgrading to:   {{ target_version }}"
           - ""
-          - "Upgrading {{ filtered_count }} process(es):"
-          - "{% for proc in filtered_processes %}"
-          - "  - {{ proc.name }}: {{ proc.version }} → {{ target_version }}"
-          - "{% endfor %}"
-          - ""
-          - "{% if filtered_count < total_processes | int %}"
-          - "Unchanged processes ({{ total_processes | int - filtered_count | int }} total):"
-          - "{% for proc in all_processes %}"
-          - "{% if proc.name not in (filtered_processes | map(attribute='name') | list) %}"
-          - "  - {{ proc.name }}: {{ proc.version }} (no change)"
-          - "{% endif %}"
-          - "{% endfor %}"
-          - "{% endif %}"
+          - "Total processes: {{ total_processes }}"
           - ""
           - "⏱️  Upgrade Process:"
           - "  1. Ops Manager downloads MongoDB {{ target_version }}"
@@ -225,7 +154,7 @@
           - "  4. Waits for replica set stability"
           - "  5. Proceeds to next node"
           - ""
-          - "Expected Duration: {{ (filtered_count | int * 5) }}-{{ (filtered_count | int * 10) }} minutes"
+          - "Expected Duration: {{ (total_processes | int * 5) }}-{{ (total_processes | int * 10) }} minutes"
           - ""
           - "📊 Monitor Progress:"
           - "   {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
