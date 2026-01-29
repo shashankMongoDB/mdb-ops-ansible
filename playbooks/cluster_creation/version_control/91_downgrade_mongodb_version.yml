@@ -95,56 +95,60 @@
         filtered_count: "{{ filtered_processes | length }}"
         target_fcv: "{{ target_version.split('-')[0].split('.')[0:2] | join('.') }}"
 
+    - name: Build downgrade plan message
+      ansible.builtin.set_fact:
+        downgrade_plan: |
+          ===========================================
+          ⚠️  MongoDB Version DOWNGRADE
+          ===========================================
+          
+          Deployment Filter: {{ deployment_filter if deployment_filter != '' else 'ALL (no filter)' }}
+          
+          Current Version(s): {{ current_versions | join(', ') }}
+          Current FCV(s):     {{ current_fcvs | join(', ') }}
+          
+          Target Version:     {{ target_version }}
+          Target FCV:         {{ target_fcv }}
+          
+          Total Processes in Project: {{ total_processes }}
+          Processes to Downgrade:     {{ filtered_count }}
+          
+          Processes that will be downgraded:
+          {% for proc in filtered_processes %}
+            {{ loop.index }}. {{ proc.name }} ({{ proc.processType }})
+               Version: {{ proc.version }} → {{ target_version }}
+               FCV: {{ proc.featureCompatibilityVersion | default('N/A') }} → {{ target_fcv }}
+          {% endfor %}
+          
+          {% if filtered_count | int < total_processes | int %}
+          Processes NOT affected ({{ total_processes | int - filtered_count | int }} total):
+          {% for proc in all_processes %}
+          {% if proc.name not in (filtered_processes | map(attribute='name') | list) %}
+            - {{ proc.name }} ({{ proc.processType }}) - stays at {{ proc.version }}
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          
+          🛑 CRITICAL WARNINGS:
+            1. Downgrade requires FCV = {{ target_fcv }}
+            2. Must set FCV BEFORE downgrade if not compatible
+            3. May lose data if using features from current version
+            4. Backup recommended before proceeding
+          
+          Downgrade Strategy:
+            - Rolling downgrade (one process at a time)
+            - Wait for goal state between downgrades
+            - Minimize downtime
+          
+          ⚠️  This operation cannot be easily reversed!
+          
+          Continuing in 20 seconds...
+          Press Ctrl+C to abort!
+          ===========================================
+
     - name: Display downgrade plan
       ansible.builtin.debug:
-        msg:
-          - "==========================================="
-          - "⚠️  MongoDB Version DOWNGRADE"
-          - "==========================================="
-          - ""
-          - "Deployment Filter: {{ deployment_filter if deployment_filter != '' else 'ALL (no filter)' }}"
-          - ""
-          - "Current Version(s): {{ current_versions | join(', ') }}"
-          - "Current FCV(s):     {{ current_fcvs | join(', ') }}"
-          - ""
-          - "Target Version:     {{ target_version }}"
-          - "Target FCV:         {{ target_fcv }}"
-          - ""
-          - "Total Processes in Project: {{ total_processes }}"
-          - "Processes to Downgrade:     {{ filtered_count }}"
-          - ""
-          - "Processes that will be downgraded:"
-          - "{% for proc in filtered_processes %}"
-          - "  {{ loop.index }}. {{ proc.name }} ({{ proc.processType }})"
-          - "     Version: {{ proc.version }} → {{ target_version }}"
-          - "     FCV: {{ proc.featureCompatibilityVersion | default('N/A') }} → {{ target_fcv }}"
-          - "{% endfor %}"
-          - ""
-          - "{% if filtered_count < total_processes | int %}"
-          - "Processes NOT affected ({{ total_processes | int - filtered_count | int }} total):"
-          - "{% for proc in all_processes %}"
-          - "{% if proc.name not in (filtered_processes | map(attribute='name') | list) %}"
-          - "  - {{ proc.name }} ({{ proc.processType }}) - stays at {{ proc.version }}"
-          - "{% endif %}"
-          - "{% endfor %}"
-          - "{% endif %}"
-          - ""
-          - "🛑 CRITICAL WARNINGS:"
-          - "  1. Downgrade requires FCV = {{ target_fcv }}"
-          - "  2. Must set FCV BEFORE downgrade if not compatible"
-          - "  3. May lose data if using features from current version"
-          - "  4. Backup recommended before proceeding"
-          - ""
-          - "Downgrade Strategy:"
-          - "  - Rolling downgrade (one process at a time)"
-          - "  - Wait for goal state between downgrades"
-          - "  - Minimize downtime"
-          - ""
-          - "⚠️  This operation cannot be easily reversed!"
-          - ""
-          - "Continuing in 20 seconds..."
-          - "Press Ctrl+C to abort!"
-          - "==========================================="
+        msg: "{{ downgrade_plan }}"
 
     - name: Validate downgrade direction
       ansible.builtin.fail:
@@ -237,48 +241,65 @@
         return_content: yes
       register: downgrade_result
 
+    - name: Build downgrade status message
+      ansible.builtin.set_fact:
+        downgrade_status: |
+          ===========================================
+          ✅ Downgrade Initiated Successfully
+          ===========================================
+          
+          Filter Applied: {{ deployment_filter if deployment_filter != '' else 'NONE (all processes)' }}
+          
+          Downgrading {{ filtered_count }} process(es):
+          {% for proc in filtered_processes %}
+            - {{ proc.name }}: {{ proc.version }} → {{ target_version }}
+          {% endfor %}
+          
+          {% if filtered_count | int < total_processes | int %}
+          Unchanged processes ({{ total_processes | int - filtered_count | int }} total):
+          {% for proc in all_processes %}
+          {% if proc.name not in (filtered_processes | map(attribute='name') | list) %}
+            - {{ proc.name }}: {{ proc.version }} (no change)
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          
+          ⏱️  Downgrade Process:
+            1. Ops Manager downloads MongoDB {{ target_version }}
+            2. Rolling downgrade starts (one node at a time)
+            3. Each node downgraded and restarted
+            4. Waits for replica set stability
+            5. Proceeds to next node
+          
+          Expected Duration: {{ (filtered_count | int * 5) }}-{{ (filtered_count | int * 10) }} minutes
+          
+          📊 Monitor Progress:
+             {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment
+          
+          ✅ Verify Completion:
+             ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml
+          ===========================================
+
     - name: Display downgrade status
       ansible.builtin.debug:
-        msg:
-          - "==========================================="
-          - "✅ Downgrade Initiated Successfully"
-          - "==========================================="
-          - ""
-          - "Filter Applied: {{ deployment_filter if deployment_filter != '' else 'NONE (all processes)' }}"
-          - ""
-          - "Downgrading {{ filtered_count }} process(es):"
-          - "{% for proc in filtered_processes %}"
-          - "  - {{ proc.name }}: {{ proc.version }} → {{ target_version }}"
-          - "{% endfor %}"
-          - ""
-          - "{% if filtered_count < total_processes | int %}"
-          - "Unchanged processes ({{ total_processes | int - filtered_count | int }} total):"
-          - "{% for proc in all_processes %}"
-          - "{% if proc.name not in (filtered_processes | map(attribute='name') | list) %}"
-          - "  - {{ proc.name }}: {{ proc.version }} (no change)"
-          - "{% endif %}"
-          - "{% endfor %}"
-          - "{% endif %}"
-          - ""
-          - "⏱️  Downgrade Process:"
-          - "  1. Ops Manager downloads MongoDB {{ target_version }}"
-          - "  2. Rolling downgrade starts (one node at a time)"
-          - "  3. Each node downgraded and restarted"
-          - "  4. Waits for replica set stability"
-          - "  5. Proceeds to next node"
-          - ""
-          - "Expected Duration: {{ (filtered_count | int * 5) }}-{{ (filtered_count | int * 10) }} minutes"
-          - ""
-          - "📊 Monitor Progress:"
-          - "   {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
-          - ""
-          - "✅ Verify Completion:"
-          - "   ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml"
-          - "==========================================="
+        msg: "{{ downgrade_status }}"
 
     - name: Wait for deployment to start
       ansible.builtin.pause:
         seconds: 5
+
+    - name: Get automation status for monitoring
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationStatus"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: initial_status
 
     - name: Monitor downgrade progress
       ansible.builtin.uri:
@@ -292,7 +313,7 @@
         status_code: 200
         return_content: yes
       register: automation_status
-      until: automation_status.json.goalVersion == downgrade_result.json.version
+      until: automation_status.json.goalVersion == updated_config.version
       retries: 60
       delay: 10
       ignore_errors: yes
@@ -304,11 +325,15 @@
           - "Downgrade Monitoring"
           - "==========================================="
           - ""
-          - "Goal Version: {{ downgrade_result.json.version }}"
+          - "Config Version: {{ updated_config.version }}"
+          - "Goal Version: {{ automation_status.json.goalVersion | default('Unknown') }}"
           - "Current Status: {{ 'In Progress' if automation_status.failed else 'Completed' }}"
           - ""
           - "Note: Downgrade continues in background even if monitoring times out"
           - ""
           - "Check Ops Manager UI for real-time status:"
           - "{{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
+          - ""
+          - "Run this to verify completion:"
+          - "ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml"
           - "==========================================="
