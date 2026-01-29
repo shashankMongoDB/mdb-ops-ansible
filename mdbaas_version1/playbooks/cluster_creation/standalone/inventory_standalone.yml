@@ -1,0 +1,32 @@
+---
+# Inventory for MongoDB Standalone Deployment
+# Edit this file or set environment variables before running playbooks
+
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+
+  vars:
+    # Ops Manager Configuration
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+    
+    # MongoDB Configuration
+    mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') }}"
+    mongodb_port: "{{ lookup('env', 'STANDALONE_MONGODB_PORT') }}"
+    mongodb_data_path: "{{ lookup('env', 'STANDALONE_MONGODB_DATA_PATH') }}"
+    mongodb_log_path: "{{ lookup('env', 'STANDALONE_MONGODB_LOG_PATH') }}"
+    
+    # Standalone VM
+    standalone_hostname: "{{ lookup('env', 'STANDALONE_HOSTNAME') }}"
+
+# Example environment variables:
+# export OPS_MANAGER_URL="http://your-ops-manager:8080"
+# export OPS_MANAGER_PROJECT_ID="your-project-id"
+# export OPS_MANAGER_PUBLIC_KEY="your-public-key"
+# export OPS_MANAGER_PRIVATE_KEY="your-private-key"
+# export STANDALONE_HOSTNAME="ip-172-31-16-76.us-west-2.compute.internal"
+# export MONGODB_VERSION="8.0.17-ent"

@@ -1,0 +1,5 @@
+.idea/
+*.DS_Store
+playbooks/cluster_creation/.env
+playbooks/cluster_creation/.env.example
+group_vars/

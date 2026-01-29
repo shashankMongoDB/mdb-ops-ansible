@@ -1,0 +1,67 @@
+---
+# Inventory for MongoDB Sharded Cluster Deployment
+# Uses the SAME 3 VMs as replica set with different ports
+# Load environment first: source ./load_env.sh (from repo root)
+
+all:
+  children:
+    # Use same VM grouping as replica set
+    mongodb_primary:
+      hosts:
+        mongodb-01:
+          ansible_host: "{{ lookup('env', 'VM1_IP') }}"
+          ops_manager_hostname: "{{ lookup('env', 'VM1_OPS_MANAGER_HOSTNAME') }}"  # MUST match Ops Manager discovered hostname
+          priority: "{{ lookup('env', 'VM1_PRIORITY') }}"
+          member_id: "{{ lookup('env', 'VM1_MEMBER_ID') }}"
+          hostname: "{{ lookup('env', 'VM1_HOSTNAME') }}"
+    
+    mongodb_secondary:
+      hosts:
+        mongodb-02:
+          ansible_host: "{{ lookup('env', 'VM2_IP') }}"
+          ops_manager_hostname: "{{ lookup('env', 'VM2_OPS_MANAGER_HOSTNAME') }}"  # MUST match Ops Manager discovered hostname
+          priority: "{{ lookup('env', 'VM2_PRIORITY') }}"
+          member_id: "{{ lookup('env', 'VM2_MEMBER_ID') }}"
+          hostname: "{{ lookup('env', 'VM2_HOSTNAME') }}"
+        
+        mongodb-03:
+          ansible_host: "{{ lookup('env', 'VM3_IP') }}"
+          ops_manager_hostname: "{{ lookup('env', 'VM3_OPS_MANAGER_HOSTNAME') }}"  # MUST match Ops Manager discovered hostname
+          priority: "{{ lookup('env', 'VM3_PRIORITY') }}"
+          member_id: "{{ lookup('env', 'VM3_MEMBER_ID') }}"
+          hostname: "{{ lookup('env', 'VM3_HOSTNAME') }}"
+  
+  vars:
+    # SSH Configuration
+    ansible_user: "{{ lookup('env', 'SSH_USER') }}"
+    ansible_ssh_private_key_file: "{{ lookup('env', 'SSH_KEY_PATH') }}"
+    ansible_become: true
+    ansible_become_method: sudo
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+    # Sharded Cluster Configuration
+    config_server_rs_name: "{{ lookup('env', 'CONFIG_SERVER_RS_NAME') | default('configRS', true) }}"
+    shard1_rs_name: "{{ lookup('env', 'SHARD1_RS_NAME') | default('shard1', true) }}"
+    cluster_type: sharded_cluster
+
+    # MongoDB Configuration
+    mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') }}"
+
+    # Ops Manager Configuration (from environment - REQUIRED)
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_host: "{{ lookup('env', 'OPS_MANAGER_HOST') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_org_id: "{{ lookup('env', 'OPS_MANAGER_ORG_ID') }}"
+    ops_manager_agent_api_key: "{{ lookup('env', 'OPS_MANAGER_AGENT_API_KEY') }}"
+    ops_manager_api_version: "{{ lookup('env', 'OPS_MANAGER_API_VERSION') | default('v1.0', true) }}"
+
+# IMPORTANT: Update VM*_OPS_MANAGER_HOSTNAME values inside .env to match YOUR VMs!
+# The hostnames MUST match what Ops Manager has discovered for your agents.
+#
+# To find the correct hostnames:
+# 1. SSH to each VM: ssh ubuntu@VM_IP
+# 2. Run: hostname -f
+# 3. Copy the output into VM*_OPS_MANAGER_HOSTNAME entries inside .env
+#
+# These EXACT hostnames are what Ops Manager uses to identify your VMs!

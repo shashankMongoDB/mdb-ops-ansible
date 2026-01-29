@@ -1,0 +1,219 @@
+---
+# Configure Prometheus Integration at Project Level
+# Usage: ansible-playbook 80_configure_prometheus.yml
+#
+# This configures all deployments in the project to be exposed as Prometheus targets
+# Requires Prometheus URL and credentials to be set in environment or config
+
+- name: Configure Prometheus Integration
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+    
+    # Prometheus configuration (set via environment or pass as extra vars)
+    prometheus_url: "{{ lookup('env', 'PROMETHEUS_URL') | default('', true) }}"
+    prometheus_username: "{{ lookup('env', 'PROMETHEUS_USERNAME') | default('', true) }}"
+    prometheus_password: "{{ lookup('env', 'PROMETHEUS_PASSWORD') | default('', true) }}"
+    prometheus_scheme: "{{ lookup('env', 'PROMETHEUS_SCHEME') | default('http', true) }}"
+    prometheus_port: "{{ lookup('env', 'PROMETHEUS_PORT') | default('9216', true) }}"
+    
+    # Service discovery interval in seconds (default: 60)
+    discovery_interval: "{{ lookup('env', 'PROMETHEUS_DISCOVERY_INTERVAL') | default('60', true) }}"
+
+  tasks:
+    - name: Ensure Ops Manager configuration is loaded
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url | length > 0
+          - ops_manager_project_id | length > 0
+          - ops_manager_public_key | length > 0
+          - ops_manager_private_key | length > 0
+        fail_msg: "Set OPS_MANAGER_* values in .env and run 'source ./load_env.sh' before executing this playbook."
+
+    - name: Validate Prometheus configuration
+      ansible.builtin.fail:
+        msg: "Prometheus URL is required. Set PROMETHEUS_URL environment variable or pass as extra var."
+      when: prometheus_url == ''
+
+    - name: Display configuration plan
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Configure Prometheus Integration"
+          - "=========================================="
+          - ""
+          - "Project ID: {{ ops_manager_project_id }}"
+          - ""
+          - "Prometheus Configuration:"
+          - "  URL: {{ prometheus_url }}"
+          - "  Scheme: {{ prometheus_scheme }}"
+          - "  Port: {{ prometheus_port }}"
+          - "  Username: {{ prometheus_username if prometheus_username else '(none)' }}"
+          - "  Password: {{ '***' if prometheus_password else '(none)' }}"
+          - "  Discovery Interval: {{ discovery_interval }}s"
+          - ""
+          - "This will:"
+          - "  - Enable Prometheus scraping for all deployments"
+          - "  - Expose metrics on port {{ prometheus_port }}"
+          - "  - Configure service discovery"
+          - ""
+          - "Continuing in 5 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Get current project settings
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: project_info
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Build Prometheus monitoring configuration
+      ansible.builtin.set_fact:
+        prometheus_config:
+          prometheus:
+            enabled: true
+            scheme: "{{ prometheus_scheme }}"
+            username: "{{ prometheus_username }}"
+            password: "{{ prometheus_password }}"
+            listenAddress: "0.0.0.0:{{ prometheus_port }}"
+            metricsPath: "/metrics"
+            tlsEnabled: "{{ true if prometheus_scheme == 'https' else false }}"
+            discoveryInterval: "{{ discovery_interval | int }}"
+
+    - name: Merge monitoring config with automation config
+      ansible.builtin.set_fact:
+        updated_config: "{{ current_config.json | combine({'monitoring': prometheus_config}, recursive=True) }}"
+
+    - name: Update automation config with Prometheus settings
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ updated_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: config_update_result
+
+    - name: Display configuration status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Prometheus Integration Configured"
+          - "=========================================="
+          - ""
+          - "Project: {{ project_info.json.name | default('N/A') }}"
+          - "Project ID: {{ ops_manager_project_id }}"
+          - ""
+          - "Prometheus Settings:"
+          - "  Enabled: Yes"
+          - "  Metrics Port: {{ prometheus_port }}"
+          - "  Metrics Path: /metrics"
+          - "  Scheme: {{ prometheus_scheme }}"
+          - "  Discovery Interval: {{ discovery_interval }}s"
+          - ""
+          - "All MongoDB processes in this project will now expose"
+          - "Prometheus metrics on port {{ prometheus_port }}."
+          - ""
+          - "Prometheus Scrape Configuration:"
+          - "  - job_name: 'mongodb-{{ ops_manager_project_id }}'"
+          - "    static_configs:"
+          - "      - targets:"
+          - "{% for process in current_config.json.processes %}"
+          - "          - '{{ process.hostname }}:{{ prometheus_port }}'"
+          - "{% endfor %}"
+          - ""
+          - "Or use Ops Manager service discovery:"
+          - "  - job_name: 'mongodb-ops-manager'"
+          - "    http_sd_configs:"
+          - "      - url: '{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/hosts'"
+          - "        basic_auth:"
+          - "          username: '{{ ops_manager_public_key }}'"
+          - "          password: '{{ ops_manager_private_key }}'"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/monitoring"
+          - "=========================================="
+
+    - name: Save Prometheus scrape config to file
+      ansible.builtin.copy:
+        content: |
+          # Prometheus Scrape Configuration for MongoDB
+          # Project: {{ project_info.json.name | default('N/A') }}
+          # Project ID: {{ ops_manager_project_id }}
+          # Generated: {{ ansible_date_time.iso8601 }}
+          
+          # Option 1: Static targets (simple)
+          scrape_configs:
+            - job_name: 'mongodb-{{ ops_manager_project_id }}'
+              scrape_interval: {{ discovery_interval }}s
+              static_configs:
+                - targets:
+          {% for process in current_config.json.processes %}
+                    - '{{ process.hostname }}:{{ prometheus_port }}'
+          {% endfor %}
+          {% if prometheus_username %}
+              basic_auth:
+                username: '{{ prometheus_username }}'
+                password: '{{ prometheus_password }}'
+          {% endif %}
+          
+          # Option 2: Service discovery via Ops Manager API (advanced)
+          scrape_configs:
+            - job_name: 'mongodb-ops-manager-{{ ops_manager_project_id }}'
+              scrape_interval: {{ discovery_interval }}s
+              http_sd_configs:
+                - url: '{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/hosts'
+                  basic_auth:
+                    username: '{{ ops_manager_public_key }}'
+                    password: '{{ ops_manager_private_key }}'
+              relabel_configs:
+                - source_labels: [__meta_ops_manager_hostname]
+                  target_label: instance
+                - source_labels: [__meta_ops_manager_cluster_name]
+                  target_label: cluster
+        dest: "/tmp/prometheus_mongodb_{{ ops_manager_project_id }}.yml"
+      delegate_to: localhost
+
+    - name: Display save location
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "Prometheus configuration saved to:"
+          - "/tmp/prometheus_mongodb_{{ ops_manager_project_id }}.yml"
+          - ""
+          - "Add this to your prometheus.yml file to start scraping metrics."

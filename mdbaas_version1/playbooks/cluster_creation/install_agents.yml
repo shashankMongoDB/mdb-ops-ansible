@@ -1,0 +1,253 @@
+---
+- name: Install MongoDB Automation Agent on EC2 Instances
+  hosts: all
+  gather_facts: yes
+  become: yes
+  serial: 3
+
+  vars:
+    agent_config_path: "/etc/mongodb-mms/automation-agent.config"
+    agent_service: "mongodb-mms-automation-agent"
+    agent_package_map:
+      ubuntu: "ubuntu1604"
+      debian: "ubuntu1604"
+      rhel: "rhel7"
+      centos: "rhel7"
+      amzn: "amazon2"
+
+  tasks:
+    - name: Display installation start
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Installing MongoDB Automation Agent"
+          - "=========================================="
+          - "Host: {{ inventory_hostname }}"
+          - "IP: {{ ansible_host }}"
+          - "OS: {{ ansible_distribution }} {{ os_version }}"
+          - ""
+      delegate_to: localhost
+      run_once: false
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wget
+          - gnupg
+          - software-properties-common
+        state: present
+
+    - name: Create MongoDB system user
+      ansible.builtin.user:
+        name: mongodb
+        system: yes
+        shell: /bin/false
+        home: /var/lib/mongodb
+        create_home: no
+
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: mongodb
+        group: mongodb
+        mode: '0755'
+      loop:
+        - /var/lib/mongodb-mms-automation
+        - /data
+        - /data/db
+        - /var/log/mongodb
+
+    - name: Set proper permissions on data directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: mongodb
+        group: mongodb
+        mode: '0755'
+        recurse: yes
+      loop:
+        - /data/db
+        - /var/log/mongodb
+
+    - name: Detect OS and architecture
+      ansible.builtin.set_fact:
+        detected_os_name: "{{ ansible_distribution | lower }}"
+        detected_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+
+    - name: Determine agent package suffix
+      ansible.builtin.set_fact:
+        agent_package_suffix: "{{ agent_package_map[detected_os_name] | default('ubuntu1604') }}"
+
+    - name: Build agent download URL
+      ansible.builtin.set_fact:
+        agent_download_url: "{{ ops_manager_url }}/download/agent/automation/mongodb-mms-automation-agent-manager_latest_{{ detected_arch }}.{{ agent_package_suffix }}.deb"
+
+    - name: Display agent download URL
+      ansible.builtin.debug:
+        msg:
+          - "Agent Download URL: {{ agent_download_url }}"
+          - "This URL will be used to download the automation agent"
+
+    - name: Check if agent already installed
+      ansible.builtin.stat:
+        path: /usr/bin/mongodb-mms-automation-agent
+      register: agent_binary
+
+    - name: Download automation agent
+      ansible.builtin.get_url:
+        url: "{{ agent_download_url }}"
+        dest: /tmp/mongodb-mms-automation-agent.deb
+        mode: '0644'
+        timeout: 300
+      when: not agent_binary.stat.exists
+
+    - name: Install automation agent package
+      ansible.builtin.apt:
+        deb: /tmp/mongodb-mms-automation-agent.deb
+        state: present
+      when: not agent_binary.stat.exists
+
+    - name: Ensure agent config directory exists
+      ansible.builtin.file:
+        path: /etc/mongodb-mms
+        state: directory
+        owner: mongodb
+        group: mongodb
+        mode: '0755'
+
+    - name: Configure automation agent
+      ansible.builtin.template:
+        src: replica_set/templates/agent_config.j2
+        dest: "{{ agent_config_path }}"
+        owner: mongodb
+        group: mongodb
+        mode: '0600'
+      notify: restart agent
+
+    - name: Enable automation agent service
+      ansible.builtin.systemd:
+        name: "{{ agent_service }}"
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Start automation agent
+      ansible.builtin.systemd:
+        name: "{{ agent_service }}"
+        state: started
+
+    - name: Wait for agent to initialize
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Check agent status
+      ansible.builtin.systemd:
+        name: "{{ agent_service }}"
+      register: agent_status
+
+    - name: Display agent status
+      ansible.builtin.debug:
+        msg:
+          - "Agent Status: {{ agent_status.status.ActiveState }}"
+          - "Service: {{ agent_status.status.SubState }}"
+      when: agent_status.status.ActiveState is defined
+
+    - name: Check agent logs for successful connection
+      ansible.builtin.shell: |
+        tail -100 /var/lib/mongodb-mms-automation/automation-agent.log | grep -i "successfully connected\|agent is ready" || echo "Waiting for connection..."
+      register: agent_logs
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display agent connection status
+      ansible.builtin.debug:
+        msg: "{{ agent_logs.stdout_lines }}"
+
+    - name: Display completion status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Agent Installation Complete"
+          - "=========================================="
+          - "Host: {{ inventory_hostname }}"
+          - "Status: {{ 'RUNNING' if agent_status.status.ActiveState == 'active' else 'CHECK LOGS' }}"
+          - ""
+          - "To verify:"
+          - "  sudo systemctl status {{ agent_service }}"
+          - "  sudo tail -f /var/lib/mongodb-mms-automation/automation-agent.log"
+          - "=========================================="
+      when: agent_status.status.ActiveState is defined
+
+  handlers:
+    - name: restart agent
+      ansible.builtin.systemd:
+        name: "{{ agent_service }}"
+        state: restarted
+        daemon_reload: yes
+
+- name: Verify all agents installed
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    primary_hosts: "{{ groups.get('mongodb_primary', []) }}"
+    secondary_hosts: "{{ groups.get('mongodb_secondary', []) }}"
+    all_hosts: "{{ primary_hosts + secondary_hosts }}"
+
+  tasks:
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=========================================="
+          - "AGENT INSTALLATION SUMMARY"
+          - "=========================================="
+          - ""
+          - "Total VMs: {{ all_hosts | length }}"
+          - "{% for host in all_hosts %}  - {{ host }} ({{ hostvars[host]['ansible_host'] }}){% endfor %}"
+          - ""
+          - "Next Steps:"
+          - "1. Wait 1-2 minutes for agents to fully connect"
+          - "2. Check Ops Manager UI: {{ hostvars[groups['all'][0]]['ops_manager_url'] }}"
+          - "   → Deployment → Agents tab"
+          - "3. Verify all agents show as 'Active'"
+          - ""
+          - "Then run: ansible-playbook deploy_replica_set_merge.yml"
+          - "=========================================="
+
+    - name: Create verification script
+      ansible.builtin.copy:
+        dest: ./verify_agents.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          echo "Checking agent connectivity to Ops Manager..."
+          echo ""
+
+          hosts=(
+          {% for host in all_hosts %}
+          {{ hostvars[host]['ansible_host'] }}
+          {% endfor %}
+          )
+
+          for host in "${hosts[@]}"; do
+            echo "Checking $host..."
+            ssh {{ lookup('env', 'SSH_USER') }}@$host "sudo systemctl status mongodb-mms-automation-agent | grep Active"
+            echo ""
+          done
+
+          echo "Check Ops Manager UI for agent status:"
+          echo "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/v2/#/deployments/agents"
+
+    - name: Display verification info
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "Verification script created: ./verify_agents.sh"
+          - "Run: ./verify_agents.sh"

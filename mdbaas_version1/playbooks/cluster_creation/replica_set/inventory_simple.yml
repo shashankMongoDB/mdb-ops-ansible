@@ -1,0 +1,71 @@
+# MongoDB Replica Set Inventory (Simplified)
+# All values read from environment variables (.env file)
+# 
+# Load environment first: source ./load_env.sh (from repo root)
+
+all:
+  children:
+    # Primary Node
+    mongodb_primary:
+      hosts:
+        mongodb-01:
+          ansible_host: "{{ lookup('env', 'VM1_IP') }}"
+          ops_manager_hostname: "{{ lookup('env', 'VM1_OPS_MANAGER_HOSTNAME') }}"
+          priority: "{{ lookup('env', 'VM1_PRIORITY') }}"
+          member_id: "{{ lookup('env', 'VM1_MEMBER_ID') }}"
+          hostname: "{{ lookup('env', 'VM1_HOSTNAME') }}"
+    
+    # Secondary Nodes
+    mongodb_secondary:
+      hosts:
+        mongodb-02:
+          ansible_host: "{{ lookup('env', 'VM2_IP') }}"
+          ops_manager_hostname: "{{ lookup('env', 'VM2_OPS_MANAGER_HOSTNAME') }}"
+          priority: "{{ lookup('env', 'VM2_PRIORITY') }}"
+          member_id: "{{ lookup('env', 'VM2_MEMBER_ID') }}"
+          hostname: "{{ lookup('env', 'VM2_HOSTNAME') }}"
+        
+        mongodb-03:
+          ansible_host: "{{ lookup('env', 'VM3_IP') }}"
+          ops_manager_hostname: "{{ lookup('env', 'VM3_OPS_MANAGER_HOSTNAME') }}"
+          priority: "{{ lookup('env', 'VM3_PRIORITY') }}"
+          member_id: "{{ lookup('env', 'VM3_MEMBER_ID') }}"
+          hostname: "{{ lookup('env', 'VM3_HOSTNAME') }}"
+  
+  # Variables for ALL hosts
+  vars:
+    # SSH Configuration
+    ansible_user: "{{ lookup('env', 'SSH_USER') }}"
+    ansible_ssh_private_key_file: "{{ lookup('env', 'SSH_KEY_PATH') }}"
+    ansible_become: true
+    ansible_become_method: sudo
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+    # Replica Set Configuration
+    replica_set_name: "{{ lookup('env', 'REPLICA_SET_NAME') }}"
+    cluster_type: replica_set
+
+    # MongoDB Configuration
+    mongodb_version: "{{ lookup('env', 'MONGODB_VERSION') }}"
+    mongodb_port: "{{ lookup('env', 'MONGODB_PORT') }}"
+    mongodb_data_path: "{{ lookup('env', 'MONGODB_DATA_PATH') }}"
+    mongodb_log_path: "{{ lookup('env', 'MONGODB_LOG_PATH') }}"
+
+    # Ops Manager Configuration (from environment - REQUIRED)
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_host: "{{ lookup('env', 'OPS_MANAGER_HOST') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_org_id: "{{ lookup('env', 'OPS_MANAGER_ORG_ID') }}"
+    ops_manager_agent_api_key: "{{ lookup('env', 'OPS_MANAGER_AGENT_API_KEY') }}"
+    ops_manager_api_version: "{{ lookup('env', 'OPS_MANAGER_API_VERSION') | default('v1.0', true) }}"
+
+    # Feature Flags
+    enable_authentication: "{{ lookup('env', 'ENABLE_AUTHENTICATION') | default('true', true) }}"
+    auth_mechanism: SCRAM-SHA-256
+    enable_monitoring: "{{ lookup('env', 'ENABLE_MONITORING') | default('true', true) }}"
+    enable_backup: "{{ lookup('env', 'ENABLE_BACKUP') | default('true', true) }}"
+
+    # OS Configuration
+    os_type: "{{ lookup('env', 'OS_TYPE') }}"
+    os_version: "{{ lookup('env', 'OS_VERSION') }}"

@@ -1,0 +1,426 @@
+---
+# Deploy MongoDB Sharded Cluster from Scratch
+# Usage: ansible-playbook -i inventory_sharded.yml 4_deploy_sharded_cluster.yml
+#
+# This playbook deploys a complete sharded cluster on the SAME 3 VMs:
+# VM1: config-01 (27019) + mongos-01 (27017) + shard1-01 (27018)
+# VM2: config-02 (27019) + mongos-02 (27017) + shard1-02 (27018)
+# VM3: config-03 (27019) + shard1-03 (27018)
+#
+# Total: 8 MongoDB processes on 3 VMs using different ports
+# Uses the SAME inventory structure as replica set
+
+- name: Deploy MongoDB Sharded Cluster
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+
+  tasks:
+    - name: Ensure Ops Manager credentials are set
+      ansible.builtin.assert:
+        that:
+          - ops_manager_public_key | length > 0
+          - ops_manager_private_key | length > 0
+        fail_msg: "Set OPS_MANAGER_* values in .env and run 'source ./load_env.sh' before executing this playbook."
+
+    - name: Display deployment plan
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Deploy MongoDB Sharded Cluster"
+          - "=========================================="
+          - ""
+          - "Using 3 VMs (same as replica set):"
+          - "  VM1: {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+          - "  VM2: {{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+          - "  VM3: {{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
+          - ""
+          - "Process Distribution:"
+          - "  VM1: config-01 + mongos-01 + shard1-01"
+          - "  VM2: config-02 + mongos-02 + shard1-02"
+          - "  VM3: config-03 + shard1-03"
+          - ""
+          - "Ports:"
+          - "  Config Servers: 27019"
+          - "  Mongos Routers: 27020 (avoiding conflict with replica set on 27017)"
+          - "  Shard Nodes: 27018"
+          - ""
+          - "Total: 8 MongoDB processes"
+          - "MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          - ""
+          - "Continuing in 10 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "=========================================="
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    # ===== BUILD CONFIG SERVERS (3 nodes, port 27019) =====
+    
+    - name: Build config server process list
+      ansible.builtin.set_fact:
+        config_processes:
+          - name: "config-01"
+            hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            args2_6:
+              net:
+                port: 27019
+              storage:
+                dbPath: "/data/configdb"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/config.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+              sharding:
+                clusterRole: "configsvr"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - name: "config-02"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            args2_6:
+              net:
+                port: 27019
+              storage:
+                dbPath: "/data/configdb"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/config.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+              sharding:
+                clusterRole: "configsvr"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - name: "config-03"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            args2_6:
+              net:
+                port: 27019
+              storage:
+                dbPath: "/data/configdb"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/config.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+              sharding:
+                clusterRole: "configsvr"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+
+    - name: Build config server replica set
+      ansible.builtin.set_fact:
+        config_replicaset:
+          _id: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+          protocolVersion: 1
+          members:
+            - _id: 0
+              host: "config-01"
+              priority: 2
+              votes: 1
+            - _id: 1
+              host: "config-02"
+              priority: 1
+              votes: 1
+            - _id: 2
+              host: "config-03"
+              priority: 1
+              votes: 1
+
+    # ===== BUILD SHARD 1 (3 nodes, port 27018) =====
+    
+    - name: Build shard1 process list
+      ansible.builtin.set_fact:
+        shard1_processes:
+          - name: "shard1-01"
+            hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            args2_6:
+              net:
+                port: 27018
+              storage:
+                dbPath: "/data/shard1"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/shard1.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+              sharding:
+                clusterRole: "shardsvr"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - name: "shard1-02"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            args2_6:
+              net:
+                port: 27018
+              storage:
+                dbPath: "/data/shard1"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/shard1.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+              sharding:
+                clusterRole: "shardsvr"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - name: "shard1-03"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}"
+            processType: "mongod"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            args2_6:
+              net:
+                port: 27018
+              storage:
+                dbPath: "/data/shard1"
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/shard1.log"
+                logAppend: true
+              replication:
+                replSetName: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+              sharding:
+                clusterRole: "shardsvr"
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+
+    - name: Build shard1 replica set
+      ansible.builtin.set_fact:
+        shard1_replicaset:
+          _id: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+          protocolVersion: 1
+          members:
+            - _id: 0
+              host: "shard1-01"
+              priority: 2
+              votes: 1
+            - _id: 1
+              host: "shard1-02"
+              priority: 1
+              votes: 1
+            - _id: 2
+              host: "shard1-03"
+              priority: 1
+              votes: 1
+
+    # ===== BUILD MONGOS ROUTERS (2 nodes, port 27020) =====
+    # Using port 27020 to avoid conflict with replica set on 27017
+    
+    - name: Build mongos process list
+      ansible.builtin.set_fact:
+        mongos_processes:
+          - name: "mongos-01"
+            hostname: "{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}"
+            processType: "mongos"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            cluster: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+            args2_6:
+              net:
+                port: 27020
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/mongos.log"
+                logAppend: true
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+          
+          - name: "mongos-02"
+            hostname: "{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}"
+            processType: "mongos"
+            version: "{{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+            authSchemaVersion: 5
+            featureCompatibilityVersion: "8.0"
+            disabled: false
+            manualMode: false
+            cluster: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+            args2_6:
+              net:
+                port: 27020
+              systemLog:
+                destination: "file"
+                path: "/var/log/mongodb/mongos.log"
+                logAppend: true
+            logRotate:
+              sizeThresholdMB: 1000
+              timeThresholdHrs: 24
+
+    # ===== BUILD SHARDING CONFIGURATION =====
+    # Proper ShardingConfig object structure for Ops Manager
+    
+    - name: Build sharding configuration
+      ansible.builtin.set_fact:
+        new_sharding_config:
+          - name: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+            configServerReplica: "{{ hostvars[groups['all'][0]]['config_server_rs_name'] }}"
+            shards:
+              - _id: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+                rs: "{{ hostvars[groups['all'][0]]['shard1_rs_name'] }}"
+                tags: []
+            tags: []
+            draining: []
+            collections: []
+
+    # ===== MERGE WITH EXISTING DEPLOYMENT =====
+    # Preserve existing replica set deployment
+    
+    - name: Combine all processes (preserve existing + add new)
+      ansible.builtin.set_fact:
+        all_processes: "{{ current_config.json.processes + config_processes + shard1_processes + mongos_processes }}"
+
+    - name: Combine all replica sets (preserve existing + add new)
+      ansible.builtin.set_fact:
+        all_replicasets: "{{ current_config.json.replicaSets + [config_replicaset, shard1_replicaset] }}"
+
+    - name: Combine sharding config (add to existing)
+      ansible.builtin.set_fact:
+        all_sharding: "{{ (current_config.json.sharding | default([])) + new_sharding_config }}"
+
+    - name: Merge with current config
+      ansible.builtin.set_fact:
+        merged_config: >-
+          {{
+            current_config.json |
+            combine({
+              'processes': all_processes,
+              'replicaSets': all_replicasets,
+              'sharding': all_sharding
+            }, recursive=True)
+          }}
+
+    - name: Dump merged automation config to file
+      copy:
+        dest: /tmp/merged_automation_config.json
+        content: "{{ merged_config | to_nice_json }}"
+
+    - name: Update automation config
+      ansible.builtin.uri:
+        url: "{{ hostvars[groups['all'][0]]['ops_manager_url'] }}/api/public/v1.0/groups/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}/automationConfig"
+        method: PUT
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ merged_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: update_result
+
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "✅ Sharded Cluster Deployment Initiated"
+          - "=========================================="
+          - ""
+          - "Deployed on 3 VMs:"
+          - "  VM1 ({{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}):"
+          - "    - config-01 on port 27019"
+          - "    - mongos-01 on port 27020 ← CONNECT HERE"
+          - "    - shard1-01 on port 27018"
+          - ""
+          - "  VM2 ({{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}):"
+          - "    - config-02 on port 27019"
+          - "    - mongos-02 on port 27020"
+          - "    - shard1-02 on port 27018"
+          - ""
+          - "  VM3 ({{ hostvars[groups['mongodb_secondary'][1]]['ops_manager_hostname'] }}):"
+          - "    - config-03 on port 27019"
+          - "    - shard1-03 on port 27018"
+          - ""
+          - "Total: 8 MongoDB processes"
+          - "MongoDB Version: {{ hostvars[groups['all'][0]]['mongodb_version'] }}"
+          - ""
+          - "Note: Replica set still running on port 27017"
+          - "      Mongos using port 27020 to avoid conflict"
+          - ""
+          - "⏱️  Deployment will complete in 15-20 minutes"
+          - ""
+          - "Connection Strings:"
+          - "  Mongos: mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}:27020,{{ hostvars[groups['mongodb_secondary'][0]]['ops_manager_hostname'] }}:27020"
+          - "  Replica Set (existing): mongodb://{{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }}:27017"
+          - ""
+          - "Connect via mongos (recommended):"
+          - "  mongosh --host {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }} --port 27020"
+          - ""
+          - "Check sharding status:"
+          - "  mongosh --host {{ hostvars[groups['mongodb_primary'][0]]['ops_manager_hostname'] }} --port 27020"
+          - "  sh.status()"
+          - ""
+          - "📊 Check Ops Manager UI:"
+          - "   {{ hostvars[groups['all'][0]]['ops_manager_url'] }}/v2/{{ hostvars[groups['all'][0]]['ops_manager_project_id'] }}#/deployment"
+          - "=========================================="

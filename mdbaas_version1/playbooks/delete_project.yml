@@ -1,0 +1,114 @@
+---
+- name: Delete Project from Ops Manager
+  hosts: localhost
+  gather_facts: true
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_api_version: "{{ lookup('env', 'OPS_MANAGER_API_VERSION') | default('v1.0', true) }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+  vars_prompt:
+    - name: project_id
+      prompt: "Enter the Project ID to delete"
+      private: false
+    - name: confirm_delete
+      prompt: "Are you sure? Type 'yes' to confirm deletion"
+      private: false
+
+  tasks:
+    - name: Ensure Ops Manager credentials are set
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url | length > 0
+          - ops_manager_public_key | length > 0
+          - ops_manager_private_key | length > 0
+        fail_msg: "Set OPS_MANAGER_* values in .env and run 'source ./load_env.sh' before executing this playbook."
+
+    - name: Validate confirmation
+      ansible.builtin.assert:
+        that:
+          - confirm_delete == "yes"
+        fail_msg: "Deletion not confirmed. Aborting."
+
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - project_id | length > 0
+        fail_msg: "Project ID is required. Provide it when prompted."
+
+    - name: Get project details before deletion
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/groups/{{ project_id }}"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: true
+      register: project_details
+      ignore_errors: yes
+
+    - name: Display project details
+      ansible.builtin.debug:
+        msg:
+          - "Project to delete:"
+          - "  Name: {{ project_details.json.name }}"
+          - "  ID: {{ project_details.json.id }}"
+          - "  Org ID: {{ project_details.json.orgId }}"
+          - "  Replica Sets: {{ project_details.json.replicaSetCount }}"
+          - "  Shards: {{ project_details.json.shardCount }}"
+      when: project_details.status == 200
+
+    - name: Check if project has deployments
+      ansible.builtin.assert:
+        that:
+          - project_details.json.replicaSetCount == 0
+          - project_details.json.shardCount == 0
+        fail_msg: |
+          ERROR: Cannot delete project with active deployments!
+          Replica Sets: {{ project_details.json.replicaSetCount }}
+          Shards: {{ project_details.json.shardCount }}
+          
+          You must delete all clusters first before deleting the project.
+      when: project_details.status == 200
+
+    - name: Delete the project
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/groups/{{ project_id }}"
+        method: DELETE
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: [200, 202, 204]
+        return_content: true
+      register: delete_result
+
+    - name: Set deletion status message
+      ansible.builtin.set_fact:
+        deletion_status: "{{ 'IN PROGRESS' if delete_result.status == 202 else 'COMPLETED' }}"
+        status_note: "{{ 'Note: Deletion accepted (202). The operation is being processed. It may take a few moments to complete.' if delete_result.status == 202 else 'Deletion completed successfully.' }}"
+
+    - name: Display deletion result
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "PROJECT DELETION {{ deletion_status }}"
+          - "=========================================="
+          - ""
+          - "Project ID: {{ project_id }}"
+          - "Project Name: {{ project_details.json.name | default('N/A') }}"
+          - "Status Code: {{ delete_result.status }}"
+          - ""
+          - "{{ status_note }}"
+          - ""
+          - "IMPORTANT:"
+          - "- All monitoring data for this project will be removed"
+          - "- The project will no longer appear in selection lists"
+          - "- This action cannot be undone"
+          - ""
+          - "Verify deletion in Ops Manager dashboard"
+          - "=========================================="

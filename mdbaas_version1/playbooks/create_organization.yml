@@ -1,0 +1,87 @@
+---
+- name: Create MongoDB Ops Manager Organization
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_api_version: "{{ lookup('env', 'OPS_MANAGER_API_VERSION') | default('v1.0', true) }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+  vars_prompt:
+    - name: org_name
+      prompt: "Enter the organization name"
+      private: false
+
+  tasks:
+    - name: Ensure Ops Manager credentials are set
+      ansible.builtin.assert:
+        that:
+          - ops_manager_url | length > 0
+          - ops_manager_public_key | length > 0
+          - ops_manager_private_key | length > 0
+        fail_msg: "Set OPS_MANAGER_* values in .env and run 'source ./load_env.sh' before executing this playbook."
+
+    - name: Prepare organization creation payload
+      ansible.builtin.set_fact:
+        org_payload:
+          name: "{{ org_name }}"
+
+    - name: Create organization in Ops Manager
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/{{ ops_manager_api_version }}/orgs"
+        method: POST
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ org_payload | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: true
+      register: org_result
+
+    - name: Display organization creation result
+      ansible.builtin.debug:
+        msg:
+          - "Organization created successfully!"
+          - "Organization ID: {{ org_result.json.id }}"
+          - "Organization Name: {{ org_result.json.name }}"
+
+    - name: Save organization details to file
+      ansible.builtin.copy:
+        content: |
+          Organization Details:
+          =====================
+          Organization ID: {{ org_result.json.id }}
+          Organization Name: {{ org_result.json.name }}
+          Created: {{ ansible_date_time.iso8601 }}
+          
+          Full Response:
+          {{ org_result.json | to_nice_json }}
+          
+          IMPORTANT NOTES:
+          ================
+          1. Save this Organization ID: {{ org_result.json.id }}
+          2. Update OPS_MANAGER_ORG_ID inside the repo-root .env file
+          3. This organization was created without an Organization Owner.
+          4. You need to add an Organization Owner via the Ops Manager UI.
+        dest: "./organization_{{ org_result.json.id }}_details.txt"
+      delegate_to: localhost
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Organization '{{ org_name }}' created successfully"
+          - "Organization ID: {{ org_result.json.id }}"
+          - ""
+          - "NEXT STEPS:"
+          - "1. Update OPS_MANAGER_ORG_ID inside ./.env"
+          - "2. Add an Organization Owner in Ops Manager UI"
+          - "3. Run create_project.yml to create a project"
+          - ""
+          - "Details saved to: ./organization_{{ org_result.json.id }}_details.txt"
+          - "=========================================="
