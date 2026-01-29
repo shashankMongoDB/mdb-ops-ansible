@@ -208,18 +208,22 @@
       ansible.builtin.pause:
         seconds: 20
 
+    - name: Build list of process names to downgrade
+      ansible.builtin.set_fact:
+        process_names_to_downgrade: "{{ filtered_processes | map(attribute='name') | list }}"
+
     - name: Update filtered processes to target version
       ansible.builtin.set_fact:
         updated_processes: >-
-          {{
-            all_processes |
-            map('combine', 
-              {'version': target_version, 'featureCompatibilityVersion': target_fcv}
-              if item.name in (filtered_processes | map(attribute='name') | list)
-              else {}
-            ) |
-            list
-          }}
+          {%- set result = [] -%}
+          {%- for proc in all_processes -%}
+            {%- if proc.name in process_names_to_downgrade -%}
+              {%- set _ = result.append(proc | combine({'version': target_version, 'featureCompatibilityVersion': target_fcv})) -%}
+            {%- else -%}
+              {%- set _ = result.append(proc) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ result }}
 
     - name: Build updated automation config
       ansible.builtin.set_fact:
