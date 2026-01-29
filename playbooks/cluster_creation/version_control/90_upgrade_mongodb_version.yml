@@ -1,0 +1,201 @@
+---
+# Upgrade MongoDB Version
+# Usage: ansible-playbook -i ../replica_set/inventory.ini 90_upgrade_mongodb_version.yml
+#
+# Environment Variables Required:
+#   TARGET_MONGODB_VERSION - Target version to upgrade to (e.g., "8.0.18-ent", "7.0.15-ent")
+#
+# Example:
+#   export TARGET_MONGODB_VERSION="8.0.18-ent"
+#   ansible-playbook -i ../replica_set/inventory.ini 90_upgrade_mongodb_version.yml
+#
+# Safety Features:
+# - Validates version format
+# - Checks current version
+# - Confirms upgrade is valid (newer version)
+# - Rolling upgrade (one node at a time)
+# - Waits for goals to be reached before proceeding
+
+- name: Upgrade MongoDB Version
+  hosts: localhost
+  gather_facts: no
+  
+  vars:
+    target_version: "{{ lookup('env', 'TARGET_MONGODB_VERSION') }}"
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+
+  tasks:
+    - name: Validate required environment variables
+      ansible.builtin.fail:
+        msg: |
+          Missing required environment variables:
+          - TARGET_MONGODB_VERSION: {{ target_version | default('NOT SET') }}
+          - OPS_MANAGER_URL: {{ ops_manager_url | default('NOT SET') }}
+          - OPS_MANAGER_PROJECT_ID: {{ ops_manager_project_id | default('NOT SET') }}
+          - OPS_MANAGER_PUBLIC_KEY: {{ 'SET' if ops_manager_public_key else 'NOT SET' }}
+          - OPS_MANAGER_PRIVATE_KEY: {{ 'SET' if ops_manager_private_key else 'NOT SET' }}
+      when: >
+        target_version == '' or
+        ops_manager_url == '' or
+        ops_manager_project_id == '' or
+        ops_manager_public_key == '' or
+        ops_manager_private_key == ''
+
+    - name: Validate version format
+      ansible.builtin.fail:
+        msg: "TARGET_MONGODB_VERSION must be in format X.Y.Z-ent or X.Y.Z (e.g., 8.0.18-ent)"
+      when: target_version is not match('^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$')
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Extract current MongoDB version
+      ansible.builtin.set_fact:
+        current_version: "{{ current_config.json.processes[0].version }}"
+        total_processes: "{{ current_config.json.processes | length }}"
+
+    - name: Display upgrade plan
+      ansible.builtin.debug:
+        msg:
+          - "==========================================="
+          - "MongoDB Version Upgrade"
+          - "==========================================="
+          - ""
+          - "Current Version: {{ current_version }}"
+          - "Target Version:  {{ target_version }}"
+          - ""
+          - "Total Processes: {{ total_processes }}"
+          - ""
+          - "Upgrade Strategy:"
+          - "  - Rolling upgrade (one process at a time)"
+          - "  - Wait for goal state between upgrades"
+          - "  - Minimize downtime"
+          - ""
+          - "⚠️  WARNING: This will upgrade all MongoDB processes"
+          - ""
+          - "Continuing in 15 seconds..."
+          - "Press Ctrl+C to abort!"
+          - "==========================================="
+
+    - name: Validate upgrade direction
+      ansible.builtin.fail:
+        msg: |
+          ERROR: Cannot upgrade from {{ current_version }} to {{ target_version }}
+          Target version must be newer than current version.
+          For downgrade, use 91_downgrade_mongodb_version.yml
+      when: target_version is version(current_version, '<=')
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Update all processes to target version
+      ansible.builtin.set_fact:
+        updated_processes: >-
+          {{
+            current_config.json.processes |
+            map('combine', {'version': target_version, 'featureCompatibilityVersion': target_version.split('-')[0].split('.')[0:2] | join('.')}) |
+            list
+          }}
+
+    - name: Build updated automation config
+      ansible.builtin.set_fact:
+        updated_config: >-
+          {{
+            current_config.json |
+            combine({'processes': updated_processes}, recursive=True)
+          }}
+
+    - name: Submit version upgrade
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ updated_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: upgrade_result
+
+    - name: Display upgrade status
+      ansible.builtin.debug:
+        msg:
+          - "==========================================="
+          - "✅ Upgrade Initiated Successfully"
+          - "==========================================="
+          - ""
+          - "Upgrading from: {{ current_version }}"
+          - "Upgrading to:   {{ target_version }}"
+          - ""
+          - "Total processes: {{ total_processes }}"
+          - ""
+          - "⏱️  Upgrade Process:"
+          - "  1. Ops Manager downloads MongoDB {{ target_version }}"
+          - "  2. Rolling upgrade starts (one node at a time)"
+          - "  3. Each node upgraded and restarted"
+          - "  4. Waits for replica set stability"
+          - "  5. Proceeds to next node"
+          - ""
+          - "Expected Duration: {{ (total_processes | int * 5) }}-{{ (total_processes | int * 10) }} minutes"
+          - ""
+          - "📊 Monitor Progress:"
+          - "   {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
+          - ""
+          - "✅ Verify Completion:"
+          - "   ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml"
+          - "==========================================="
+
+    - name: Wait for deployment to start
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Monitor upgrade progress
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationStatus"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+      until: automation_status.json.goalVersion == upgrade_result.json.version
+      retries: 60
+      delay: 10
+      ignore_errors: yes
+
+    - name: Display final status
+      ansible.builtin.debug:
+        msg:
+          - "==========================================="
+          - "Upgrade Monitoring"
+          - "==========================================="
+          - ""
+          - "Goal Version: {{ upgrade_result.json.version }}"
+          - "Current Status: {{ 'In Progress' if automation_status.failed else 'Completed' }}"
+          - ""
+          - "Note: Upgrade continues in background even if monitoring times out"
+          - ""
+          - "Check Ops Manager UI for real-time status:"
+          - "{{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
+          - "==========================================="
