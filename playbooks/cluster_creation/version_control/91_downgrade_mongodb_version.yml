@@ -1,27 +1,20 @@
 ---
-# Downgrade MongoDB Version
+# Downgrade MongoDB Version (Selective Deployment)
 # Usage: ansible-playbook -i ../replica_set/inventory.ini 91_downgrade_mongodb_version.yml
 #
 # Environment Variables Required:
-#   TARGET_MONGODB_VERSION - Target version to downgrade to (e.g., "8.0.15-ent", "7.0.14-ent")
+#   TARGET_MONGODB_VERSION - Target version to downgrade to (e.g., "8.0.15-ent")
+#   DEPLOYMENT_FILTER (optional) - Filter processes by name pattern
 #
-# Example:
+# Examples:
+#   # Downgrade only replica set
 #   export TARGET_MONGODB_VERSION="8.0.15-ent"
+#   export DEPLOYMENT_FILTER="rs0"
 #   ansible-playbook -i ../replica_set/inventory.ini 91_downgrade_mongodb_version.yml
 #
-# ⚠️  IMPORTANT SAFETY WARNINGS:
-# - Downgrade requires compatible featureCompatibilityVersion (FCV)
-# - You must set FCV to target version BEFORE downgrade
-# - Downgrade may result in data loss if using newer features
-# - Test in non-production environment first
-# - Backup your data before downgrading
-#
-# Safety Features:
-# - Validates version format
-# - Checks current version
-# - Confirms downgrade is valid (older version)
-# - Warns about FCV compatibility
-# - Rolling downgrade (one node at a time)
+#   # Downgrade only sharded cluster
+#   export DEPLOYMENT_FILTER="shard|config|mongos"
+#   ansible-playbook -i ../replica_set/inventory.ini 91_downgrade_mongodb_version.yml
 
 - name: Downgrade MongoDB Version
   hosts: localhost
@@ -29,6 +22,7 @@
   
   vars:
     target_version: "{{ lookup('env', 'TARGET_MONGODB_VERSION') }}"
+    deployment_filter: "{{ lookup('env', 'DEPLOYMENT_FILTER') | default('', true) }}"
     ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
     ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
     ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
@@ -70,11 +64,35 @@
         return_content: yes
       register: current_config
 
-    - name: Extract current MongoDB version and FCV
+    - name: Filter processes based on DEPLOYMENT_FILTER
       ansible.builtin.set_fact:
-        current_version: "{{ current_config.json.processes[0].version }}"
-        current_fcv: "{{ current_config.json.processes[0].featureCompatibilityVersion | default('Unknown') }}"
+        filtered_processes: >-
+          {%- if deployment_filter != '' -%}
+            {{ current_config.json.processes | selectattr('name', 'match', '.*(' + deployment_filter + ').*') | list }}
+          {%- else -%}
+            {{ current_config.json.processes }}
+          {%- endif -%}
+        all_processes: "{{ current_config.json.processes }}"
+
+    - name: Validate filtered processes
+      ansible.builtin.fail:
+        msg: |
+          No processes match filter: "{{ deployment_filter }}"
+          
+          Available processes:
+          {% for proc in current_config.json.processes %}
+            - {{ proc.name }} ({{ proc.processType }})
+          {% endfor %}
+      when: filtered_processes | length == 0
+
+    - name: Extract version and FCV information
+      ansible.builtin.set_fact:
+        current_versions: >-
+          {{ filtered_processes | map(attribute='version') | unique | list }}
+        current_fcvs: >-
+          {{ filtered_processes | map(attribute='featureCompatibilityVersion') | unique | list }}
         total_processes: "{{ current_config.json.processes | length }}"
+        filtered_count: "{{ filtered_processes | length }}"
         target_fcv: "{{ target_version.split('-')[0].split('.')[0:2] | join('.') }}"
 
     - name: Display downgrade plan
@@ -84,20 +102,38 @@
           - "⚠️  MongoDB Version DOWNGRADE"
           - "==========================================="
           - ""
-          - "Current Version: {{ current_version }}"
-          - "Current FCV:     {{ current_fcv }}"
+          - "Deployment Filter: {{ deployment_filter if deployment_filter != '' else 'ALL (no filter)' }}"
           - ""
-          - "Target Version:  {{ target_version }}"
-          - "Target FCV:      {{ target_fcv }}"
+          - "Current Version(s): {{ current_versions | join(', ') }}"
+          - "Current FCV(s):     {{ current_fcvs | join(', ') }}"
           - ""
-          - "Total Processes: {{ total_processes }}"
+          - "Target Version:     {{ target_version }}"
+          - "Target FCV:         {{ target_fcv }}"
+          - ""
+          - "Total Processes in Project: {{ total_processes }}"
+          - "Processes to Downgrade:     {{ filtered_count }}"
+          - ""
+          - "Processes that will be downgraded:"
+          - "{% for proc in filtered_processes %}"
+          - "  {{ loop.index }}. {{ proc.name }} ({{ proc.processType }})"
+          - "     Version: {{ proc.version }} → {{ target_version }}"
+          - "     FCV: {{ proc.featureCompatibilityVersion | default('N/A') }} → {{ target_fcv }}"
+          - "{% endfor %}"
+          - ""
+          - "{% if filtered_count < total_processes | int %}"
+          - "Processes NOT affected ({{ total_processes | int - filtered_count | int }} total):"
+          - "{% for proc in all_processes %}"
+          - "{% if proc.name not in (filtered_processes | map(attribute='name') | list) %}"
+          - "  - {{ proc.name }} ({{ proc.processType }}) - stays at {{ proc.version }}"
+          - "{% endif %}"
+          - "{% endfor %}"
+          - "{% endif %}"
           - ""
           - "🛑 CRITICAL WARNINGS:"
           - "  1. Downgrade requires FCV = {{ target_fcv }}"
-          - "  2. Current FCV is {{ current_fcv }}"
-          - "  3. Must set FCV BEFORE downgrade if not compatible"
-          - "  4. May lose data if using features from {{ current_version }}"
-          - "  5. Backup recommended before proceeding"
+          - "  2. Must set FCV BEFORE downgrade if not compatible"
+          - "  3. May lose data if using features from current version"
+          - "  4. Backup recommended before proceeding"
           - ""
           - "Downgrade Strategy:"
           - "  - Rolling downgrade (one process at a time)"
@@ -113,22 +149,23 @@
     - name: Validate downgrade direction
       ansible.builtin.fail:
         msg: |
-          ERROR: Cannot downgrade from {{ current_version }} to {{ target_version }}
+          ERROR: Cannot downgrade from {{ item }} to {{ target_version }}
           Target version must be older than current version.
           For upgrade, use 90_upgrade_mongodb_version.yml
-      when: target_version is version(current_version, '>=')
+      when: target_version is version(item, '>=')
+      loop: "{{ current_versions }}"
 
     - name: Check FCV compatibility
       ansible.builtin.debug:
         msg:
           - "⚠️  WARNING: FCV Compatibility Check"
           - ""
-          - "Current FCV: {{ current_fcv }}"
-          - "Target FCV:  {{ target_fcv }}"
+          - "Current FCV(s): {{ current_fcvs | join(', ') }}"
+          - "Target FCV:     {{ target_fcv }}"
           - ""
-          - "{% if current_fcv != target_fcv %}❌ FCV MISMATCH DETECTED!{% else %}✅ FCV Compatible{% endif %}"
+          - "{% if target_fcv not in current_fcvs | map('string') | list %}"
+          - "❌ FCV MISMATCH DETECTED!"
           - ""
-          - "{% if current_fcv != target_fcv %}"
           - "You MUST set FCV to {{ target_fcv }} before downgrade:"
           - ""
           - "1. Connect to MongoDB:"
@@ -142,31 +179,37 @@
           - "4. Run this playbook again"
           - ""
           - "Set SKIP_FCV_WARNING=true to bypass this check (NOT RECOMMENDED)"
+          - "{% else %}"
+          - "✅ FCV Compatible"
           - "{% endif %}"
 
     - name: Fail if FCV mismatch (unless skipped)
       ansible.builtin.fail:
         msg: |
           FCV mismatch detected!
-          Current FCV: {{ current_fcv }}
+          Current FCV(s): {{ current_fcvs | join(', ') }}
           Required FCV: {{ target_fcv }}
           
           Set FCV first, then run downgrade again.
           Or set SKIP_FCV_WARNING=true to bypass (not recommended).
       when: 
-        - current_fcv != target_fcv
+        - target_fcv not in current_fcvs | map('string') | list
         - skip_fcv_warning != 'true'
 
     - name: Wait for confirmation
       ansible.builtin.pause:
         seconds: 20
 
-    - name: Update all processes to target version
+    - name: Update filtered processes to target version
       ansible.builtin.set_fact:
         updated_processes: >-
           {{
-            current_config.json.processes |
-            map('combine', {'version': target_version, 'featureCompatibilityVersion': target_fcv}) |
+            all_processes |
+            map('combine', 
+              {'version': target_version, 'featureCompatibilityVersion': target_fcv}
+              if item.name in (filtered_processes | map(attribute='name') | list)
+              else {}
+            ) |
             list
           }}
 
@@ -201,10 +244,21 @@
           - "✅ Downgrade Initiated Successfully"
           - "==========================================="
           - ""
-          - "Downgrading from: {{ current_version }}"
-          - "Downgrading to:   {{ target_version }}"
+          - "Filter Applied: {{ deployment_filter if deployment_filter != '' else 'NONE (all processes)' }}"
           - ""
-          - "Total processes: {{ total_processes }}"
+          - "Downgrading {{ filtered_count }} process(es):"
+          - "{% for proc in filtered_processes %}"
+          - "  - {{ proc.name }}: {{ proc.version }} → {{ target_version }}"
+          - "{% endfor %}"
+          - ""
+          - "{% if filtered_count < total_processes | int %}"
+          - "Unchanged processes ({{ total_processes | int - filtered_count | int }} total):"
+          - "{% for proc in all_processes %}"
+          - "{% if proc.name not in (filtered_processes | map(attribute='name') | list) %}"
+          - "  - {{ proc.name }}: {{ proc.version }} (no change)"
+          - "{% endif %}"
+          - "{% endfor %}"
+          - "{% endif %}"
           - ""
           - "⏱️  Downgrade Process:"
           - "  1. Ops Manager downloads MongoDB {{ target_version }}"
@@ -213,7 +267,7 @@
           - "  4. Waits for replica set stability"
           - "  5. Proceeds to next node"
           - ""
-          - "Expected Duration: {{ (total_processes | int * 5) }}-{{ (total_processes | int * 10) }} minutes"
+          - "Expected Duration: {{ (filtered_count | int * 5) }}-{{ (filtered_count | int * 10) }} minutes"
           - ""
           - "📊 Monitor Progress:"
           - "   {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
