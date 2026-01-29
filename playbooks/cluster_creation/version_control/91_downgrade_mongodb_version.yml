@@ -159,33 +159,37 @@
       when: target_version is version(item, '>=')
       loop: "{{ current_versions }}"
 
+    - name: Build FCV compatibility message
+      ansible.builtin.set_fact:
+        fcv_check_msg: |
+          ⚠️  WARNING: FCV Compatibility Check
+          
+          Current FCV(s): {{ current_fcvs | join(', ') }}
+          Target FCV:     {{ target_fcv }}
+          
+          {% if target_fcv not in current_fcvs | map('string') | list %}
+          ❌ FCV MISMATCH DETECTED!
+          
+          You MUST set FCV to {{ target_fcv }} before downgrade:
+          
+          1. Connect to MongoDB:
+             mongosh --host <hostname> --port 27017
+          
+          2. Set FCV:
+             db.adminCommand({ setFeatureCompatibilityVersion: '{{ target_fcv }}' })
+          
+          3. Wait for FCV to be set (may take several minutes)
+          
+          4. Run this playbook again
+          
+          Set SKIP_FCV_WARNING=true to bypass this check (NOT RECOMMENDED)
+          {% else %}
+          ✅ FCV Compatible
+          {% endif %}
+
     - name: Check FCV compatibility
       ansible.builtin.debug:
-        msg:
-          - "⚠️  WARNING: FCV Compatibility Check"
-          - ""
-          - "Current FCV(s): {{ current_fcvs | join(', ') }}"
-          - "Target FCV:     {{ target_fcv }}"
-          - ""
-          - "{% if target_fcv not in current_fcvs | map('string') | list %}"
-          - "❌ FCV MISMATCH DETECTED!"
-          - ""
-          - "You MUST set FCV to {{ target_fcv }} before downgrade:"
-          - ""
-          - "1. Connect to MongoDB:"
-          - "   mongosh --host <hostname> --port 27017"
-          - ""
-          - "2. Set FCV:"
-          - "   db.adminCommand({ setFeatureCompatibilityVersion: '{{ target_fcv }}' })"
-          - ""
-          - "3. Wait for FCV to be set (may take several minutes)"
-          - ""
-          - "4. Run this playbook again"
-          - ""
-          - "Set SKIP_FCV_WARNING=true to bypass this check (NOT RECOMMENDED)"
-          - "{% else %}"
-          - "✅ FCV Compatible"
-          - "{% endif %}"
+        msg: "{{ fcv_check_msg }}"
 
     - name: Fail if FCV mismatch (unless skipped)
       ansible.builtin.fail:
