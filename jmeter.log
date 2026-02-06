@@ -1,0 +1,645 @@
+2026-01-29 20:05:47,929 INFO o.a.j.u.JMeterUtils: Setting Locale to en_EN
+2026-01-29 20:05:47,950 INFO o.a.j.JMeter: Loading user properties from: /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/user.properties
+2026-01-29 20:05:47,950 INFO o.a.j.JMeter: Loading system properties from: /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/system.properties
+2026-01-29 20:05:47,956 INFO o.a.j.JMeter: Copyright (c) 1998-2024 The Apache Software Foundation
+2026-01-29 20:05:47,956 INFO o.a.j.JMeter: Version 5.6.3
+2026-01-29 20:05:47,956 INFO o.a.j.JMeter: java.version=21.0.8
+2026-01-29 20:05:47,956 INFO o.a.j.JMeter: java.vm.name=OpenJDK 64-Bit Server VM
+2026-01-29 20:05:47,957 INFO o.a.j.JMeter: os.name=Mac OS X
+2026-01-29 20:05:47,957 INFO o.a.j.JMeter: os.arch=aarch64
+2026-01-29 20:05:47,957 INFO o.a.j.JMeter: os.version=26.2
+2026-01-29 20:05:47,957 INFO o.a.j.JMeter: file.encoding=UTF-8
+2026-01-29 20:05:47,958 INFO o.a.j.JMeter: java.awt.headless=null
+2026-01-29 20:05:47,958 INFO o.a.j.JMeter: Max memory     =1073741824
+2026-01-29 20:05:47,958 INFO o.a.j.JMeter: Available Processors =11
+2026-01-29 20:05:47,980 INFO o.a.j.JMeter: Default Locale=English (EN)
+2026-01-29 20:05:47,980 INFO o.a.j.JMeter: JMeter  Locale=English (EN)
+2026-01-29 20:05:47,981 INFO o.a.j.JMeter: JMeterHome=/opt/homebrew/Cellar/jmeter/5.6.3/libexec
+2026-01-29 20:05:47,981 INFO o.a.j.JMeter: user.dir  =/Users/shashank.pandey/Desktop/Codebase/MDBaaS/Github-repo/mdb-ops-ansible
+2026-01-29 20:05:47,982 INFO o.a.j.JMeter: PWD       =/Users/shashank.pandey/Desktop/Codebase/MDBaaS/Github-repo/mdb-ops-ansible
+2026-01-29 20:05:58,993 INFO o.a.j.JMeter: IP: 192.168.1.4 Name: M-DXLHV7PMFX FullName: 192.168.1.4
+2026-01-29 20:05:59,016 INFO o.a.j.JMeter: Loaded icon properties from org/apache/jmeter/images/icon.properties
+2026-01-29 20:06:01,370 INFO o.a.j.JMeterGuiLauncher: Setting LAF to: com.github.weisj.darklaf.DarkLaf:com.github.weisj.darklaf.theme.DarculaTheme
+2026-01-29 20:06:02,872 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.gui.action.Command], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:06:02,945 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.gui.plugin.MenuCreator], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:06:03,020 INFO o.j.r.JARSourceHTTP: Requesting https://jmeter-plugins.org/repo/?installID=mac_os_x-10d38dc63a30894ffedab7bfcff7d193-gui
+2026-01-29 20:06:05,922 INFO o.j.r.PluginManager: Plugins Status: [jpgc-plugins-manager=1.9, jmeter-core=5.6.3, jmeter-ftp=5.6.3, jmeter-http=5.6.3, jmeter-jdbc=5.6.3, jmeter-jms=5.6.3, jmeter-junit=5.6.3, jmeter-java=5.6.3, jmeter-ldap=5.6.3, jmeter-mail=5.6.3, jmeter-mongodb=5.6.3, jmeter-native=5.6.3, jmeter-tcp=5.6.3, jmeter-components=5.6.3]
+2026-01-29 20:06:05,923 INFO o.j.r.PluginManagerMenuItem: Plugins Manager has upgrades: [jpgc-plugins-manager]
+2026-01-29 20:07:57,523 INFO o.a.j.e.KeyToolUtils: keytool found at 'keytool'
+2026-01-29 20:07:57,523 INFO o.a.j.p.h.p.ProxyControl: HTTP(S) Test Script Recorder SSL Proxy will use keys that support embedded 3rd party resources in file /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/proxyserver.jks
+2026-01-29 20:10:53,145 INFO o.a.j.e.u.CompoundVariable: Note: Function class names must contain the string: '.functions.'
+2026-01-29 20:10:53,146 INFO o.a.j.e.u.CompoundVariable: Note: Function class names must not contain the string: '.gui.'
+2026-01-29 20:10:53,180 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.functions.Function], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:10:53,240 INFO o.a.j.p.h.p.ProxyControl: Valid alias found for :root_ca:
+2026-01-29 20:10:53,240 INFO o.a.j.p.h.p.ProxyControl: Valid alias found for :intermediate_ca:
+2026-01-29 20:10:53,240 INFO o.a.j.p.h.p.Daemon: Creating Daemon Socket on port: 8888
+2026-01-29 20:10:53,247 INFO o.a.j.p.h.p.Daemon: Test Script Recorder up and running!
+2026-01-29 20:11:19,678 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.protocol.http.proxy.SamplerCreator], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:11:19,681 INFO o.a.j.p.h.p.Proxy: Proxy will remove the headers: If-Modified-Since,If-None-Match,Host
+2026-01-29 20:11:19,716 INFO o.a.j.p.h.s.HTTPSamplerBase: Parser for text/html is org.apache.jmeter.protocol.http.parser.LagartoBasedHtmlParser
+2026-01-29 20:11:19,716 INFO o.a.j.p.h.s.HTTPSamplerBase: Parser for application/xhtml+xml is org.apache.jmeter.protocol.http.parser.LagartoBasedHtmlParser
+2026-01-29 20:11:19,716 INFO o.a.j.p.h.s.HTTPSamplerBase: Parser for application/xml is org.apache.jmeter.protocol.http.parser.LagartoBasedHtmlParser
+2026-01-29 20:11:19,717 INFO o.a.j.p.h.s.HTTPSamplerBase: Parser for text/xml is org.apache.jmeter.protocol.http.parser.LagartoBasedHtmlParser
+2026-01-29 20:11:19,717 INFO o.a.j.p.h.s.HTTPSamplerBase: Parser for text/vnd.wap.wml is org.apache.jmeter.protocol.http.parser.RegexpHTMLParser
+2026-01-29 20:11:19,717 INFO o.a.j.p.h.s.HTTPSamplerBase: Parser for text/css is org.apache.jmeter.protocol.http.parser.CssParser
+2026-01-29 20:11:19,721 INFO o.a.j.p.h.s.HTTPHCAbstractImpl: Local host = M-DXLHV7PMFX
+2026-01-29 20:11:19,726 INFO o.a.j.p.h.s.HTTPHC4Impl: HTTP request retry count = 0
+2026-01-29 20:11:19,726 INFO o.a.j.s.SampleResult: Note: Sample TimeStamps are START times
+2026-01-29 20:11:19,726 INFO o.a.j.s.SampleResult: sampleresult.default.encoding is set to UTF-8
+2026-01-29 20:11:19,726 INFO o.a.j.s.SampleResult: sampleresult.useNanoTime=true
+2026-01-29 20:11:19,726 INFO o.a.j.s.SampleResult: sampleresult.nanoThreadSleep=5000
+2026-01-29 20:11:20,841 INFO o.a.j.s.SampleEvent: List of sample_variables: []
+2026-01-29 20:11:20,900 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2-1 into controller 
+2026-01-29 20:11:21,719 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/params-3 into controller 
+2026-01-29 20:11:21,731 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-2 into controller 
+2026-01-29 20:11:22,534 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5-4 into controller 
+2026-01-29 20:11:22,545 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/params/org/69666befd5b6737b862a34b5-5 into controller 
+2026-01-29 20:11:23,347 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/alerts/openAlertsCount-6 into controller 
+2026-01-29 20:11:23,358 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/groups-10 into controller 
+2026-01-29 20:11:23,366 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-9 into controller 
+2026-01-29 20:11:23,372 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-8 into controller 
+2026-01-29 20:11:23,376 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-7 into controller 
+2026-01-29 20:11:23,954 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/groups/users-11 into controller 
+2026-01-29 20:11:34,860 INFO o.a.j.p.h.p.Proxy: [53906]  KeyStore for SSL loaded OK and put host 'nexus-websocket-a.intercom.io' in map with key (nexus-websocket-a.intercom.io)
+2026-01-29 20:11:34,944 WARN o.a.j.p.h.p.Proxy: [53906]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:11:35,568 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-13 into controller 
+2026-01-29 20:11:35,580 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-12 into controller 
+2026-01-29 20:11:35,590 INFO o.a.j.p.h.p.ProxyControl: Add sample /settings/orgsWithEmbargoedOrgs-14 into controller 
+2026-01-29 20:11:43,862 WARN o.a.j.p.h.p.Proxy: [53927]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:11:50,832 WARN o.a.j.p.h.p.Proxy: [53933]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:03,829 WARN o.a.j.p.h.p.Proxy: [53940]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:03,850 WARN o.a.j.p.h.p.Proxy: [53941]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:06,826 WARN o.a.j.p.h.p.Proxy: [53943]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:10,816 WARN o.a.j.p.h.p.Proxy: [53948]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:21,570 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-15 into controller 
+2026-01-29 20:12:30,835 WARN o.a.j.p.h.p.Proxy: [53966]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:40,829 WARN o.a.j.p.h.p.Proxy: [53972]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:40,848 WARN o.a.j.p.h.p.Proxy: [53973]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:44,806 WARN o.a.j.p.h.p.Proxy: [53977]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:12:52,826 WARN o.a.j.p.h.p.Proxy: [53982]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:13:03,834 WARN o.a.j.p.h.p.Proxy: [53996]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:13:41,832 WARN o.a.j.p.h.p.Proxy: [54031]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:13:41,854 WARN o.a.j.p.h.p.Proxy: [54032]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:13:46,832 WARN o.a.j.p.h.p.Proxy: [54034]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:13:56,829 WARN o.a.j.p.h.p.Proxy: [54039]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:14:16,879 WARN o.a.j.p.h.p.Proxy: [54053]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:14:28,891 WARN o.a.j.p.h.p.Proxy: [54059]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:14:29,035 WARN o.a.j.p.h.p.Proxy: [54060]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:14:34,307 WARN o.a.j.p.h.p.Proxy: [54063]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:14:42,811 WARN o.a.j.p.h.p.Proxy: [54071]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:14:52,817 WARN o.a.j.p.h.p.Proxy: [54075]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:15:17,831 WARN o.a.j.p.h.p.Proxy: [54089]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:15:17,860 WARN o.a.j.p.h.p.Proxy: [54090]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:15:21,813 WARN o.a.j.p.h.p.Proxy: [54093]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:15:30,832 WARN o.a.j.p.h.p.Proxy: [54096]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:15:41,832 WARN o.a.j.p.h.p.Proxy: [54102]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:16:05,849 WARN o.a.j.p.h.p.Proxy: [54123]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:16:05,878 WARN o.a.j.p.h.p.Proxy: [54124]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:16:10,904 WARN o.a.j.p.h.p.Proxy: [54133]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:16:15,953 WARN o.a.j.p.h.p.Proxy: [54137]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:16:31,990 WARN o.a.j.p.h.p.Proxy: [54146]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:00,821 WARN o.a.j.p.h.p.Proxy: [54164]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:00,835 WARN o.a.j.p.h.p.Proxy: [54165]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:01,725 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5-16 into controller 
+2026-01-29 20:17:01,730 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/params/org/69666befd5b6737b862a34b5-17 into controller 
+2026-01-29 20:17:02,337 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-21 into controller 
+2026-01-29 20:17:02,344 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-20 into controller 
+2026-01-29 20:17:02,349 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/alerts/openAlertsCount-18 into controller 
+2026-01-29 20:17:02,355 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/groups/users-22 into controller 
+2026-01-29 20:17:02,358 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-19 into controller 
+2026-01-29 20:17:02,816 WARN o.a.j.p.h.p.Proxy: [54180]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:07,818 WARN o.a.j.p.h.p.Proxy: [54187]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:20,818 WARN o.a.j.p.h.p.Proxy: [54194]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:49,813 WARN o.a.j.p.h.p.Proxy: [54204]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:49,833 WARN o.a.j.p.h.p.Proxy: [54205]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:54,824 WARN o.a.j.p.h.p.Proxy: [54208]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:57,490 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/830.887f59e35441fc47f11b.js.map-24 into controller 
+2026-01-29 20:17:57,695 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/145.7a804ca048b63b5755c6.js.map-28 into controller 
+2026-01-29 20:17:57,700 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/659.ca2474cfee1226e9b876.js.map-26 into controller 
+2026-01-29 20:17:57,704 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/108.05a04ed7ca0c48ef3cd8.js.map-25 into controller 
+2026-01-29 20:17:57,898 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/542.e07974e5a4af72826fd8.js.map-27 into controller 
+2026-01-29 20:17:58,306 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/90.f743ae45bc99d2ea096b.js.map-30 into controller 
+2026-01-29 20:17:58,311 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/597.70e81111947fa5739c5e.js.map-32 into controller 
+2026-01-29 20:17:58,316 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/179.b690cfbc3ee69980f0b2.js.map-31 into controller 
+2026-01-29 20:17:58,713 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/93.9da91f349f611014198f.js.map-33 into controller 
+2026-01-29 20:17:58,847 WARN o.a.j.p.h.p.Proxy: [54254]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:17:59,121 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/617.211df47ba233ab57fa68.js.map-29 into controller 
+2026-01-29 20:17:59,124 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main.e3334a593d25e9945d4e.js.map-23 into controller 
+2026-01-29 20:17:59,326 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/282.ecb890a5a1891344b32b.js.map-37 into controller 
+2026-01-29 20:17:59,732 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/20.769a6b3008da76bf3a36.js.map-34 into controller 
+2026-01-29 20:17:59,936 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/organization.b2540dd89cf7b513a9e2.js.map-35 into controller 
+2026-01-29 20:18:00,141 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/preferences.e19dda5eeecb8c686b01.js.map-38 into controller 
+2026-01-29 20:18:00,144 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/dist/main/487.801ce98b64f13a83b42d.js.map-36 into controller 
+2026-01-29 20:18:04,845 WARN o.a.j.p.h.p.Proxy: [54295]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:18:07,681 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-40 into controller 
+2026-01-29 20:18:07,687 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-42 into controller 
+2026-01-29 20:18:07,691 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-39 into controller 
+2026-01-29 20:18:07,699 INFO o.a.j.p.h.p.ProxyControl: Add sample /settings/orgsWithEmbargoedOrgs-41 into controller 
+2026-01-29 20:18:13,179 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5-44 into controller 
+2026-01-29 20:18:13,184 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/params/org/69666befd5b6737b862a34b5-43 into controller 
+2026-01-29 20:18:13,785 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/alerts/openAlertsCount-45 into controller 
+2026-01-29 20:18:13,792 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-48 into controller 
+2026-01-29 20:18:13,796 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-47 into controller 
+2026-01-29 20:18:13,800 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/groups/users-49 into controller 
+2026-01-29 20:18:13,807 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-46 into controller 
+2026-01-29 20:18:31,896 WARN o.a.j.p.h.p.Proxy: [54465]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:18:32,148 WARN o.a.j.p.h.p.Proxy: [54466]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:18:38,206 WARN o.a.j.p.h.p.Proxy: [54491]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:18:46,715 WARN o.a.j.p.h.p.Proxy: [54531]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:06,815 WARN o.a.j.p.h.p.Proxy: [54624]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:23,811 WARN o.a.j.p.h.p.Proxy: [54699]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:23,820 WARN o.a.j.p.h.p.Proxy: [54700]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:27,817 WARN o.a.j.p.h.p.Proxy: [54718]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:32,817 WARN o.a.j.p.h.p.Proxy: [54741]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:41,821 WARN o.a.j.p.h.p.Proxy: [54780]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:55,821 WARN o.a.j.p.h.p.Proxy: [54847]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:55,850 WARN o.a.j.p.h.p.Proxy: [54848]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:56,020 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16-50 into controller 
+2026-01-29 20:19:57,036 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16/params-51 into controller 
+2026-01-29 20:19:57,844 INFO o.a.j.p.h.p.ProxyControl: Add sample /usageData/usageDataConfig-52 into controller 
+2026-01-29 20:19:58,451 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-53 into controller 
+2026-01-29 20:19:58,457 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/assignByPoint?groupId=6971cfe1d5b6737b86bacc16-56 into controller 
+2026-01-29 20:19:58,475 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-54 into controller 
+2026-01-29 20:19:58,480 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-55 into controller 
+2026-01-29 20:19:59,064 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-59 into controller 
+2026-01-29 20:19:59,083 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-58 into controller 
+2026-01-29 20:19:59,266 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-62 into controller 
+2026-01-29 20:19:59,268 INFO o.a.j.p.h.p.ProxyControl: Add sample /allClusters-61 into controller 
+2026-01-29 20:19:59,269 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-57 into controller 
+2026-01-29 20:19:59,273 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-60 into controller 
+2026-01-29 20:19:59,675 INFO o.a.j.p.h.p.ProxyControl: Add sample /edgedl/diffgen-puffin/lmelglejhemejginpboagddgdfbepgmp/fc4173fc7022efe54f4fc9ebe9dbfc0b81ae5fede030637af5ea15dd5f58777d-69 into controller 
+2026-01-29 20:19:59,684 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-63 into controller 
+2026-01-29 20:19:59,820 WARN o.a.j.p.h.p.Proxy: [54914]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:19:59,877 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-64 into controller 
+2026-01-29 20:19:59,879 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-65 into controller 
+2026-01-29 20:19:59,881 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-66 into controller 
+2026-01-29 20:19:59,883 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-67 into controller 
+2026-01-29 20:19:59,885 INFO o.a.j.p.h.p.ProxyControl: Add sample /group/6971cfe1d5b6737b86bacc16/controlledFeature-68 into controller 
+2026-01-29 20:20:00,484 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/userPinnedCards/6971cfe1d5b6737b86bacc16-70 into controller 
+2026-01-29 20:20:00,491 INFO o.a.j.p.h.p.ProxyControl: Add sample /edgedl/diffgen-puffin/ggkkehgbnfjpeggfpleeakpidbkibbmn/ed297f2ca24567d756eeac0d72cc1bf9260fab7b8416093725e96c9721ba9f9a-71 into controller 
+2026-01-29 20:20:01,093 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-75 into controller 
+2026-01-29 20:20:01,099 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/hosts/f51439c4d2fc27a760050118eb4b899e/cards/available-74 into controller 
+2026-01-29 20:20:01,104 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-72 into controller 
+2026-01-29 20:20:01,109 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697a2680d5b6737b8636f2d8/cards/available-73 into controller 
+2026-01-29 20:20:01,114 INFO o.a.j.p.h.p.ProxyControl: Add sample /edgedl/diffgen-puffin/hfnkpimlhhgieaddgfemjhofmfblmnib/e43ef8971798d41406633466bcf75f6fa714811ed21c54b6ac0c90bd30afeafd-76 into controller 
+2026-01-29 20:20:01,700 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-78 into controller 
+2026-01-29 20:20:01,705 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697222ded5b6737b86bf3b8d/cards/available-77 into controller 
+2026-01-29 20:20:08,884 WARN o.a.j.p.h.p.Proxy: [54972]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:20:14,896 WARN o.a.j.p.h.p.Proxy: [55001]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:20:17,000 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.visualizers.ResultRenderer], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:20:17,010 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.visualizers.RequestView], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:20:30,978 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-81 into controller 
+2026-01-29 20:20:31,183 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-80 into controller 
+2026-01-29 20:20:31,184 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-79 into controller 
+2026-01-29 20:20:32,962 WARN o.a.j.p.h.p.Proxy: [55088]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:20:33,114 WARN o.a.j.p.h.p.Proxy: [55089]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:20:35,930 WARN o.a.j.p.h.p.Proxy: [55102]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:20:41,805 WARN o.a.j.p.h.p.Proxy: [55129]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:20:57,264 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-82 into controller 
+2026-01-29 20:21:01,126 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-85 into controller 
+2026-01-29 20:21:01,132 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-84 into controller 
+2026-01-29 20:21:01,135 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-83 into controller 
+2026-01-29 20:21:03,749 WARN o.a.j.p.h.p.Proxy: [55232]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:21:31,239 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-87 into controller 
+2026-01-29 20:21:31,251 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-86 into controller 
+2026-01-29 20:21:31,441 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-88 into controller 
+2026-01-29 20:21:38,825 WARN o.a.j.p.h.p.Proxy: [55391]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:21:38,840 WARN o.a.j.p.h.p.Proxy: [55392]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:21:43,816 WARN o.a.j.p.h.p.Proxy: [55415]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:21:48,821 WARN o.a.j.p.h.p.Proxy: [55436]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:21:55,870 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16-89 into controller 
+2026-01-29 20:21:56,886 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16/params-90 into controller 
+2026-01-29 20:21:57,498 INFO o.a.j.p.h.p.ProxyControl: Add sample /usageData/usageDataConfig-91 into controller 
+2026-01-29 20:21:57,835 WARN o.a.j.p.h.p.Proxy: [55497]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:21:58,109 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/assignByPoint?groupId=6971cfe1d5b6737b86bacc16-95 into controller 
+2026-01-29 20:21:58,114 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-94 into controller 
+2026-01-29 20:21:58,121 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-93 into controller 
+2026-01-29 20:21:58,123 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-92 into controller 
+2026-01-29 20:21:58,720 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-97 into controller 
+2026-01-29 20:21:58,725 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-99 into controller 
+2026-01-29 20:21:58,729 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-101 into controller 
+2026-01-29 20:21:58,730 INFO o.a.j.p.h.p.ProxyControl: Add sample /allClusters-98 into controller 
+2026-01-29 20:21:58,732 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-100 into controller 
+2026-01-29 20:21:58,733 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-96 into controller 
+2026-01-29 20:21:59,330 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-103 into controller 
+2026-01-29 20:21:59,335 INFO o.a.j.p.h.p.ProxyControl: Add sample /group/6971cfe1d5b6737b86bacc16/controlledFeature-105 into controller 
+2026-01-29 20:21:59,337 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-106 into controller 
+2026-01-29 20:21:59,339 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-102 into controller 
+2026-01-29 20:21:59,341 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-107 into controller 
+2026-01-29 20:21:59,535 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-104 into controller 
+2026-01-29 20:21:59,941 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/userPinnedCards/6971cfe1d5b6737b86bacc16-108 into controller 
+2026-01-29 20:21:59,944 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-109 into controller 
+2026-01-29 20:22:00,547 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-113 into controller 
+2026-01-29 20:22:00,548 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-111 into controller 
+2026-01-29 20:22:00,749 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/hosts/f51439c4d2fc27a760050118eb4b899e/cards/available-112 into controller 
+2026-01-29 20:22:00,756 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697a2680d5b6737b8636f2d8/cards/available-110 into controller 
+2026-01-29 20:22:01,156 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-115 into controller 
+2026-01-29 20:22:01,158 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697222ded5b6737b86bf3b8d/cards/available-114 into controller 
+2026-01-29 20:22:30,661 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-117 into controller 
+2026-01-29 20:22:30,665 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-118 into controller 
+2026-01-29 20:22:30,666 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-116 into controller 
+2026-01-29 20:22:33,823 WARN o.a.j.p.h.p.Proxy: [55702]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:22:33,843 WARN o.a.j.p.h.p.Proxy: [55703]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:22:37,830 WARN o.a.j.p.h.p.Proxy: [55721]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:22:39,095 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.visualizers.ResultRenderer], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:22:39,105 INFO o.a.j.r.ClassFinder: Will scan jar /opt/homebrew/Cellar/jmeter/5.6.3/libexec/lib/ext/jmeter-plugins-manager-1.9.jar with filter ExtendsClassFilter [parents=[interface org.apache.jmeter.visualizers.RequestView], inner=false, contains=null, notContains=null]. Consider exposing JMeter plugins via META-INF/services, and add JMeter-Skip-Class-Scanning=true manifest attribute so JMeter can skip classfile scanning
+2026-01-29 20:22:47,842 WARN o.a.j.p.h.p.Proxy: [55768]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:22:48,174 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2-119 into controller 
+2026-01-29 20:22:48,987 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-120 into controller 
+2026-01-29 20:22:49,029 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/params-121 into controller 
+2026-01-29 20:22:50,012 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5-123 into controller 
+2026-01-29 20:22:50,018 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/params/org/69666befd5b6737b862a34b5-122 into controller 
+2026-01-29 20:22:50,622 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-127 into controller 
+2026-01-29 20:22:50,627 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-126 into controller 
+2026-01-29 20:22:50,633 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/groups-128 into controller 
+2026-01-29 20:22:50,639 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/alerts/openAlertsCount-124 into controller 
+2026-01-29 20:22:50,641 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-125 into controller 
+2026-01-29 20:22:51,440 INFO o.a.j.p.h.p.ProxyControl: Add sample /orgs/69666befd5b6737b862a34b5/groups/users-129 into controller 
+2026-01-29 20:23:04,903 WARN o.a.j.p.h.p.Proxy: [55872]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:23:18,255 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16-130 into controller 
+2026-01-29 20:23:18,870 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-131 into controller 
+2026-01-29 20:23:19,273 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16/params-132 into controller 
+2026-01-29 20:23:20,092 INFO o.a.j.p.h.p.ProxyControl: Add sample /usageData/usageDataConfig-133 into controller 
+2026-01-29 20:23:20,705 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-135 into controller 
+2026-01-29 20:23:20,708 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-134 into controller 
+2026-01-29 20:23:20,710 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-136 into controller 
+2026-01-29 20:23:20,720 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/assignByPoint?groupId=6971cfe1d5b6737b86bacc16-137 into controller 
+2026-01-29 20:23:21,317 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-138 into controller 
+2026-01-29 20:23:21,322 INFO o.a.j.p.h.p.ProxyControl: Add sample /allClusters-141 into controller 
+2026-01-29 20:23:21,522 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-139 into controller 
+2026-01-29 20:23:21,526 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-140 into controller 
+2026-01-29 20:23:21,530 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-143 into controller 
+2026-01-29 20:23:21,537 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-142 into controller 
+2026-01-29 20:23:22,135 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-144 into controller 
+2026-01-29 20:23:22,140 INFO o.a.j.p.h.p.ProxyControl: Add sample /group/6971cfe1d5b6737b86bacc16/controlledFeature-149 into controller 
+2026-01-29 20:23:22,145 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-148 into controller 
+2026-01-29 20:23:22,147 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-145 into controller 
+2026-01-29 20:23:22,340 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-146 into controller 
+2026-01-29 20:23:22,346 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-147 into controller 
+2026-01-29 20:23:22,744 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/userPinnedCards/6971cfe1d5b6737b86bacc16-150 into controller 
+2026-01-29 20:23:22,949 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-151 into controller 
+2026-01-29 20:23:23,357 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/hosts/f51439c4d2fc27a760050118eb4b899e/cards/available-154 into controller 
+2026-01-29 20:23:23,363 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697a2680d5b6737b8636f2d8/cards/available-152 into controller 
+2026-01-29 20:23:23,371 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-155 into controller 
+2026-01-29 20:23:23,374 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-153 into controller 
+2026-01-29 20:23:23,967 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697222ded5b6737b86bf3b8d/cards/available-157 into controller 
+2026-01-29 20:23:24,172 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-156 into controller 
+2026-01-29 20:23:25,876 WARN o.a.j.p.h.p.Proxy: [56036]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:23:26,057 WARN o.a.j.p.h.p.Proxy: [56037]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:23:29,002 WARN o.a.j.p.h.p.Proxy: [56056]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:23:32,107 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-158 into controller 
+2026-01-29 20:23:32,923 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-160 into controller 
+2026-01-29 20:23:32,930 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-159 into controller 
+2026-01-29 20:23:33,532 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-162 into controller 
+2026-01-29 20:23:33,539 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-161 into controller 
+2026-01-29 20:23:36,008 WARN o.a.j.p.h.p.Proxy: [56099]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:23:46,823 WARN o.a.j.p.h.p.Proxy: [56148]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:23:53,241 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-163 into controller 
+2026-01-29 20:23:53,245 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-165 into controller 
+2026-01-29 20:23:53,446 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-164 into controller 
+2026-01-29 20:24:02,825 WARN o.a.j.p.h.p.Proxy: [56231]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:02,839 WARN o.a.j.p.h.p.Proxy: [56232]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:03,590 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-166 into controller 
+2026-01-29 20:24:06,830 WARN o.a.j.p.h.p.Proxy: [56251]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:10,820 WARN o.a.j.p.h.p.Proxy: [56274]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:14,568 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-167 into controller 
+2026-01-29 20:24:29,824 WARN o.a.j.p.h.p.Proxy: [56458]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:56,851 WARN o.a.j.p.h.p.Proxy: [56625]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:56,884 WARN o.a.j.p.h.p.Proxy: [56626]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:24:58,862 WARN o.a.j.p.h.p.Proxy: [56636]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:04,851 WARN o.a.j.p.h.p.Proxy: [56666]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:13,983 WARN o.a.j.p.h.p.Proxy: [56727]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:35,023 WARN o.a.j.p.h.p.Proxy: [56833]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:35,602 WARN o.a.j.p.h.p.Proxy: [56839]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:40,622 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-168 into controller 
+2026-01-29 20:25:40,827 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-169 into controller 
+2026-01-29 20:25:42,014 WARN o.a.j.p.h.p.Proxy: [56872]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:51,827 WARN o.a.j.p.h.p.Proxy: [56917]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:55,665 INFO o.a.j.p.h.p.ProxyControl: Add sample /static/font/SourceCodePro-Regular.otf.woff2-170 into controller 
+2026-01-29 20:25:56,268 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16-171 into controller 
+2026-01-29 20:25:56,827 WARN o.a.j.p.h.p.Proxy: [56945]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:25:57,284 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/6971cfe1d5b6737b86bacc16/params-172 into controller 
+2026-01-29 20:25:58,099 INFO o.a.j.p.h.p.ProxyControl: Add sample /usageData/usageDataConfig-173 into controller 
+2026-01-29 20:25:58,712 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-176 into controller 
+2026-01-29 20:25:58,714 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/assignByPoint?groupId=6971cfe1d5b6737b86bacc16-177 into controller 
+2026-01-29 20:25:58,720 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-174 into controller 
+2026-01-29 20:25:58,724 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-175 into controller 
+2026-01-29 20:25:59,520 INFO o.a.j.p.h.p.ProxyControl: Add sample /uiMsgs-183 into controller 
+2026-01-29 20:25:59,522 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-180 into controller 
+2026-01-29 20:25:59,523 INFO o.a.j.p.h.p.ProxyControl: Add sample /allClusters-181 into controller 
+2026-01-29 20:25:59,523 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-182 into controller 
+2026-01-29 20:25:59,524 INFO o.a.j.p.h.p.ProxyControl: Add sample /user/shared-179 into controller 
+2026-01-29 20:25:59,725 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-178 into controller 
+2026-01-29 20:25:59,930 INFO o.a.j.p.h.p.ProxyControl: Add sample /system/health-184 into controller 
+2026-01-29 20:26:00,132 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/agent/6971cfe1d5b6737b86bacc16-185 into controller 
+2026-01-29 20:26:00,139 INFO o.a.j.p.h.p.ProxyControl: Add sample /backup/web/agents/6971cfe1d5b6737b86bacc16-186 into controller 
+2026-01-29 20:26:00,142 INFO o.a.j.p.h.p.ProxyControl: Add sample /host/list/currentAgents/6971cfe1d5b6737b86bacc16-187 into controller 
+2026-01-29 20:26:00,146 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-188 into controller 
+2026-01-29 20:26:00,335 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/userPinnedCards/6971cfe1d5b6737b86bacc16-189 into controller 
+2026-01-29 20:26:00,742 INFO o.a.j.p.h.p.ProxyControl: Add sample /group/6971cfe1d5b6737b86bacc16/controlledFeature-190 into controller 
+2026-01-29 20:26:00,751 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-191 into controller 
+2026-01-29 20:26:00,944 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-193 into controller 
+2026-01-29 20:26:00,953 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/hosts/f51439c4d2fc27a760050118eb4b899e/cards/available-194 into controller 
+2026-01-29 20:26:00,960 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-195 into controller 
+2026-01-29 20:26:00,963 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697a2680d5b6737b8636f2d8/cards/available-192 into controller 
+2026-01-29 20:26:02,162 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-197 into controller 
+2026-01-29 20:26:02,168 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697222ded5b6737b86bf3b8d/cards/available-196 into controller 
+2026-01-29 20:26:17,432 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-198 into controller 
+2026-01-29 20:26:18,041 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/cards/6971cfe1d5b6737b86bacc16-199 into controller 
+2026-01-29 20:26:18,049 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-200 into controller 
+2026-01-29 20:26:29,455 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-201 into controller 
+2026-01-29 20:26:30,828 WARN o.a.j.p.h.p.Proxy: [57167]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:30,840 WARN o.a.j.p.h.p.Proxy: [57168]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:30,877 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-204 into controller 
+2026-01-29 20:26:30,881 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-203 into controller 
+2026-01-29 20:26:30,883 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-202 into controller 
+2026-01-29 20:26:32,817 WARN o.a.j.p.h.p.Proxy: [57180]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:38,829 WARN o.a.j.p.h.p.Proxy: [57206]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:46,836 WARN o.a.j.p.h.p.Proxy: [57242]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:57,324 INFO o.a.j.p.h.p.ProxyControl: Add sample /v2/client-metrics-205 into controller 
+2026-01-29 20:26:57,862 WARN o.a.j.p.h.p.Proxy: [57293]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:57,891 WARN o.a.j.p.h.p.Proxy: [57294]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:26:59,568 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-206 into controller 
+2026-01-29 20:27:00,793 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-207 into controller 
+2026-01-29 20:27:00,798 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-209 into controller 
+2026-01-29 20:27:00,998 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-208 into controller 
+2026-01-29 20:27:01,884 WARN o.a.j.p.h.p.Proxy: [57322]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:27:11,905 WARN o.a.j.p.h.p.Proxy: [57374]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:27:30,693 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-210 into controller 
+2026-01-29 20:27:30,902 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-212 into controller 
+2026-01-29 20:27:31,096 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-213 into controller 
+2026-01-29 20:27:31,105 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-211 into controller 
+2026-01-29 20:27:33,111 WARN o.a.j.p.h.p.Proxy: [57481]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:27:59,546 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-214 into controller 
+2026-01-29 20:27:59,552 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-215 into controller 
+2026-01-29 20:28:00,973 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-218 into controller 
+2026-01-29 20:28:00,981 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-217 into controller 
+2026-01-29 20:28:00,985 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-216 into controller 
+2026-01-29 20:28:04,836 WARN o.a.j.p.h.p.Proxy: [57636]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:28:04,851 WARN o.a.j.p.h.p.Proxy: [57637]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:28:08,817 WARN o.a.j.p.h.p.Proxy: [57667]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:28:09,175 INFO o.a.j.p.h.p.ProxyControl: [57672]  Creating entry us.telemetry.zoom.us in /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/proxyserver.jks
+2026-01-29 20:28:10,866 INFO o.a.j.p.h.p.Proxy: [57672]  KeyStore for SSL loaded OK and put host 'us.telemetry.zoom.us' in map with key (us.telemetry.zoom.us)
+2026-01-29 20:28:10,899 WARN o.a.j.p.h.p.Proxy: [57672]  Problem with SSL certificate for url  for 'us.telemetry.zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:28:18,829 WARN o.a.j.p.h.p.Proxy: [57713]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:28:29,645 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-219 into controller 
+2026-01-29 20:28:30,867 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-222 into controller 
+2026-01-29 20:28:30,869 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-221 into controller 
+2026-01-29 20:28:31,073 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-220 into controller 
+2026-01-29 20:28:35,835 WARN o.a.j.p.h.p.Proxy: [57801]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:28:59,761 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-223 into controller 
+2026-01-29 20:29:00,988 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-225 into controller 
+2026-01-29 20:29:00,997 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-224 into controller 
+2026-01-29 20:29:01,000 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-226 into controller 
+2026-01-29 20:29:02,849 WARN o.a.j.p.h.p.Proxy: [57927]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:02,884 WARN o.a.j.p.h.p.Proxy: [57928]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:04,833 WARN o.a.j.p.h.p.Proxy: [57937]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:11,863 WARN o.a.j.p.h.p.Proxy: [57971]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:22,861 WARN o.a.j.p.h.p.Proxy: [58019]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:29,446 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-227 into controller 
+2026-01-29 20:29:30,868 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-230 into controller 
+2026-01-29 20:29:31,073 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-228 into controller 
+2026-01-29 20:29:31,077 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-229 into controller 
+2026-01-29 20:29:41,937 WARN o.a.j.p.h.p.Proxy: [58109]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:42,237 WARN o.a.j.p.h.p.Proxy: [58110]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:44,993 WARN o.a.j.p.h.p.Proxy: [58123]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:49,418 WARN o.a.j.p.h.p.Proxy: [58144]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:57,810 WARN o.a.j.p.h.p.Proxy: [58186]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:29:59,703 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-231 into controller 
+2026-01-29 20:29:59,709 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-232 into controller 
+2026-01-29 20:30:00,917 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-235 into controller 
+2026-01-29 20:30:00,924 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-233 into controller 
+2026-01-29 20:30:00,928 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-234 into controller 
+2026-01-29 20:30:26,826 WARN o.a.j.p.h.p.Proxy: [58324]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:30:26,840 WARN o.a.j.p.h.p.Proxy: [58325]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:30:29,596 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-236 into controller 
+2026-01-29 20:30:30,822 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-238 into controller 
+2026-01-29 20:30:30,826 WARN o.a.j.p.h.p.Proxy: [58350]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:30:31,025 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-237 into controller 
+2026-01-29 20:30:31,029 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-239 into controller 
+2026-01-29 20:30:37,822 WARN o.a.j.p.h.p.Proxy: [58381]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:30:53,823 WARN o.a.j.p.h.p.Proxy: [58450]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:30:59,913 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-240 into controller 
+2026-01-29 20:31:00,932 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-241 into controller 
+2026-01-29 20:31:00,938 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-242 into controller 
+2026-01-29 20:31:00,942 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-243 into controller 
+2026-01-29 20:31:05,828 WARN o.a.j.p.h.p.Proxy: [58516]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:05,855 WARN o.a.j.p.h.p.Proxy: [58517]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:09,844 WARN o.a.j.p.h.p.Proxy: [58536]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:13,863 WARN o.a.j.p.h.p.Proxy: [58556]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:28,906 WARN o.a.j.p.h.p.Proxy: [58626]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:29,621 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-244 into controller 
+2026-01-29 20:31:31,043 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-246 into controller 
+2026-01-29 20:31:31,046 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-247 into controller 
+2026-01-29 20:31:31,048 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-245 into controller 
+2026-01-29 20:31:45,009 WARN o.a.j.p.h.p.Proxy: [58703]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:45,289 WARN o.a.j.p.h.p.Proxy: [58708]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:47,845 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-249 into controller 
+2026-01-29 20:31:47,851 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/hosts/f51439c4d2fc27a760050118eb4b899e/cards-248 into controller 
+2026-01-29 20:31:47,855 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697222ded5b6737b86bf3b8d/cards-250 into controller 
+2026-01-29 20:31:47,859 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697a2680d5b6737b8636f2d8/cards-251 into controller 
+2026-01-29 20:31:49,988 WARN o.a.j.p.h.p.Proxy: [58733]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:58,145 WARN o.a.j.p.h.p.Proxy: [58772]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:31:59,357 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-252 into controller 
+2026-01-29 20:31:59,361 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-253 into controller 
+2026-01-29 20:32:00,401 INFO o.a.j.p.h.p.ProxyControl: [58852]  Creating entry ws2.qualified.com in /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/proxyserver.jks
+2026-01-29 20:32:00,586 WARN o.a.j.p.h.p.Proxy: [58875]  Problem with SSL certificate for url  for 'us.telemetry.zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:32:00,976 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-256 into controller 
+2026-01-29 20:32:00,981 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-254 into controller 
+2026-01-29 20:32:00,982 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-255 into controller 
+2026-01-29 20:32:02,196 INFO o.a.j.p.h.p.Proxy: [58852]  KeyStore for SSL loaded OK and put host 'ws2.qualified.com' in map with key (ws2.qualified.com)
+2026-01-29 20:32:02,205 WARN o.a.j.p.h.p.Proxy: [58852]  Problem with SSL certificate for url  for 'ws2.qualified.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:32:20,216 WARN o.a.j.p.h.p.Proxy: [58982]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:32:30,259 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-257 into controller 
+2026-01-29 20:32:30,866 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-260 into controller 
+2026-01-29 20:32:30,873 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-258 into controller 
+2026-01-29 20:32:30,876 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-259 into controller 
+2026-01-29 20:32:38,843 WARN o.a.j.p.h.p.Proxy: [59080]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:32:38,861 WARN o.a.j.p.h.p.Proxy: [59081]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:32:43,823 WARN o.a.j.p.h.p.Proxy: [59104]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:32:53,837 WARN o.a.j.p.h.p.Proxy: [59154]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:32:59,734 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-261 into controller 
+2026-01-29 20:33:00,142 INFO o.a.j.p.h.p.ProxyControl: [59186]  Creating entry bifrost-v10.getpostman.com in /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/proxyserver.jks
+2026-01-29 20:33:00,950 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-263 into controller 
+2026-01-29 20:33:00,952 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-264 into controller 
+2026-01-29 20:33:00,953 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-262 into controller 
+2026-01-29 20:33:01,818 WARN o.a.j.p.h.p.Proxy: [59207]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:02,370 INFO o.a.j.p.h.p.Proxy: [59186]  KeyStore for SSL loaded OK and put host 'bifrost-v10.getpostman.com' in map with key (bifrost-v10.getpostman.com)
+2026-01-29 20:33:02,376 WARN o.a.j.p.h.p.Proxy: [59186]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:10,316 WARN o.a.j.p.h.p.Proxy: [59257]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:28,833 WARN o.a.j.p.h.p.Proxy: [59341]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:28,853 WARN o.a.j.p.h.p.Proxy: [59342]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:29,441 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-265 into controller 
+2026-01-29 20:33:30,871 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-266 into controller 
+2026-01-29 20:33:30,875 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-268 into controller 
+2026-01-29 20:33:30,878 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-267 into controller 
+2026-01-29 20:33:33,842 WARN o.a.j.p.h.p.Proxy: [59373]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:33,889 WARN o.a.j.p.h.p.Proxy: [59374]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:37,867 WARN o.a.j.p.h.p.Proxy: [59392]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:51,853 WARN o.a.j.p.h.p.Proxy: [59456]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:33:58,522 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-269 into controller 
+2026-01-29 20:33:59,331 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-270 into controller 
+2026-01-29 20:33:59,536 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-271 into controller 
+2026-01-29 20:34:00,605 WARN o.a.j.p.h.p.Proxy: [59504]  Problem with SSL certificate for url  for 'us.telemetry.zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:34:00,963 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-274 into controller 
+2026-01-29 20:34:00,967 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-273 into controller 
+2026-01-29 20:34:00,972 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-272 into controller 
+2026-01-29 20:34:05,724 WARN o.a.j.p.h.p.Proxy: [59527]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:34:11,926 WARN o.a.j.p.h.p.Proxy: [59564]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:34:12,132 WARN o.a.j.p.h.p.Proxy: [59565]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:34:17,361 WARN o.a.j.p.h.p.Proxy: [59586]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:34:23,297 WARN o.a.j.p.h.p.Proxy: [59614]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:34:29,601 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-275 into controller 
+2026-01-29 20:34:30,826 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-276 into controller 
+2026-01-29 20:34:30,832 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-278 into controller 
+2026-01-29 20:34:30,835 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-277 into controller 
+2026-01-29 20:34:39,828 WARN o.a.j.p.h.p.Proxy: [59690]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:34:59,516 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-279 into controller 
+2026-01-29 20:35:00,946 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-281 into controller 
+2026-01-29 20:35:00,951 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-282 into controller 
+2026-01-29 20:35:00,955 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-280 into controller 
+2026-01-29 20:35:05,759 WARN o.a.j.p.h.p.Proxy: [59813]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:35:11,832 WARN o.a.j.p.h.p.Proxy: [59841]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:35:11,847 WARN o.a.j.p.h.p.Proxy: [59842]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:35:14,826 WARN o.a.j.p.h.p.Proxy: [59855]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:35:20,487 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-283 into controller 
+2026-01-29 20:35:21,827 WARN o.a.j.p.h.p.Proxy: [59895]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:35:29,636 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-284 into controller 
+2026-01-29 20:35:30,860 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-285 into controller 
+2026-01-29 20:35:30,868 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-286 into controller 
+2026-01-29 20:35:31,263 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-287 into controller 
+2026-01-29 20:35:36,829 WARN o.a.j.p.h.p.Proxy: [59967]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:35:59,521 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-288 into controller 
+2026-01-29 20:35:59,529 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-289 into controller 
+2026-01-29 20:36:00,936 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-292 into controller 
+2026-01-29 20:36:00,940 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-290 into controller 
+2026-01-29 20:36:00,945 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-291 into controller 
+2026-01-29 20:36:05,793 WARN o.a.j.p.h.p.Proxy: [60144]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:36:16,841 WARN o.a.j.p.h.p.Proxy: [60197]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:36:16,867 WARN o.a.j.p.h.p.Proxy: [60198]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:36:19,852 WARN o.a.j.p.h.p.Proxy: [60214]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:36:23,904 WARN o.a.j.p.h.p.Proxy: [60234]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:36:24,203 INFO o.a.j.p.h.p.ProxyControl: [60235]  Creating entry www.googleapis.com in /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/proxyserver.jks
+2026-01-29 20:36:25,595 INFO o.a.j.p.h.p.Proxy: [60235]  KeyStore for SSL loaded OK and put host 'www.googleapis.com' in map with key (www.googleapis.com)
+2026-01-29 20:36:25,619 WARN o.a.j.p.h.p.Proxy: [60237]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:36:25,622 WARN o.a.j.p.h.p.Proxy: [60235]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:36:25,623 WARN o.a.j.p.h.p.Proxy: [60236]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:36:29,592 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-293 into controller 
+2026-01-29 20:36:31,013 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-296 into controller 
+2026-01-29 20:36:31,018 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-295 into controller 
+2026-01-29 20:36:31,026 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-294 into controller 
+2026-01-29 20:36:37,173 WARN o.a.j.p.h.p.Proxy: [60302]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:36:38,925 WARN o.a.j.p.h.p.Proxy: [60312]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:36:44,653 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-297 into controller 
+2026-01-29 20:36:59,487 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-298 into controller 
+2026-01-29 20:37:00,898 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-301 into controller 
+2026-01-29 20:37:00,901 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-300 into controller 
+2026-01-29 20:37:02,827 WARN o.a.j.p.h.p.Proxy: [60428]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:02,841 WARN o.a.j.p.h.p.Proxy: [60429]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:02,934 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-299 into controller 
+2026-01-29 20:37:05,815 WARN o.a.j.p.h.p.Proxy: [60442]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:05,816 WARN o.a.j.p.h.p.Proxy: [60443]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:11,828 WARN o.a.j.p.h.p.Proxy: [60475]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:28,820 WARN o.a.j.p.h.p.Proxy: [60549]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:29,771 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-302 into controller 
+2026-01-29 20:37:30,989 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-305 into controller 
+2026-01-29 20:37:30,992 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-304 into controller 
+2026-01-29 20:37:30,995 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-303 into controller 
+2026-01-29 20:37:31,316 INFO o.a.j.p.h.p.ProxyControl: [60566]  Creating entry zoom.us in /opt/homebrew/Cellar/jmeter/5.6.3/libexec/bin/proxyserver.jks
+2026-01-29 20:37:32,651 INFO o.a.j.p.h.p.Proxy: [60566]  KeyStore for SSL loaded OK and put host 'zoom.us' in map with key (zoom.us)
+2026-01-29 20:37:32,680 WARN o.a.j.p.h.p.Proxy: [60566]  Problem with SSL certificate for url  for 'zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:37:48,827 WARN o.a.j.p.h.p.Proxy: [60653]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:48,847 WARN o.a.j.p.h.p.Proxy: [60654]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:51,824 WARN o.a.j.p.h.p.Proxy: [60669]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:37:59,481 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-307 into controller 
+2026-01-29 20:37:59,486 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-306 into controller 
+2026-01-29 20:38:00,612 WARN o.a.j.p.h.p.Proxy: [60716]  Problem with SSL certificate for url  for 'us.telemetry.zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:38:00,877 WARN o.a.j.p.h.p.Proxy: [60721]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:00,899 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-310 into controller 
+2026-01-29 20:38:00,901 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-309 into controller 
+2026-01-29 20:38:00,902 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-308 into controller 
+2026-01-29 20:38:05,834 WARN o.a.j.p.h.p.Proxy: [60754]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:06,864 WARN o.a.j.p.h.p.Proxy: [60762]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:12,070 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-311 into controller 
+2026-01-29 20:38:31,382 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-315 into controller 
+2026-01-29 20:38:31,387 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-313 into controller 
+2026-01-29 20:38:31,391 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-314 into controller 
+2026-01-29 20:38:31,394 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-312 into controller 
+2026-01-29 20:38:32,980 WARN o.a.j.p.h.p.Proxy: [60909]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:33,281 WARN o.a.j.p.h.p.Proxy: [60910]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:36,965 WARN o.a.j.p.h.p.Proxy: [60934]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:42,010 WARN o.a.j.p.h.p.Proxy: [60957]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:50,949 WARN o.a.j.p.h.p.Proxy: [60996]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:38:56,183 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/processes/6971cfe1d5b6737b86bacc16/standalone-01/restart-316 into controller 
+2026-01-29 20:38:59,426 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-317 into controller 
+2026-01-29 20:39:01,050 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-320 into controller 
+2026-01-29 20:39:01,051 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-318 into controller 
+2026-01-29 20:39:01,052 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-319 into controller 
+2026-01-29 20:39:05,863 WARN o.a.j.p.h.p.Proxy: [61073]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:39:15,824 WARN o.a.j.p.h.p.Proxy: [61126]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:39:15,839 WARN o.a.j.p.h.p.Proxy: [61127]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:39:20,825 WARN o.a.j.p.h.p.Proxy: [61150]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:39:29,513 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-321 into controller 
+2026-01-29 20:39:29,832 WARN o.a.j.p.h.p.Proxy: [61193]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:39:31,143 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-322 into controller 
+2026-01-29 20:39:31,151 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-323 into controller 
+2026-01-29 20:39:31,155 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-324 into controller 
+2026-01-29 20:39:45,823 WARN o.a.j.p.h.p.Proxy: [61282]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:39:52,498 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-325 into controller 
+2026-01-29 20:39:52,504 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/hosts/f51439c4d2fc27a760050118eb4b899e/cards-327 into controller 
+2026-01-29 20:39:52,514 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697a2680d5b6737b8636f2d8/cards-326 into controller 
+2026-01-29 20:39:52,520 INFO o.a.j.p.h.p.ProxyControl: Add sample /metrics/v1/groups/6971cfe1d5b6737b86bacc16/clusters/697222ded5b6737b86bf3b8d/cards-328 into controller 
+2026-01-29 20:39:59,400 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-329 into controller 
+2026-01-29 20:39:59,600 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-330 into controller 
+2026-01-29 20:40:01,839 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-333 into controller 
+2026-01-29 20:40:01,841 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-331 into controller 
+2026-01-29 20:40:01,843 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-332 into controller 
+2026-01-29 20:40:19,838 WARN o.a.j.p.h.p.Proxy: [61460]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:40:19,861 WARN o.a.j.p.h.p.Proxy: [61461]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:40:24,865 WARN o.a.j.p.h.p.Proxy: [61488]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:40:29,490 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-334 into controller 
+2026-01-29 20:40:31,118 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-337 into controller 
+2026-01-29 20:40:31,124 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-335 into controller 
+2026-01-29 20:40:31,126 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-336 into controller 
+2026-01-29 20:40:34,840 WARN o.a.j.p.h.p.Proxy: [61541]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:40:46,899 WARN o.a.j.p.h.p.Proxy: [61609]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:40:59,575 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-338 into controller 
+2026-01-29 20:41:00,997 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-339 into controller 
+2026-01-29 20:41:01,001 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-340 into controller 
+2026-01-29 20:41:01,005 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-341 into controller 
+2026-01-29 20:41:03,858 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-342 into controller 
+2026-01-29 20:41:08,970 WARN o.a.j.p.h.p.Proxy: [61750]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:09,120 WARN o.a.j.p.h.p.Proxy: [61751]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:11,242 WARN o.a.j.p.h.p.Proxy: [61762]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:20,822 WARN o.a.j.p.h.p.Proxy: [61807]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:27,823 WARN o.a.j.p.h.p.Proxy: [61848]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:30,074 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-343 into controller 
+2026-01-29 20:41:30,512 WARN o.a.j.p.h.p.Proxy: [61871]  Problem with SSL certificate for url  for 'zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:41:31,090 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-344 into controller 
+2026-01-29 20:41:31,093 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-346 into controller 
+2026-01-29 20:41:31,099 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-345 into controller 
+2026-01-29 20:41:48,875 WARN o.a.j.p.h.p.Proxy: [61951]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:48,891 WARN o.a.j.p.h.p.Proxy: [61952]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:50,824 WARN o.a.j.p.h.p.Proxy: [61961]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:56,831 WARN o.a.j.p.h.p.Proxy: [61989]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:41:58,609 WARN o.a.j.p.h.p.Proxy: [61998]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:41:58,614 WARN o.a.j.p.h.p.Proxy: [61999]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:41:59,357 INFO o.a.j.p.h.p.ProxyControl: Add sample /activity/alerts/OPEN/6971cfe1d5b6737b86bacc16-347 into controller 
+2026-01-29 20:41:59,559 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-348 into controller 
+2026-01-29 20:42:00,620 WARN o.a.j.p.h.p.Proxy: [62018]  Problem with SSL certificate for url  for 'us.telemetry.zoom.us'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:42:00,983 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-350 into controller 
+2026-01-29 20:42:00,989 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-349 into controller 
+2026-01-29 20:42:00,994 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-351 into controller 
+2026-01-29 20:42:06,842 WARN o.a.j.p.h.p.Proxy: [62049]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:42:07,401 WARN o.a.j.p.h.p.Proxy: [62051]  Problem with SSL certificate for url  for 'www.googleapis.com'? Ensure browser is set to accept the JMeter proxy cert: Insufficient buffer remaining for AEAD cipher fragment (2). Needs to be more than tag size (16)
+2026-01-29 20:42:28,897 WARN o.a.j.p.h.p.Proxy: [62235]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:42:28,951 WARN o.a.j.p.h.p.Proxy: [62237]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:42:29,636 INFO o.a.j.p.h.p.ProxyControl: Add sample /automation/deploymentStatus/6971cfe1d5b6737b86bacc16-352 into controller 
+2026-01-29 20:42:31,063 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/configRS/liveMigrations-353 into controller 
+2026-01-29 20:42:31,068 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/rs0/liveMigrations-355 into controller 
+2026-01-29 20:42:31,071 INFO o.a.j.p.h.p.ProxyControl: Add sample /groups/6971cfe1d5b6737b86bacc16/clusters/ip-172-31-23-234.us-west-2.compute.internal:27022/liveMigrations-354 into controller 
+2026-01-29 20:42:31,904 WARN o.a.j.p.h.p.Proxy: [62271]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:42:35,901 WARN o.a.j.p.h.p.Proxy: [62293]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:42:49,615 WARN o.a.j.p.h.p.Proxy: [62392]  Problem with SSL certificate for url  for 'bifrost-v10.getpostman.com'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:42:56,035 WARN o.a.j.p.h.p.Proxy: [62419]  Problem with SSL certificate for url  for 'nexus-websocket-a.intercom.io'? Ensure browser is set to accept the JMeter proxy cert: Received fatal alert: certificate_unknown
+2026-01-29 20:43:10,030 INFO o.a.j.p.h.p.Daemon: HTTP(S) Test Script Recorder stopped

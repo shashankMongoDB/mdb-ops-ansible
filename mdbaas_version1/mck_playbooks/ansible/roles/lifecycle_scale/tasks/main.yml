@@ -1,0 +1,30 @@
+---
+- name: Scale members for specific tenant deployment
+  vars:
+    tenant_obj: "{{ tenants | selectattr('name','equalto', target_deployment.split('-rs')[0]) | list | first }}"
+    ns: "{{ tenant_obj.namespace }}"
+    deployment_name: "{{ tenant_obj.name }}-rs"
+  block:
+
+    - name: Patch MongoDB CR spec.members
+      k8s:
+        state: present
+        merge_type: merge
+        definition:
+          apiVersion: mongodb.com/v1
+          kind: MongoDB
+          metadata:
+            name: "{{ deployment_name }}"
+            namespace: "{{ ns }}"
+          spec:
+            members: "{{ new_members }}"
+
+    - name: Wait for MongoDB CR to be Running after scale
+      command: >
+        kubectl -n {{ ns }} get mongodb {{ deployment_name }}
+        -o jsonpath='{.status.phase}'
+      register: phase_out
+      until: phase_out.stdout in ["Running", "Ready"]
+      retries: 80
+      delay: 15
+      changed_when: false

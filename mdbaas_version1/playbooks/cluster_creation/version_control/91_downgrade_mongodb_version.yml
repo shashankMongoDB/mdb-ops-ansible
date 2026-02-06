@@ -1,0 +1,347 @@
+---
+# Downgrade MongoDB Version (Selective Deployment)
+# Usage: ansible-playbook -i ../replica_set/inventory.ini 91_downgrade_mongodb_version.yml
+#
+# Environment Variables Required:
+#   TARGET_MONGODB_VERSION - Target version to downgrade to (e.g., "8.0.15-ent")
+#   DEPLOYMENT_FILTER (optional) - Filter processes by name pattern
+#
+# Examples:
+#   # Downgrade only replica set
+#   export TARGET_MONGODB_VERSION="8.0.15-ent"
+#   export DEPLOYMENT_FILTER="rs0"
+#   ansible-playbook -i ../replica_set/inventory.ini 91_downgrade_mongodb_version.yml
+#
+#   # Downgrade only sharded cluster
+#   export DEPLOYMENT_FILTER="shard|config|mongos"
+#   ansible-playbook -i ../replica_set/inventory.ini 91_downgrade_mongodb_version.yml
+
+- name: Downgrade MongoDB Version
+  hosts: localhost
+  gather_facts: no
+  
+  vars:
+    target_version: "{{ lookup('env', 'TARGET_MONGODB_VERSION') }}"
+    deployment_filter: "{{ lookup('env', 'DEPLOYMENT_FILTER') | default('', true) }}"
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+    skip_fcv_warning: "{{ lookup('env', 'SKIP_FCV_WARNING') | default('false') }}"
+
+  tasks:
+    - name: Validate required environment variables
+      ansible.builtin.fail:
+        msg: |
+          Missing required environment variables:
+          - TARGET_MONGODB_VERSION: {{ target_version | default('NOT SET') }}
+          - OPS_MANAGER_URL: {{ ops_manager_url | default('NOT SET') }}
+          - OPS_MANAGER_PROJECT_ID: {{ ops_manager_project_id | default('NOT SET') }}
+          - OPS_MANAGER_PUBLIC_KEY: {{ 'SET' if ops_manager_public_key else 'NOT SET' }}
+          - OPS_MANAGER_PRIVATE_KEY: {{ 'SET' if ops_manager_private_key else 'NOT SET' }}
+      when: >
+        target_version == '' or
+        ops_manager_url == '' or
+        ops_manager_project_id == '' or
+        ops_manager_public_key == '' or
+        ops_manager_private_key == ''
+
+    - name: Validate version format
+      ansible.builtin.fail:
+        msg: "TARGET_MONGODB_VERSION must be in format X.Y.Z-ent or X.Y.Z (e.g., 8.0.15-ent)"
+      when: target_version is not match('^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$')
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Filter processes based on DEPLOYMENT_FILTER
+      ansible.builtin.set_fact:
+        filtered_processes: >-
+          {%- if deployment_filter != '' -%}
+            {{ current_config.json.processes | selectattr('name', 'match', '.*(' + deployment_filter + ').*') | list }}
+          {%- else -%}
+            {{ current_config.json.processes }}
+          {%- endif -%}
+        all_processes: "{{ current_config.json.processes }}"
+
+    - name: Validate filtered processes
+      ansible.builtin.fail:
+        msg: |
+          No processes match filter: "{{ deployment_filter }}"
+          
+          Available processes:
+          {% for proc in current_config.json.processes %}
+            - {{ proc.name }} ({{ proc.processType }})
+          {% endfor %}
+      when: filtered_processes | length == 0
+
+    - name: Extract version and FCV information
+      ansible.builtin.set_fact:
+        current_versions: >-
+          {{ filtered_processes | map(attribute='version') | unique | list }}
+        current_fcvs: >-
+          {{ filtered_processes | map(attribute='featureCompatibilityVersion') | unique | list }}
+        total_processes: "{{ current_config.json.processes | length }}"
+        filtered_count: "{{ filtered_processes | length }}"
+        target_fcv: "{{ target_version.split('-')[0].split('.')[0:2] | join('.') }}"
+
+    - name: Build downgrade plan message
+      ansible.builtin.set_fact:
+        downgrade_plan: |
+          ===========================================
+          ⚠️  MongoDB Version DOWNGRADE
+          ===========================================
+          
+          Deployment Filter: {{ deployment_filter if deployment_filter != '' else 'ALL (no filter)' }}
+          
+          Current Version(s): {{ current_versions | join(', ') }}
+          Current FCV(s):     {{ current_fcvs | join(', ') }}
+          
+          Target Version:     {{ target_version }}
+          Target FCV:         {{ target_fcv }}
+          
+          Total Processes in Project: {{ total_processes }}
+          Processes to Downgrade:     {{ filtered_count }}
+          
+          Processes that will be downgraded:
+          {% for proc in filtered_processes %}
+            {{ loop.index }}. {{ proc.name }} ({{ proc.processType }})
+               Version: {{ proc.version }} → {{ target_version }}
+               FCV: {{ proc.featureCompatibilityVersion | default('N/A') }} → {{ target_fcv }}
+          {% endfor %}
+          
+          {% if filtered_count | int < total_processes | int %}
+          Processes NOT affected ({{ total_processes | int - filtered_count | int }} total):
+          {% for proc in all_processes %}
+          {% if proc.name not in (filtered_processes | map(attribute='name') | list) %}
+            - {{ proc.name }} ({{ proc.processType }}) - stays at {{ proc.version }}
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          
+          🛑 CRITICAL WARNINGS:
+            1. Downgrade requires FCV = {{ target_fcv }}
+            2. Must set FCV BEFORE downgrade if not compatible
+            3. May lose data if using features from current version
+            4. Backup recommended before proceeding
+          
+          Downgrade Strategy:
+            - Rolling downgrade (one process at a time)
+            - Wait for goal state between downgrades
+            - Minimize downtime
+          
+          ⚠️  This operation cannot be easily reversed!
+          
+          Continuing in 20 seconds...
+          Press Ctrl+C to abort!
+          ===========================================
+
+    - name: Display downgrade plan
+      ansible.builtin.debug:
+        msg: "{{ downgrade_plan }}"
+
+    - name: Validate downgrade direction
+      ansible.builtin.fail:
+        msg: |
+          ERROR: Cannot downgrade from {{ item }} to {{ target_version }}
+          Target version must be older than current version.
+          For upgrade, use 90_upgrade_mongodb_version.yml
+      when: target_version is version(item, '>=')
+      loop: "{{ current_versions }}"
+
+    - name: Build FCV compatibility message
+      ansible.builtin.set_fact:
+        fcv_check_msg: |
+          ⚠️  WARNING: FCV Compatibility Check
+          
+          Current FCV(s): {{ current_fcvs | join(', ') }}
+          Target FCV:     {{ target_fcv }}
+          
+          {% if target_fcv not in current_fcvs | map('string') | list %}
+          ❌ FCV MISMATCH DETECTED!
+          
+          You MUST set FCV to {{ target_fcv }} before downgrade:
+          
+          1. Connect to MongoDB:
+             mongosh --host <hostname> --port 27017
+          
+          2. Set FCV:
+             db.adminCommand({ setFeatureCompatibilityVersion: '{{ target_fcv }}' })
+          
+          3. Wait for FCV to be set (may take several minutes)
+          
+          4. Run this playbook again
+          
+          Set SKIP_FCV_WARNING=true to bypass this check (NOT RECOMMENDED)
+          {% else %}
+          ✅ FCV Compatible
+          {% endif %}
+
+    - name: Check FCV compatibility
+      ansible.builtin.debug:
+        msg: "{{ fcv_check_msg }}"
+
+    - name: Fail if FCV mismatch (unless skipped)
+      ansible.builtin.fail:
+        msg: |
+          FCV mismatch detected!
+          Current FCV(s): {{ current_fcvs | join(', ') }}
+          Required FCV: {{ target_fcv }}
+          
+          Set FCV first, then run downgrade again.
+          Or set SKIP_FCV_WARNING=true to bypass (not recommended).
+      when: 
+        - target_fcv not in current_fcvs | map('string') | list
+        - skip_fcv_warning != 'true'
+
+    - name: Wait for confirmation
+      ansible.builtin.pause:
+        seconds: 20
+
+    - name: Build list of process names to downgrade
+      ansible.builtin.set_fact:
+        process_names_to_downgrade: "{{ filtered_processes | map(attribute='name') | list }}"
+
+    - name: Update filtered processes to target version
+      ansible.builtin.set_fact:
+        updated_processes: >-
+          {%- set result = [] -%}
+          {%- for proc in all_processes -%}
+            {%- if proc.name in process_names_to_downgrade -%}
+              {%- set _ = result.append(proc | combine({'version': target_version, 'featureCompatibilityVersion': target_fcv})) -%}
+            {%- else -%}
+              {%- set _ = result.append(proc) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ result }}
+
+    - name: Build updated automation config
+      ansible.builtin.set_fact:
+        updated_config: >-
+          {{
+            current_config.json |
+            combine({'processes': updated_processes}, recursive=True)
+          }}
+
+    - name: Submit version downgrade
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: PUT
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body: "{{ updated_config | to_json }}"
+        body_format: json
+        status_code: [200, 201]
+        return_content: yes
+      register: downgrade_result
+
+    - name: Build downgrade status message
+      ansible.builtin.set_fact:
+        downgrade_status: |
+          ===========================================
+          ✅ Downgrade Initiated Successfully
+          ===========================================
+          
+          Filter Applied: {{ deployment_filter if deployment_filter != '' else 'NONE (all processes)' }}
+          
+          Downgrading {{ filtered_count }} process(es):
+          {% for proc in filtered_processes %}
+            - {{ proc.name }}: {{ proc.version }} → {{ target_version }}
+          {% endfor %}
+          
+          {% if filtered_count | int < total_processes | int %}
+          Unchanged processes ({{ total_processes | int - filtered_count | int }} total):
+          {% for proc in all_processes %}
+          {% if proc.name not in (filtered_processes | map(attribute='name') | list) %}
+            - {{ proc.name }}: {{ proc.version }} (no change)
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          
+          ⏱️  Downgrade Process:
+            1. Ops Manager downloads MongoDB {{ target_version }}
+            2. Rolling downgrade starts (one node at a time)
+            3. Each node downgraded and restarted
+            4. Waits for replica set stability
+            5. Proceeds to next node
+          
+          Expected Duration: {{ (filtered_count | int * 5) }}-{{ (filtered_count | int * 10) }} minutes
+          
+          📊 Monitor Progress:
+             {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment
+          
+          ✅ Verify Completion:
+             ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml
+          ===========================================
+
+    - name: Display downgrade status
+      ansible.builtin.debug:
+        msg: "{{ downgrade_status }}"
+
+    - name: Wait for deployment to start
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Get automation status for monitoring
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationStatus"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: initial_status
+
+    - name: Monitor downgrade progress
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationStatus"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+      until: automation_status.json.goalVersion == updated_config.version
+      retries: 60
+      delay: 10
+      ignore_errors: yes
+
+    - name: Display final status
+      ansible.builtin.debug:
+        msg:
+          - "==========================================="
+          - "Downgrade Monitoring"
+          - "==========================================="
+          - ""
+          - "Config Version: {{ updated_config.version }}"
+          - "Goal Version: {{ automation_status.json.goalVersion | default('Unknown') }}"
+          - "Current Status: {{ 'In Progress' if automation_status.failed else 'Completed' }}"
+          - ""
+          - "Note: Downgrade continues in background even if monitoring times out"
+          - ""
+          - "Check Ops Manager UI for real-time status:"
+          - "{{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment"
+          - ""
+          - "Run this to verify completion:"
+          - "ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml"
+          - "==========================================="

@@ -1,0 +1,29 @@
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: {{ deployment_name }}
+  namespace: {{ namespace }}
+  labels:
+    mdb.example.com/tenant: {{ tenant_name }}
+spec:
+  type: ReplicaSet
+  members: {{ members }}
+  version: "{{ mongo_version }}"
+  opsManager:
+    configMapRef:
+      name: "om-{{ tenant_name }}-project"
+  credentials: "om-{{ tenant_name }}-credentials"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+  users:
+    - name: "{{ mongo_admin_user }}"
+      db: admin
+      passwordSecretRef:
+        name: "{{ mongo_admin_password_secret }}"
+      roles:
+        - name: "root"
+          db: "admin"
+      scramCredentialsSecretName: "{{ deployment_name }}-admin-scram"
+  additionalMongodConfig:
+    storage.wiredTiger.engineConfig.journalCompressor: "zlib"

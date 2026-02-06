@@ -1,0 +1,168 @@
+---
+# Uses ops_manager_global_public_key/private_key to call Ops Manager public API
+
+- name: Set Ops Manager auth header
+  set_fact:
+    om_auth_header: "Basic {{ (ops_manager_global_public_key + ':' + ops_manager_global_private_key) | b64encode }}"
+
+# Loop over all tenants
+- name: Ensure Ops Manager projects and per-tenant API keys exist
+  vars:
+    tenant_name: "{{ item.name }}"
+    project_name: "{{ item.project_name }}"
+  loop: "{{ tenants }}"
+  block:
+
+    - name: Get all Ops Manager projects for org
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups?mmsOrgId={{ ops_manager_org_id }}"
+        method: GET
+        headers:
+          Authorization: "{{ om_auth_header }}"
+          Accept: "application/json"
+        return_content: true
+        status_code: 200
+        validate_certs: false
+      register: om_projects
+
+    - name: Find or create project for tenant
+      set_fact:
+        tenant_project: "{{ (om_projects.json.results | default([])) | selectattr('name','equalto', project_name) | list | first | default({}) }}"
+
+    - name: Create Ops Manager project if missing
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups"
+        method: POST
+        headers:
+          Authorization: "{{ om_auth_header }}"
+          Content-Type: "application/json"
+          Accept: "application/json"
+        body_format: json
+        body:
+          name: "{{ project_name }}"
+          orgId: "{{ ops_manager_org_id }}"
+        status_code: 201,409
+        validate_certs: false
+      register: create_project
+      when: tenant_project == {}
+      changed_when: create_project.status == 201
+
+    - name: Refresh project info after creation
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups?mmsOrgId={{ ops_manager_org_id }}"
+        method: GET
+        headers:
+          Authorization: "{{ om_auth_header }}"
+          Accept: "application/json"
+        return_content: true
+        status_code: 200
+        validate_certs: false
+      register: om_projects_refreshed
+      when: tenant_project == {}
+
+    - name: Set tenant_project fact (final)
+      set_fact:
+        tenant_project: >-
+          {{
+            (om_projects_refreshed.json.results | default(om_projects.json.results)) 
+            | selectattr('name','equalto', project_name) 
+            | list | first
+          }}
+
+    - name: Ensure per-tenant programmatic API key exists (simple idempotence by description)
+      vars:
+        api_key_desc: "mck-{{ tenant_name }}-operator"
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/orgs/{{ ops_manager_org_id }}/apiKeys"
+        method: GET
+        headers:
+          Authorization: "{{ om_auth_header }}"
+          Accept: "application/json"
+        return_content: true
+        status_code: 200
+        validate_certs: false
+      register: om_org_api_keys
+
+    - set_fact:
+        existing_tenant_key: >-
+          {{ (om_org_api_keys.json.results | default([])) 
+             | selectattr('desc','equalto', api_key_desc) 
+             | list | first | default({}) }}
+
+    - name: Create per-tenant programmatic API key if missing
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/orgs/{{ ops_manager_org_id }}/apiKeys"
+        method: POST
+        headers:
+          Authorization: "{{ om_auth_header }}"
+          Content-Type: "application/json"
+          Accept: "application/json"
+        body_format: json
+        body:
+          desc: "{{ api_key_desc }}"
+          roles:
+            - "ORG_OWNER"     # adjust roles as per policy
+        status_code: 201,409
+        validate_certs: false
+      register: create_tenant_key
+      when: existing_tenant_key == {}
+      changed_when: create_tenant_key.status == 201
+
+    - name: Refresh tenant key after creation
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/orgs/{{ ops_manager_org_id }}/apiKeys"
+        method: GET
+        headers:
+          Authorization: "{{ om_auth_header }}"
+          Accept: "application/json"
+        return_content: true
+        status_code: 200
+        validate_certs: false
+      register: om_org_api_keys_refreshed
+      when: existing_tenant_key == {}
+
+    - name: Set per-tenant key fact
+      set_fact:
+        tenant_api_key: >-
+          {{
+            (om_org_api_keys_refreshed.json.results | default(om_org_api_keys.json.results))
+            | selectattr('desc','equalto', api_key_desc)
+            | list | first
+          }}
+
+    # MANUAL (ONE-TIME if you want finer control):
+    #   Assign project-level roles / permissions to this key via Ops Manager UI
+    #   or extend playbook to call Project API to grant specific project access.
+
+    - name: Create per-tenant Ops Manager credentials secret in tenant namespace
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "om-{{ tenant_name }}-credentials"
+            namespace: "{{ item.namespace }}"
+          type: Opaque
+          stringData:
+            user: "{{ tenant_api_key['publicKey'] }}"
+            publicApiKey: "{{ tenant_api_key['privateKey'] }}"
+      context: "{{ k8s_context | default(omit) }}"
+
+    - name: Create per-tenant Ops Manager project ConfigMap
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: "om-{{ tenant_name }}-project"
+            namespace: "{{ item.namespace }}"
+          data:
+            baseUrl: "{{ ops_manager_url }}"
+            projectName: "{{ project_name }}"
+            orgId: "{{ ops_manager_org_id }}"
+      context: "{{ k8s_context | default(omit) }}"
+
+  loop_control:
+    label: "{{ item.name }}"

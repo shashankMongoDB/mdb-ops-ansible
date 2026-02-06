@@ -1,0 +1,61 @@
+---
+- name: Configure monitoring/backup for deployment
+  vars:
+    tenant_obj: "{{ tenants | selectattr('name','equalto', tenant_name) | list | first }}"
+    ns: "{{ tenant_obj.namespace }}"
+    deployment_name: "{{ tenant_obj.name }}-{{ deployment_suffix }}"
+  block:
+
+    - name: Patch MongoDB CR with monitoring/backup flags
+      k8s:
+        state: present
+        merge_type: merge
+        definition:
+          apiVersion: mongodb.com/v1
+          kind: MongoDB
+          metadata:
+            name: "{{ deployment_name }}"
+            namespace: "{{ ns }}"
+          spec:
+            backup:
+              mode: "{{ 'enabled' if enable_backup else 'disabled' }}"
+              # PITR toggling is normally handled on OM backup policies;
+              # this flag may be used via annotations if your operator supports it.
+            prometheus:
+              username: "prom-user"
+              passwordSecretRef:
+                name: "{{ deployment_name }}-prom-password"
+      register: patch_result
+
+    - name: Ensure Prometheus password secret exists
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ deployment_name }}-prom-password"
+            namespace: "{{ ns }}"
+          type: Opaque
+          stringData:
+            password: "{{ lookup('password', 'credentials/' ~ tenant_name ~ '-prom.txt length=16') }}"
+
+    - name: Check MongoDB CR yaml for backup/monitoring
+      command: >
+        kubectl -n {{ ns }} get mongodb {{ deployment_name }} -o yaml
+      register: cr_yaml
+      changed_when: false
+
+    # Optional: verify via Ops Manager API that backup is enabled for this project
+    - name: Verify Ops Manager backup status (simple check)
+      uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ tenant_project.id }}/backup/snapshots?status=STARTED"
+        method: GET
+        headers:
+          Authorization: "Basic {{ (ops_manager_global_public_key ~ ':' ~ ops_manager_global_private_key) | b64encode }}"
+          Accept: "application/json"
+        status_code: 200,404
+        validate_certs: false
+      register: backup_status
+      changed_when: false
+      failed_when: false

@@ -1,0 +1,14 @@
+---
+- name: Enable monitoring + backup + PITR via CR spec
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    tenant_name: "tenant-a"
+    deployment_suffix: "rs"
+    enable_backup: true
+    enable_pitr: true
+    enable_prometheus: true
+
+  roles:
+    - role: monitoring_backup

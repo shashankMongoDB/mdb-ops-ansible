@@ -1,0 +1,71 @@
+---
+- name: Ensure tenant namespaces exist
+  vars:
+    ns: "{{ item.namespace }}"
+  loop: "{{ tenants }}"
+  k8s:
+    state: present
+    api_version: v1
+    kind: Namespace
+    name: "{{ ns }}"
+    context: "{{ k8s_context | default(omit) }}"
+    definition:
+      metadata:
+        name: "{{ ns }}"
+        labels:
+          mdb.example.com/tenant: "{{ item.name }}"
+  register: ns_result
+
+- name: Create service account for control-plane (optional per-tenant)
+  vars:
+    ns: "{{ item.namespace }}"
+  loop: "{{ tenants }}"
+  k8s:
+    state: present
+    api_version: v1
+    kind: ServiceAccount
+    namespace: "{{ ns }}"
+    name: "mdb-tenant-operator"
+    context: "{{ k8s_context | default(omit) }}"
+
+# Example: global ConfigMap with Ops Manager CA / settings (if needed)
+# MANUAL (ONE-TIME): place CA bundle content in files/om-ca.crt if OM uses custom CA.
+- name: Create Ops Manager CA ConfigMap (optional)
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "om-ca-config"
+        namespace: "mongodb-operator"
+      data:
+        # If OM uses custom HTTPS CA, insert PEM here.
+        # ca.crt: "{{ lookup('file', 'files/om-ca.crt') | default('', true) }}"
+        ca.crt: ""
+    context: "{{ k8s_context | default(omit) }}"
+  when: false  # flip to true when you actually use a custom CA
+
+# Secret holding global admin key used by opsmanager_tenant role to create per-tenant keys/projects.
+- name: Create global Ops Manager admin API key secret (for automation only)
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "om-global-automation-key"
+        namespace: "mongodb-operator"
+      type: Opaque
+      stringData:
+        publicKey: "{{ ops_manager_global_public_key }}"
+        privateKey: "{{ ops_manager_global_private_key }}"
+    context: "{{ k8s_context | default(omit) }}"
+
+- name: Validate namespaces and secrets via kubectl
+  command: >
+    kubectl --context {{ k8s_context | default('') }} get ns {{ item.namespace }}
+  register: ns_check
+  loop: "{{ tenants }}"
+  changed_when: false
+  failed_when: ns_check.rc != 0

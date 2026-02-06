@@ -1,0 +1,53 @@
+---
+- name: Loop over tenants and deploy ReplicaSet
+  vars:
+    k8s_context: "{{ kube_context | default(omit) }}"
+  loop: "{{ tenants }}"
+  loop_control:
+    label: "{{ item.name }}"
+  block:
+
+    - name: Ensure MongoDB admin password secret exists per tenant
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ mongo_admin_password_secret }}"
+            namespace: "{{ item.namespace }}"
+          type: Opaque
+          stringData:
+            password: "{{ lookup('password', 'credentials/' ~ item.name ~ '-admin.txt length=16 chars=ascii_letters,digits') }}"
+      context: "{{ k8s_context | default(omit) }}"
+
+    - name: Render ReplicaSet CR for tenant
+      set_fact:
+        rs_cr: "{{ lookup('template', 'mongodb_replicaset.yaml.j2') }}"
+      vars:
+        tenant_name: "{{ item.name }}"
+        namespace: "{{ item.namespace }}"
+        deployment_name: "{{ item.name }}-rs"
+        members: "{{ item.replset_members }}"
+        mongo_version: "{{ item.default_mongo_version }}"
+
+    - name: Apply ReplicaSet CR
+      k8s:
+        state: present
+        definition: "{{ rs_cr | from_yaml }}"
+        context: "{{ k8s_context | default(omit) }}"
+
+    - name: Wait for MongoDB CR to be Ready
+      command: >
+        kubectl --context {{ k8s_context | default('') }}
+        -n {{ item.namespace }} get mongodb {{ item.name }}-rs
+        -o jsonpath='{.status.phase}'
+      register: phase_out
+      until: phase_out.stdout in ["Running", "Ready"]
+      retries: 60
+      delay: 10
+      changed_when: false
+
+    - name: Print status
+      debug:
+        msg: "Tenant {{ item.name }} ReplicaSet {{ item.name }}-rs status: {{ phase_out.stdout }}"

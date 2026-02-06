@@ -1,0 +1,18 @@
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: {{ deployment_name }}
+  namespace: {{ namespace }}
+  labels:
+    mdb.example.com/tenant: {{ tenant_name }}
+spec:
+  type: ReplicaSet
+  members: 1
+  version: "{{ mongo_version }}"
+  opsManager:
+    configMapRef:
+      name: "om-{{ tenant_name }}-project"
+  credentials: "om-{{ tenant_name }}-credentials"
+  security:
+    authentication:
+      modes: ["SCRAM"]

@@ -1,0 +1,12 @@
+---
+- name: Rolling upgrade MongoDB version for one deployment
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    tenant_name: "tenant-a"
+    deployment_suffix: "rs"        # rs / sharded / standalone
+    new_version: "8.0.4"
+
+  roles:
+    - role: lifecycle_upgrade

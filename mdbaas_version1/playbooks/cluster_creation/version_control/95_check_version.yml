@@ -1,0 +1,98 @@
+---
+# Check MongoDB Version
+# Usage: ansible-playbook -i ../replica_set/inventory.ini 95_check_version.yml
+#
+# Displays current MongoDB version and FCV for all processes
+
+- name: Check MongoDB Version
+  hosts: localhost
+  gather_facts: no
+  
+  vars:
+    ops_manager_url: "{{ lookup('env', 'OPS_MANAGER_URL') }}"
+    ops_manager_project_id: "{{ lookup('env', 'OPS_MANAGER_PROJECT_ID') }}"
+    ops_manager_public_key: "{{ lookup('env', 'OPS_MANAGER_PUBLIC_KEY') }}"
+    ops_manager_private_key: "{{ lookup('env', 'OPS_MANAGER_PRIVATE_KEY') }}"
+
+  tasks:
+    - name: Validate required environment variables
+      ansible.builtin.fail:
+        msg: "Missing required environment variables. Please source .env file."
+      when: >
+        ops_manager_url == '' or
+        ops_manager_project_id == '' or
+        ops_manager_public_key == '' or
+        ops_manager_private_key == ''
+
+    - name: Get current automation config
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationConfig"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: current_config
+
+    - name: Get automation status
+      ansible.builtin.uri:
+        url: "{{ ops_manager_url }}/api/public/v1.0/groups/{{ ops_manager_project_id }}/automationStatus"
+        method: GET
+        user: "{{ ops_manager_public_key }}"
+        password: "{{ ops_manager_private_key }}"
+        force_basic_auth: false
+        headers:
+          Accept: "application/json"
+        status_code: 200
+        return_content: yes
+      register: automation_status
+
+    - name: Extract version information
+      ansible.builtin.set_fact:
+        process_versions: |
+          {% set versions = [] %}
+          {% for process in current_config.json.processes %}
+          {% set _ = versions.append({
+            'name': process.name,
+            'type': process.processType,
+            'version': process.version,
+            'fcv': process.featureCompatibilityVersion | default('N/A'),
+            'hostname': process.hostname
+          }) %}
+          {% endfor %}
+          {{ versions }}
+
+    - name: Display version information
+      vars:
+        versions_parsed: "{{ process_versions | from_yaml }}"
+        goal_reached: "{{ automation_status.json.goalVersion == current_config.json.version }}"
+      ansible.builtin.debug:
+        msg: |
+          ===========================================
+          MongoDB Version Status
+          ===========================================
+          
+          Project: {{ ops_manager_project_id }}
+          
+          Automation Status:
+            Goal Version: {{ automation_status.json.goalVersion }}
+            Goal Reached: {{ '✅ Yes' if goal_reached else '⏳ In Progress' }}
+          
+          Processes ({{ versions_parsed | length }} total):
+          {% for proc in versions_parsed %}
+            {{ loop.index }}. {{ proc.name }} ({{ proc.type }})
+               Host:    {{ proc.hostname }}
+               Version: {{ proc.version }}
+               FCV:     {{ proc.fcv }}
+          {% endfor %}
+          
+          {% if not goal_reached %}
+          ⏳ Deployment in progress. Check again in a few minutes.
+          {% endif %}
+          
+          📊 View in Ops Manager:
+             {{ ops_manager_url }}/v2/{{ ops_manager_project_id }}#/deployment
+          ===========================================

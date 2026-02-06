@@ -1,0 +1,11 @@
+---
+- name: Scale ReplicaSet members per tenant
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    target_deployment: "tenant-a-rs"  # example: tenant-a-rs
+    new_members: 5
+
+  roles:
+    - role: lifecycle_scale

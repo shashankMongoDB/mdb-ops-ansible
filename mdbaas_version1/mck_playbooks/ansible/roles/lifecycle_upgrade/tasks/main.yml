@@ -1,0 +1,46 @@
+---
+- name: Upgrade MongoDB version (no downgrade)
+  vars:
+    tenant_obj: "{{ tenants | selectattr('name','equalto', tenant_name) | list | first }}"
+    ns: "{{ tenant_obj.namespace }}"
+    deployment_name: "{{ tenant_obj.name }}-{{ deployment_suffix }}"
+  block:
+
+    - name: Get current MongoDB CR
+      k8s_info:
+        api_version: mongodb.com/v1
+        kind: MongoDB
+        name: "{{ deployment_name }}"
+        namespace: "{{ ns }}"
+      register: mdb_info
+
+    - set_fact:
+        current_version: "{{ mdb_info.resources[0].spec.version }}"
+
+    - name: Fail if downgrade requested
+      fail:
+        msg: "Downgrades are not supported (current: {{ current_version }}, requested: {{ new_version }})"
+      when: new_version is version(current_version, '<')
+
+    - name: Patch MongoDB CR version
+      k8s:
+        state: present
+        merge_type: merge
+        definition:
+          apiVersion: mongodb.com/v1
+          kind: MongoDB
+          metadata:
+            name: "{{ deployment_name }}"
+            namespace: "{{ ns }}"
+          spec:
+            version: "{{ new_version }}"
+
+    - name: Wait for Rolling upgrade to finish
+      command: >
+        kubectl -n {{ ns }} get mongodb {{ deployment_name }}
+        -o jsonpath='{.status.currentVersion}'
+      register: ver_out
+      until: ver_out.stdout == new_version
+      retries: 80
+      delay: 20
+      changed_when: false

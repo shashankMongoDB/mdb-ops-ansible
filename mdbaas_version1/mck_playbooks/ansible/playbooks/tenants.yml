@@ -1,0 +1,10 @@
+---
+- name: Configure Ops Manager tenants (org/project/api keys) and K8s bindings
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    k8s_context: "{{ kube_context | default(omit) }}"
+
+  roles:
+    - role: opsmanager_tenant

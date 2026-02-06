@@ -1,0 +1,25 @@
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: {{ deployment_name }}
+  namespace: {{ namespace }}
+  labels:
+    mdb.example.com/tenant: {{ tenant_name }}
+spec:
+  type: ShardedCluster
+  version: "{{ mongo_version }}"
+  opsManager:
+    configMapRef:
+      name: "om-{{ tenant_name }}-project"
+  credentials: "om-{{ tenant_name }}-credentials"
+  shardCount: {{ shard_count }}
+  configServerReplSet:
+    members: {{ config_members }}
+  mongos:
+    replicas: {{ mongos_replicas }}
+  shards:
+    - shardName: "{{ deployment_name }}-shard1"
+      members: {{ shard_members }}
+  security:
+    authentication:
+      modes: ["SCRAM"]

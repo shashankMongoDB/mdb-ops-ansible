@@ -1,0 +1,29 @@
+---
+- name: Deploy 1-member RS (standalone-style) per tenant
+  loop: "{{ tenants }}"
+  loop_control:
+    label: "{{ item.name }}"
+  block:
+    - name: Render standalone CR
+      set_fact:
+        standalone_cr: "{{ lookup('template', 'mongodb_standalone.yaml.j2') }}"
+      vars:
+        tenant_name: "{{ item.name }}"
+        namespace: "{{ item.namespace }}"
+        deployment_name: "{{ item.name }}-standalone"
+        mongo_version: "{{ item.default_mongo_version }}"
+
+    - name: Apply standalone CR
+      k8s:
+        state: present
+        definition: "{{ standalone_cr | from_yaml }}"
+
+    - name: Wait for standalone to be Running
+      command: >
+        kubectl -n {{ item.namespace }} get mongodb {{ item.name }}-standalone
+        -o jsonpath='{.status.phase}'
+      register: phase_out
+      until: phase_out.stdout in ["Running", "Ready"]
+      retries: 60
+      delay: 10
+      changed_when: false

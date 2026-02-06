@@ -1,0 +1,34 @@
+---
+- name: Deploy sharded clusters for tenants (example uses one per tenant)
+  loop: "{{ tenants }}"
+  loop_control:
+    label: "{{ item.name }}"
+  block:
+    - name: Render sharded CR
+      set_fact:
+        sharded_cr: "{{ lookup('template', 'mongodb_sharded.yaml.j2') }}"
+      vars:
+        tenant_name: "{{ item.name }}"
+        namespace: "{{ item.namespace }}"
+        deployment_name: "{{ item.name }}-sharded"
+        mongo_version: "{{ item.default_mongo_version }}"
+        shard_count: 2
+        config_members: 3
+        mongos_replicas: 2
+        shard_members: 3
+
+    - name: Apply sharded CR
+      k8s:
+        state: present
+        definition: "{{ sharded_cr | from_yaml }}"
+      register: sharded_apply
+
+    - name: Wait for sharded MongoDB to be Running
+      command: >
+        kubectl -n {{ item.namespace }} get mongodb {{ item.name }}-sharded
+        -o jsonpath='{.status.phase}'
+      register: phase_out
+      until: phase_out.stdout in ["Running", "Ready"]
+      retries: 80
+      delay: 15
+      changed_when: false

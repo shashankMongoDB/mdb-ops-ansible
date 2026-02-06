@@ -1,0 +1,10 @@
+---
+- name: Bootstrap Kubernetes prerequisites for all tenants
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    k8s_context: "{{ kube_context | default(omit) }}"
+
+  roles:
+    - role: bootstrap_k8s
