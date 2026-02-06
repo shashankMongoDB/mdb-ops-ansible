@@ -2,7 +2,7 @@ apiVersion: mongodb.com/v1
 kind: MongoDB
 metadata:
   name: {{ deployment_name }}
-  namespace: {{ namespace }}
+  namespace: {{ tenant_namespace }}
   labels:
     mdb.example.com/tenant: {{ tenant_name }}
 spec:

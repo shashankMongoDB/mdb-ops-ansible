@@ -19,7 +19,7 @@
     rs_cr: "{{ lookup('template', 'mongodb_replicaset.yaml.j2') }}"
   vars:
     tenant_name: "{{ tenant.name }}"
-    ns: "{{ tenant.namespace }}"
+    tenant_namespace: "{{ tenant.namespace }}"
     deployment_name: "{{ tenant.name }}-rs"
     members: "{{ tenant.replset_members }}"
     mongo_version: "{{ tenant.default_mongo_version }}"
