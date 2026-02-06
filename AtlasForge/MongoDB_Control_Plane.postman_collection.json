@@ -1,0 +1,253 @@
+{
+  "info": {
+    "name": "MongoDB Control Plane API",
+    "description": "API collection for MongoDB Control Plane microservice",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Tenant - Acme",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"t-acme\",\n  \"displayName\": \"Acme Corporation\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Tenant - Globex",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"t-globex\",\n  \"displayName\": \"Globex Industries\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Deployment - Orders DB",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-orders\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Orders Database\",\n  \"environment\": \"prod\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Deployment - Customers DB",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-customers\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Customers Database\",\n  \"environment\": \"prod\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Deployment - Analytics DB (5 members)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-analytics\",\n  \"mongoVersion\": \"7.0.14\",\n  \"members\": 5,\n  \"displayName\": \"Analytics Database\",\n  \"environment\": \"staging\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List All Deployments for Tenant",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Specific Deployment Details",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Duplicate Tenant (409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"t-acme\",\n  \"displayName\": \"Acme Corp Duplicate\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Invalid Tenant ID (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"T_ACME_INVALID!\",\n  \"displayName\": \"Invalid Tenant\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Tenant Not Found (404)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-test\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Test DB\",\n  \"environment\": \"dev\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-nonexistent/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-nonexistent", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Duplicate Deployment (409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-orders\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Orders DB Duplicate\",\n  \"environment\": \"prod\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
