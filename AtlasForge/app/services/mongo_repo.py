@@ -39,6 +39,22 @@ class MongoRepository:
     def list_deployments(self, tenant_id: str) -> list[Dict[str, Any]]:
         return list(self.deployments.find({"tenantId": tenant_id}))
 
+    def delete_deployment(self, tenant_id: str, deployment_id: str) -> bool:
+        """Delete a deployment. Returns True if deleted, False if not found."""
+        doc_id = f"{tenant_id}:{deployment_id}"
+        result = self.deployments.delete_one({"_id": doc_id})
+        return result.deleted_count > 0
+
+    def delete_tenant(self, tenant_id: str) -> bool:
+        """Delete a tenant. Returns True if deleted, False if not found."""
+        result = self.tenants.delete_one({"_id": tenant_id})
+        return result.deleted_count > 0
+
+    def delete_all_tenant_deployments(self, tenant_id: str) -> int:
+        """Delete all deployments for a tenant. Returns count of deleted documents."""
+        result = self.deployments.delete_many({"tenantId": tenant_id})
+        return result.deleted_count
+
     def close(self):
         self.client.close()
 

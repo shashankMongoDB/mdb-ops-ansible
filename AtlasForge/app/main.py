@@ -148,6 +148,43 @@ def get_deployment(
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
+@app.delete(
+    "/tenants/{tenantId}/deployments/{deploymentId}",
+    status_code=204
+)
+def delete_deployment(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        deleted = deployments_service.delete_deployment(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Deployment {deploymentId} not found for tenant {tenantId}")
+        return None
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error deleting deployment")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.delete("/tenants/{tenantId}", status_code=204)
+def delete_tenant(tenantId: str = Path(..., description="Tenant identifier")):
+    try:
+        deleted = tenants_service.delete_tenant(tenant_id=tenantId)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Tenant {tenantId} not found")
+        return None
+    except Exception as e:
+        logger.exception("Error deleting tenant")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.exception("Unhandled exception")

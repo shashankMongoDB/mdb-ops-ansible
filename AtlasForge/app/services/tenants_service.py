@@ -62,6 +62,13 @@ def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
         string_data={"password": admin_password}
     )
 
+    # MCK expects this ServiceAccount for MongoDB StatefulSet pods.
+    # Without it, pods fail with 'serviceaccount ... not found' and deployments never become Ready.
+    k8s.ensure_service_account(
+        namespace=namespace,
+        name="mongodb-kubernetes-database-pods"
+    )
+
     tenant_doc = {
         "_id": tenant_id,
         "tenantId": tenant_id,
@@ -82,3 +89,35 @@ def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
         "projectName": project_name,
         "status": "Active"
     }
+
+
+def delete_tenant(tenant_id: str) -> bool:
+    """
+    Delete a tenant by:
+    1. Deleting all MongoDB CRs in the tenant namespace
+    2. Deleting the namespace
+    3. Deleting all deployment documents from control-plane DB
+    4. Deleting the tenant document from control-plane DB
+    Returns True if something was deleted, False if nothing existed.
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        return False
+
+    namespace = tenant["namespace"]
+
+    mongo_crs = k8s.list_mongodb_crs(namespace)
+    for cr in mongo_crs:
+        cr_name = cr.get("metadata", {}).get("name")
+        if cr_name:
+            k8s.delete_mongodb_cr(namespace, cr_name)
+
+    k8s.delete_namespace(namespace)
+
+    repo.delete_all_tenant_deployments(tenant_id)
+    repo.delete_tenant(tenant_id)
+
+    return True

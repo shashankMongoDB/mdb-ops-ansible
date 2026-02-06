@@ -56,6 +56,25 @@ class K8sClient:
             else:
                 raise
 
+    def ensure_service_account(self, namespace: str, name: str) -> None:
+        """
+        Create a ServiceAccount if it does not exist.
+        If it already exists, do nothing (no error).
+        
+        MCK expects this ServiceAccount for MongoDB StatefulSet pods.
+        Without it, pods fail with 'serviceaccount ... not found' and deployments never become Ready.
+        """
+        try:
+            self.core_v1.read_namespaced_service_account(name=name, namespace=namespace)
+        except ApiException as e:
+            if e.status == 404:
+                service_account = client.V1ServiceAccount(
+                    metadata=client.V1ObjectMeta(name=name, namespace=namespace)
+                )
+                self.core_v1.create_namespaced_service_account(namespace=namespace, body=service_account)
+            else:
+                raise
+
     def create_mongodb_cr(self, namespace: str, body: Dict[str, Any]) -> None:
         self.custom_objects.create_namespaced_custom_object(
             group="mongodb.com",
@@ -77,6 +96,51 @@ class K8sClient:
         except ApiException as e:
             if e.status == 404:
                 return None
+            raise
+
+    def list_mongodb_crs(self, namespace: str) -> list[Dict[str, Any]]:
+        """List all MongoDB CRs in a namespace."""
+        try:
+            result = self.custom_objects.list_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb"
+            )
+            return result.get("items", [])
+        except ApiException as e:
+            if e.status == 404:
+                return []
+            raise
+
+    def delete_mongodb_cr(self, namespace: str, name: str) -> bool:
+        """
+        Delete a MongoDB CR. Returns True if deleted, False if not found.
+        """
+        try:
+            self.custom_objects.delete_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb",
+                name=name
+            )
+            return True
+        except ApiException as e:
+            if e.status == 404:
+                return False
+            raise
+
+    def delete_namespace(self, name: str) -> bool:
+        """
+        Delete a namespace. Returns True if deleted, False if not found.
+        """
+        try:
+            self.core_v1.delete_namespace(name=name)
+            return True
+        except ApiException as e:
+            if e.status == 404:
+                return False
             raise
 
 

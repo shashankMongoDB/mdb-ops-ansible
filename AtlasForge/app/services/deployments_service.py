@@ -162,3 +162,24 @@ def list_tenant_deployments(tenant_id: str) -> list[Dict[str, Any]]:
         }
         for d in deployments
     ]
+
+
+def delete_deployment(tenant_id: str, deployment_id: str) -> bool:
+    """
+    Delete a deployment by removing the MongoDB CR from Kubernetes
+    and the deployment document from control-plane DB.
+    Returns True if something was deleted, False if nothing existed.
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    namespace = tenant["namespace"]
+
+    k8s_deleted = k8s.delete_mongodb_cr(namespace, deployment_id)
+    db_deleted = repo.delete_deployment(tenant_id, deployment_id)
+
+    return k8s_deleted or db_deleted
