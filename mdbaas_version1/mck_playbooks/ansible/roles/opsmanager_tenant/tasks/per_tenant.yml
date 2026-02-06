@@ -128,6 +128,7 @@
 - name: "[{{ tenant.name }}] Create Ops Manager credentials secret in tenant namespace"
   k8s:
     state: present
+    context: "{{ kube_context | default(omit) }}"
     definition:
       apiVersion: v1
       kind: Secret
@@ -138,11 +139,11 @@
       stringData:
         user: "{{ tenant_api_key.publicKey }}"
         publicApiKey: "{{ tenant_api_key.privateKey }}"
-  context: "{{ kube_context | default(omit) }}"
 
 - name: "[{{ tenant.name }}] Create Ops Manager project ConfigMap in tenant namespace"
   k8s:
     state: present
+    context: "{{ kube_context | default(omit) }}"
     definition:
       apiVersion: v1
       kind: ConfigMap
@@ -153,4 +154,3 @@
         baseUrl: "{{ ops_manager_url }}"
         projectName: "{{ tenant.project_name }}"
         orgId: "{{ ops_manager_org_id }}"
-  context: "{{ kube_context | default(omit) }}"
