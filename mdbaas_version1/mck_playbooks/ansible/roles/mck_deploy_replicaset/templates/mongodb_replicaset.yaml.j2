@@ -13,9 +13,12 @@ spec:
     configMapRef:
       name: "om-{{ tenant_name }}-project"
   credentials: "om-{{ tenant_name }}-credentials"
+
   security:
     authentication:
+      enabled: true            # <--- required
       modes: ["SCRAM"]
+
   users:
     - name: "{{ mongo_admin_user }}"
       db: admin
