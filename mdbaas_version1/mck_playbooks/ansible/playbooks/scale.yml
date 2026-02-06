@@ -2,6 +2,8 @@
 - name: Scale ReplicaSet members per tenant
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
 
   vars:
     target_deployment: "tenant-a-rs"  # example: tenant-a-rs

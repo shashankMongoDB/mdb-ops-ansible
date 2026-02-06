@@ -2,6 +2,8 @@
 - name: Enable monitoring + backup + PITR via CR spec
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
 
   vars:
     tenant_name: "tenant-a"

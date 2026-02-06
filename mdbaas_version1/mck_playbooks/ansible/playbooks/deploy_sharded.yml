@@ -2,5 +2,7 @@
 - name: Deploy Sharded MongoDB per tenant via MCK
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
   roles:
     - role: mck_deploy_sharded

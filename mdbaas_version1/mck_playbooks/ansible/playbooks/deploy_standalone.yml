@@ -2,5 +2,7 @@
 - name: Deploy Standalone MongoDB per tenant via MCK (1-member RS)
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../group_vars/all.yml
   roles:
     - role: mck_deploy_standalone
