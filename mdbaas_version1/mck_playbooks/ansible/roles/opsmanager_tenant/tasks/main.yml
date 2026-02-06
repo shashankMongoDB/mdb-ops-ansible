@@ -1,10 +1,5 @@
 # roles/opsmanager_tenant/tasks/main.yml
 ---
-# Global auth header for Ops Manager
-- name: Set Ops Manager auth header
-  set_fact:
-    om_auth_header: "Basic {{ (ops_manager_global_public_key ~ ':' ~ ops_manager_global_private_key) | b64encode }}"
-
 # Process each tenant using a separate task file
 - name: Configure Ops Manager project + API key + K8s bindings per tenant
   include_tasks: per_tenant.yml
