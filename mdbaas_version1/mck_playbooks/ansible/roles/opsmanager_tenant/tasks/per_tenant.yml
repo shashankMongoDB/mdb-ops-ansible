@@ -105,11 +105,11 @@
       desc: "mck-{{ tenant.name }}-operator"
       roles:
         - "ORG_OWNER"
-    status_code: 201,409
+    status_code: 200,409          # <--- accept 200 (created) or 409 (already exists)
     validate_certs: false
   register: create_tenant_key
   when: tenant_api_key == {}
-  changed_when: create_tenant_key.status == 201
+  changed_when: create_tenant_key.status == 200   # <--- treat 200 as "changed"
 
 - name: "[{{ tenant.name }}] Refresh tenant key after creation"
   uri:
