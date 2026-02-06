@@ -1,0 +1,156 @@
+# roles/opsmanager_tenant/tasks/per_tenant.yml
+---
+- name: "[{{ tenant.name }}] Get Ops Manager projects in org"
+  uri:
+    url: "{{ ops_manager_url }}/api/public/v1.0/groups?mmsOrgId={{ ops_manager_org_id }}"
+    method: GET
+    headers:
+      Authorization: "{{ om_auth_header }}"
+      Accept: "application/json"
+    return_content: true
+    status_code: 200
+    validate_certs: false
+  register: om_projects
+
+- name: "[{{ tenant.name }}] Determine tenant project"
+  set_fact:
+    tenant_project: >-
+      {{
+        (om_projects.json.results | default([]))
+        | selectattr('name','equalto', tenant.project_name)
+        | list | first | default({})
+      }}
+
+- name: "[{{ tenant.name }}] Create Ops Manager project if missing"
+  uri:
+    url: "{{ ops_manager_url }}/api/public/v1.0/groups"
+    method: POST
+    headers:
+      Authorization: "{{ om_auth_header }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      name: "{{ tenant.project_name }}"
+      orgId: "{{ ops_manager_org_id }}"
+    status_code: 201,409
+    validate_certs: false
+  register: create_project
+  when: tenant_project == {}
+  changed_when: create_project.status == 201
+
+- name: "[{{ tenant.name }}] Refresh project info (if created)"
+  uri:
+    url: "{{ ops_manager_url }}/api/public/v1.0/groups?mmsOrgId={{ ops_manager_org_id }}"
+    method: GET
+    headers:
+      Authorization: "{{ om_auth_header }}"
+      Accept: "application/json"
+    return_content: true
+    status_code: 200
+    validate_certs: false
+  register: om_projects_refreshed
+  when: tenant_project == {}
+
+- name: "[{{ tenant.name }}] Set final tenant_project fact"
+  set_fact:
+    tenant_project: >-
+      {{
+        (om_projects_refreshed.json.results | default(om_projects.json.results))
+        | selectattr('name','equalto', tenant.project_name)
+        | list | first
+      }}
+
+- name: "[{{ tenant.name }}] Get org API keys"
+  uri:
+    url: "{{ ops_manager_url }}/api/public/v1.0/orgs/{{ ops_manager_org_id }}/apiKeys"
+    method: GET
+    headers:
+      Authorization: "{{ om_auth_header }}"
+      Accept: "application/json"
+    return_content: true
+    status_code: 200
+    validate_certs: false
+  register: om_org_api_keys
+
+- name: "[{{ tenant.name }}] Determine existing tenant key"
+  set_fact:
+    tenant_api_key: >-
+      {{
+        (om_org_api_keys.json.results | default([]))
+        | selectattr('desc','equalto', 'mck-' ~ tenant.name ~ '-operator')
+        | list | first | default({})
+      }}
+
+- name: "[{{ tenant.name }}] Create per-tenant programmatic API key if missing"
+  uri:
+    url: "{{ ops_manager_url }}/api/public/v1.0/orgs/{{ ops_manager_org_id }}/apiKeys"
+    method: POST
+    headers:
+      Authorization: "{{ om_auth_header }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      desc: "mck-{{ tenant.name }}-operator"
+      roles:
+        - "ORG_OWNER"          # adjust per policy
+    status_code: 201,409
+    validate_certs: false
+  register: create_tenant_key
+  when: tenant_api_key == {}
+  changed_when: create_tenant_key.status == 201
+
+- name: "[{{ tenant.name }}] Refresh tenant key after creation"
+  uri:
+    url: "{{ ops_manager_url }}/api/public/v1.0/orgs/{{ ops_manager_org_id }}/apiKeys"
+    method: GET
+    headers:
+      Authorization: "{{ om_auth_header }}"
+      Accept: "application/json"
+    return_content: true
+    status_code: 200
+    validate_certs: false
+  register: om_org_api_keys_refreshed
+  when: tenant_api_key == {}
+
+- name: "[{{ tenant.name }}] Set final tenant_api_key fact"
+  set_fact:
+    tenant_api_key: >-
+      {{
+        (om_org_api_keys_refreshed.json.results | default(om_org_api_keys.json.results))
+        | selectattr('desc','equalto', 'mck-' ~ tenant.name ~ '-operator')
+        | list | first
+      }}
+
+# Create tenant-specific Secret + ConfigMap in K8s
+
+- name: "[{{ tenant.name }}] Create Ops Manager credentials secret in tenant namespace"
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "om-{{ tenant.name }}-credentials"
+        namespace: "{{ tenant.namespace }}"
+      type: Opaque
+      stringData:
+        user: "{{ tenant_api_key.publicKey }}"
+        publicApiKey: "{{ tenant_api_key.privateKey }}"
+  context: "{{ kube_context | default(omit) }}"
+
+- name: "[{{ tenant.name }}] Create Ops Manager project ConfigMap in tenant namespace"
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "om-{{ tenant.name }}-project"
+        namespace: "{{ tenant.namespace }}"
+      data:
+        baseUrl: "{{ ops_manager_url }}"
+        projectName: "{{ tenant.project_name }}"
+        orgId: "{{ ops_manager_org_id }}"
+  context: "{{ kube_context | default(omit) }}"
