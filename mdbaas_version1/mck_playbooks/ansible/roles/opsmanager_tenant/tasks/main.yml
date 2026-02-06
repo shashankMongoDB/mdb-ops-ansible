@@ -1,7 +1,10 @@
-# roles/opsmanager_tenant/tasks/main.yml
 ---
-# Process each tenant using a separate task file
-- name: Configure Ops Manager project + API key + K8s bindings per tenant
+# For each tenant, create:
+# - Secret: om-<tenant>-credentials (global OM key)
+# - ConfigMap: om-<tenant>-project (baseUrl + projectName)
+# MCK will create the OM project the first time a MongoDB CR references this.
+
+- name: Configure per-tenant ConfigMap/Secret for MCK + Ops Manager
   include_tasks: per_tenant.yml
   loop: "{{ tenants }}"
   loop_control:
