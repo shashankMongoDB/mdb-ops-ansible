@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowPathIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowPathIcon, ChevronLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { deploymentsApi } from '@/lib/api';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ScaleModal } from '@/components/ScaleModal';
@@ -8,15 +8,17 @@ import { UpgradeVersionModal } from '@/components/UpgradeVersionModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ConnectionInfo } from '@/components/ConnectionInfo';
 import { PrometheusCard } from '@/components/PrometheusCard';
+import { BackupCard } from '@/components/BackupCard';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment } from '@/lib/types';
 
-type ActionType = 'shutdown' | 'start' | 'restart' | null;
+type ActionType = 'shutdown' | 'start' | 'restart' | 'delete' | null;
 type TabType = 'overview' | 'monitoring' | 'backup';
 
 export function DeploymentDetailsPage() {
   const { tenantId, deploymentId } = useParams<{ tenantId: string; deploymentId: string }>();
+  const navigate = useNavigate();
   const [deployment, setDeployment] = useState<Deployment | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -42,10 +44,7 @@ export function DeploymentDetailsPage() {
 
   useEffect(() => {
     loadData();
-
-    const interval = setInterval(loadData, 15000);
-    return () => clearInterval(interval);
-  }, [tenantId, deploymentId]);
+  }, [tenantId, deploymentId]); // Removed auto-refresh to prevent flickering
 
   const handleAction = async (action: ActionType) => {
     if (!tenantId || !deploymentId || !action) return;
@@ -65,6 +64,11 @@ export function DeploymentDetailsPage() {
           await deploymentsApi.restart(tenantId, deploymentId);
           showSuccess('Restart initiated', 'Deployment is restarting');
           break;
+        case 'delete':
+          await deploymentsApi.delete(tenantId, deploymentId);
+          showSuccess('Deployment deleted', 'Deployment has been deleted');
+          navigate(`/tenants/${tenantId}`);
+          return;
       }
       setConfirmAction(null);
       await loadData();
@@ -138,9 +142,18 @@ export function DeploymentDetailsPage() {
             {deployment.status?.timestamp && (
               <p className="text-xs text-mongodb-slate">Updated: {formatTimestamp(deployment.status.timestamp)}</p>
             )}
-            <button onClick={loadData} className="text-mongodb-green hover:text-mongodb-green-dark p-1">
-              <ArrowPathIcon className="h-5 w-5" />
-            </button>
+            <div className="flex gap-2 items-center">
+              <button onClick={loadData} className="text-mongodb-green hover:text-mongodb-green-dark p-1" title="Refresh">
+                <ArrowPathIcon className="h-5 w-5" />
+              </button>
+              <button 
+                onClick={() => setConfirmAction('delete')} 
+                className="text-red-600 hover:text-red-700 p-1"
+                title="Delete Deployment"
+              >
+                <TrashIcon className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -204,12 +217,12 @@ export function DeploymentDetailsPage() {
       )}
 
       {activeTab === 'backup' && (
-        <div className="card">
-          <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Backup Configuration</h3>
-          <p className="text-mongodb-slate mb-4">
-            Backup enrollment is managed via CR spec. Check your deployment's CR for backup configuration.
-          </p>
-          <span className="badge badge-gray">Backup Status: Check CR</span>
+        <div>
+          <BackupCard 
+            tenantId={deployment.tenantId} 
+            deploymentId={deployment.deploymentId}
+            initialEnabled={false}
+          />
         </div>
       )}
 
@@ -262,6 +275,17 @@ export function DeploymentDetailsPage() {
         title="Restart Deployment"
         message="Are you sure you want to restart this deployment? This will perform a rolling restart of all MongoDB processes."
         confirmText="Restart"
+        loading={actionLoading}
+      />
+
+      <ConfirmModal
+        open={confirmAction === 'delete'}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={() => handleAction('delete')}
+        title="Delete Deployment"
+        message={`Are you sure you want to delete deployment "${deployment.displayName || deployment.deploymentId}"? This action cannot be undone.`}
+        confirmText="Delete"
+        confirmVariant="danger"
         loading={actionLoading}
       />
     </div>

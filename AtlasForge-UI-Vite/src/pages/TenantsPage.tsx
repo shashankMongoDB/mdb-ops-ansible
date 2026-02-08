@@ -55,7 +55,7 @@ export function TenantsPage() {
 
   useEffect(() => {
     loadTenants();
-  }, []);
+  }, []); // Only load once, no auto-refresh
 
   if (loading) {
     return (

@@ -172,4 +172,12 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  async updateBackup(tenantId: string, deploymentId: string, enabled: boolean): Promise<void> {
+    try {
+      await api.patch(`/tenants/${tenantId}/deployments/${deploymentId}/backup`, { enabled });
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };

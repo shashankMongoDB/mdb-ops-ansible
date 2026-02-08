@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowPathIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ChevronLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { tenantsApi, deploymentsApi } from '@/lib/api';
 import { CreateDeploymentModal } from '@/components/CreateDeploymentModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useToast } from '@/components/Toast';
 import type { Tenant, Deployment } from '@/lib/types';
@@ -14,7 +15,9 @@ export function TenantDetailsPage() {
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { showError } = useToast();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   const loadData = async () => {
     if (!tenantId) return;
@@ -36,10 +39,23 @@ export function TenantDetailsPage() {
 
   useEffect(() => {
     loadData();
+  }, [tenantId]); // Removed auto-refresh to prevent flickering
 
-    const interval = setInterval(loadData, 15000);
-    return () => clearInterval(interval);
-  }, [tenantId]);
+  const handleDeleteTenant = async () => {
+    if (!tenantId) return;
+
+    setDeleteLoading(true);
+    try {
+      await tenantsApi.delete(tenantId);
+      showSuccess('Tenant deleted', 'Tenant has been successfully deleted');
+      navigate('/');
+    } catch (error: any) {
+      showError('Failed to delete tenant', error.detail || 'An error occurred');
+    } finally {
+      setDeleteLoading(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   if (loading) {
     return <div className="text-gray-500">Loading tenant details...</div>;
@@ -64,12 +80,26 @@ export function TenantDetailsPage() {
       </div>
 
       <div className="card mb-8">
-        <h1 className="text-3xl font-bold text-mongodb-forest mb-2">
-          {tenant.displayName || tenant.tenantId}
-        </h1>
-        <p className="text-mongodb-slate mb-1">Tenant ID: {tenant.tenantId}</p>
-        {tenant.namespace && <p className="text-mongodb-slate mb-3">Namespace: {tenant.namespace}</p>}
-        {tenant.environment && <span className="badge badge-gray">{tenant.environment}</span>}
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-mongodb-forest mb-2">
+              {tenant.displayName || tenant.tenantId}
+            </h1>
+            <p className="text-mongodb-slate mb-1">Tenant ID: {tenant.tenantId}</p>
+            {tenant.namespace && <p className="text-mongodb-slate mb-3">Namespace: {tenant.namespace}</p>}
+            {tenant.environment && <span className="badge badge-gray">{tenant.environment}</span>}
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteConfirm(true);
+            }}
+            className="text-red-600 hover:text-red-700 p-2"
+            title="Delete Tenant"
+          >
+            <TrashIcon className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       <div className="flex justify-between items-center mb-6">
@@ -158,6 +188,17 @@ export function TenantDetailsPage() {
         onClose={() => setShowCreateModal(false)}
         onSuccess={loadData}
         tenantId={tenant.tenantId}
+      />
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteTenant}
+        title="Delete Tenant"
+        message={`Are you sure you want to delete tenant "${tenant.displayName || tenant.tenantId}"? This will delete all deployments and cannot be undone.`}
+        confirmText="Delete"
+        confirmVariant="danger"
+        loading={deleteLoading}
       />
     </div>
   );
