@@ -1,0 +1,56 @@
+AtlasForge-UI/
+│
+├── Documentation
+│   ├── README.md                    # Complete project documentation
+│   ├── QUICKSTART.md                # Quick start guide for developers
+│   ├── PROJECT_SUMMARY.md           # Detailed project summary
+│   ├── ARCHITECTURE.md              # System architecture and design
+│   ├── DEPLOYMENT_CHECKLIST.md      # Pre/post deployment checklist
+│   └── FILE_STRUCTURE.txt           # This file - project structure
+│
+├── Configuration
+│   ├── package.json                 # Dependencies and npm scripts
+│   ├── tsconfig.json                # TypeScript configuration
+│   ├── next.config.js               # Next.js configuration
+│   ├── .eslintrc.json               # ESLint rules
+│   ├── .gitignore                   # Git ignore patterns
+│   ├── .env.local.example           # Environment variables template
+│   └── .env.local                   # Actual environment variables (git-ignored)
+│
+├── pages/                           # Next.js pages (routes)
+│   ├── _app.tsx                     # App wrapper with providers
+│   ├── _document.tsx                # HTML document structure
+│   ├── index.tsx                    # Home page (Tenants overview)
+│   ├── about.tsx                    # About page
+│   └── tenants/
+│       ├── [tenantId].tsx           # Tenant details page
+│       └── [tenantId]/
+│           └── deployments/
+│               └── [deploymentId].tsx   # Deployment details page
+│
+├── components/                      # Reusable React components
+│   ├── Layout.tsx                   # Main layout with sidebar navigation
+│   ├── StatusBadge.tsx              # Deployment status indicator
+│   ├── Toast.tsx                    # Toast notification system
+│   ├── CreateTenantModal.tsx        # Tenant creation form modal
+│   ├── CreateDeploymentModal.tsx    # Deployment creation form modal
+│   ├── ScaleDeploymentModal.tsx     # Scale replica set modal
+│   ├── UpgradeVersionModal.tsx      # MongoDB version upgrade modal
+│   ├── ConfirmActionModal.tsx       # Generic confirmation dialog
+│   ├── ConnectionInfoCard.tsx       # MongoDB connection strings card
+│   └── PrometheusCard.tsx           # Prometheus monitoring card
+│
+├── lib/                             # Business logic and utilities
+│   ├── api/
+│   │   ├── tenants.ts               # Tenant API calls
+│   │   └── deployments.ts           # Deployment API calls
+│   ├── api-client.ts                # HTTP client wrapper
+│   ├── config.ts                    # Environment configuration
+│   ├── types.ts                     # TypeScript interfaces
+│   └── utils.ts                     # Helper functions
+│
+└── styles/
+    └── globals.css                  # Global CSS styles
+
+Total Files: 32 (excluding node_modules, .next, etc.)
+Total Lines: ~5,700 lines of code + documentation
