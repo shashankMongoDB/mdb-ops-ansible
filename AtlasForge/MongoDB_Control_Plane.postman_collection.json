@@ -300,6 +300,63 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Enable Prometheus Metrics",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Disable Prometheus Metrics",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Prometheus Config",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus"]
+        }
+      },
+      "response": []
     }
   ]
 }

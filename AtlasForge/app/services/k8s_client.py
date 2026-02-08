@@ -143,6 +143,87 @@ class K8sClient:
                 return False
             raise
 
+    def patch_mongodb_cr(self, namespace: str, name: str, patch: Dict[str, Any]) -> None:
+        """
+        Patch a MongoDB CR with the given patch data.
+        """
+        self.custom_objects.patch_namespaced_custom_object(
+            group="mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodb",
+            name=name,
+            body=patch
+        )
+
+    def ensure_metrics_service(self, namespace: str, deployment_id: str, selector_labels: Dict[str, str]) -> None:
+        """
+        Create or update a LoadBalancer Service for Prometheus metrics.
+        Service name: <deployment_id>-metrics
+        Exposes port 9216 for MongoDB exporter.
+        """
+        service_name = f"{deployment_id}-metrics"
+        
+        service = client.V1Service(
+            metadata=client.V1ObjectMeta(
+                name=service_name,
+                namespace=namespace,
+                labels={"app": deployment_id, "metrics": "prometheus"}
+            ),
+            spec=client.V1ServiceSpec(
+                type="LoadBalancer",
+                selector=selector_labels,
+                ports=[
+                    client.V1ServicePort(
+                        name="metrics",
+                        port=9216,
+                        target_port=9216,
+                        protocol="TCP"
+                    )
+                ]
+            )
+        )
+        
+        try:
+            self.core_v1.read_namespaced_service(name=service_name, namespace=namespace)
+            self.core_v1.patch_namespaced_service(name=service_name, namespace=namespace, body=service)
+        except ApiException as e:
+            if e.status == 404:
+                self.core_v1.create_namespaced_service(namespace=namespace, body=service)
+            else:
+                raise
+
+    def delete_service(self, namespace: str, name: str) -> bool:
+        """
+        Delete a Service. Returns True if deleted, False if not found.
+        """
+        try:
+            self.core_v1.delete_namespaced_service(name=name, namespace=namespace)
+            return True
+        except ApiException as e:
+            if e.status == 404:
+                return False
+            raise
+
+    def get_service(self, namespace: str, name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a Service. Returns service info or None if not found.
+        """
+        try:
+            svc = self.core_v1.read_namespaced_service(name=name, namespace=namespace)
+            return {
+                "name": svc.metadata.name,
+                "namespace": svc.metadata.namespace,
+                "type": svc.spec.type,
+                "clusterIP": svc.spec.cluster_ip,
+                "externalIPs": svc.status.load_balancer.ingress if svc.status.load_balancer.ingress else [],
+                "ports": [{"port": p.port, "nodePort": p.node_port, "targetPort": str(p.target_port)} for p in svc.spec.ports]
+            }
+        except ApiException as e:
+            if e.status == 404:
+                return None
+            raise
+
 
 _k8s_instance: Optional[K8sClient] = None
 

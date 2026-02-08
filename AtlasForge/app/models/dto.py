@@ -56,3 +56,18 @@ class DeploymentListItem(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
+
+
+class PrometheusEnableRequest(BaseModel):
+    enabled: bool = Field(..., description="Enable or disable Prometheus metrics")
+
+
+class PrometheusConfigResponse(BaseModel):
+    enabled: bool
+    namespace: Optional[str] = None
+    serviceName: Optional[str] = None
+    port: Optional[int] = None
+    metricsPath: Optional[str] = None
+    externalHost: Optional[str] = None
+    externalPort: Optional[int] = None
+    serviceType: Optional[str] = None

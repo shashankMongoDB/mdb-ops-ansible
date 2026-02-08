@@ -38,10 +38,13 @@ from app.models.dto import (
     DeploymentCreateResponse,
     DeploymentDetailResponse,
     DeploymentListItem,
-    ErrorResponse
+    ErrorResponse,
+    PrometheusEnableRequest,
+    PrometheusConfigResponse
 )
 from app.services import tenants_service
 from app.services import deployments_service
+from app.services import monitoring_service
 
 logging.basicConfig(
     level=getattr(logging, config.MCP_LOG_LEVEL),
@@ -182,6 +185,59 @@ def delete_tenant(tenantId: str = Path(..., description="Tenant identifier")):
         return None
     except Exception as e:
         logger.exception("Error deleting tenant")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/monitoring/prometheus",
+    response_model=PrometheusConfigResponse
+)
+def update_prometheus_monitoring(
+    request: PrometheusEnableRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        if request.enabled:
+            result = monitoring_service.enable_prometheus_metrics(
+                tenant_id=tenantId,
+                deployment_id=deploymentId
+            )
+        else:
+            result = monitoring_service.disable_prometheus_metrics(
+                tenant_id=tenantId,
+                deployment_id=deploymentId
+            )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error updating Prometheus monitoring")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/monitoring/prometheus",
+    response_model=PrometheusConfigResponse
+)
+def get_prometheus_monitoring(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = monitoring_service.get_prometheus_config(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting Prometheus monitoring config")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
