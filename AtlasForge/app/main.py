@@ -29,6 +29,7 @@ MAIN ENDPOINTS:
 import logging
 from typing import List
 from fastapi import FastAPI, HTTPException, Path
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app import config
 from app.models.dto import (
@@ -72,10 +73,45 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add CORS middleware to allow UI to connect
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify your UI domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+@app.get("/tenants", response_model=List[dict])
+def list_tenants():
+    """List all tenants"""
+    try:
+        tenants = tenants_service.list_tenants()
+        return tenants
+    except Exception as e:
+        logger.exception("Error listing tenants")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/tenants/{tenantId}", response_model=dict)
+def get_tenant(tenantId: str = Path(..., description="Tenant identifier")):
+    """Get a specific tenant by ID"""
+    try:
+        tenant = tenants_service.get_tenant(tenant_id=tenantId)
+        if not tenant:
+            raise HTTPException(status_code=404, detail=f"Tenant {tenantId} not found")
+        return tenant
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error getting tenant")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
 @app.post("/tenants", response_model=TenantCreateResponse, status_code=201)

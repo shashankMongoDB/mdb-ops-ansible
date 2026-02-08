@@ -18,6 +18,10 @@ class MongoRepository:
     def get_tenant(self, tenant_id: str) -> Optional[Dict[str, Any]]:
         return self.tenants.find_one({"_id": tenant_id})
 
+    def list_tenants(self) -> list[Dict[str, Any]]:
+        """List all tenants"""
+        return list(self.tenants.find())
+
     def insert_tenant(self, doc: Dict[str, Any]) -> None:
         try:
             self.tenants.insert_one(doc)

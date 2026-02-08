@@ -2,7 +2,7 @@ import re
 import secrets
 import string
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from app import config
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
@@ -16,6 +16,32 @@ def validate_dns_safe(value: str, max_length: int = 63) -> bool:
 def generate_password(length: int = 24) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def list_tenants() -> List[Dict[str, Any]]:
+    """List all tenants"""
+    repo = get_repo()
+    tenants = repo.list_tenants()
+    
+    # Remove MongoDB _id field and sanitize for API response
+    result = []
+    for tenant in tenants:
+        if '_id' in tenant:
+            tenant.pop('_id')
+        result.append(tenant)
+    
+    return result
+
+
+def get_tenant(tenant_id: str) -> Optional[Dict[str, Any]]:
+    """Get a specific tenant by ID"""
+    repo = get_repo()
+    tenant = repo.get_tenant(tenant_id)
+    
+    if tenant and '_id' in tenant:
+        tenant.pop('_id')
+    
+    return tenant
 
 
 def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
