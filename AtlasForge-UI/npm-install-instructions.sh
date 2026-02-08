@@ -1,0 +1,63 @@
+#!/bin/bash
+
+echo "=========================================="
+echo "AtlasForge UI - Installation Instructions"
+echo "=========================================="
+echo ""
+echo "The 'access token expired' error was misleading."
+echo "The real issue: Some LeafyGreen package versions don't exist."
+echo ""
+echo "SOLUTION: Updated package.json with compatible versions"
+echo ""
+echo "=========================================="
+echo "Installation Steps"
+echo "=========================================="
+echo ""
+
+echo "Step 1: Clean up previous attempts..."
+rm -rf node_modules package-lock.json
+npm cache clean --force
+echo "✓ Cleanup complete"
+echo ""
+
+echo "Step 2: Installing dependencies..."
+npm install
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "=========================================="
+    echo "✓ SUCCESS! Installation complete"
+    echo "=========================================="
+    echo ""
+    echo "Next steps:"
+    echo ""
+    echo "  1. Start development server:"
+    echo "     npm run dev"
+    echo ""
+    echo "  2. Open browser:"
+    echo "     http://localhost:3000"
+    echo ""
+    echo "  3. Test the application:"
+    echo "     - Create a tenant"
+    echo "     - Create a deployment"
+    echo "     - Test lifecycle operations"
+    echo ""
+else
+    echo ""
+    echo "=========================================="
+    echo "❌ Installation failed"
+    echo "=========================================="
+    echo ""
+    echo "Fallback options:"
+    echo ""
+    echo "Option 1: Try with --legacy-peer-deps"
+    echo "  npm install --legacy-peer-deps"
+    echo ""
+    echo "Option 2: Use Yarn instead"
+    echo "  npm install -g yarn"
+    echo "  yarn install"
+    echo ""
+    echo "Option 3: Manual version resolution"
+    echo "  npm install --force"
+    echo ""
+fi
