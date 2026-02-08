@@ -13,7 +13,7 @@ import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment } from '@/lib/types';
 
-type ActionType = 'shutdown' | 'start' | 'restart' | 'delete' | null;
+type ActionType = 'shutdown' | 'restart' | 'delete' | null;
 type TabType = 'overview' | 'monitoring' | 'backup';
 
 export function DeploymentDetailsPage() {
@@ -55,10 +55,6 @@ export function DeploymentDetailsPage() {
         case 'shutdown':
           await deploymentsApi.shutdown(tenantId, deploymentId);
           showSuccess('Shutdown initiated', 'Deployment is shutting down');
-          break;
-        case 'start':
-          await deploymentsApi.start(tenantId, deploymentId);
-          showSuccess('Start initiated', 'Deployment is starting');
           break;
         case 'restart':
           await deploymentsApi.restart(tenantId, deploymentId);
@@ -194,15 +190,9 @@ export function DeploymentDetailsPage() {
               <button onClick={() => setConfirmAction('restart')} className="btn-secondary">
                 Restart
               </button>
-              {deployment.status?.phase === 'Running' ? (
-                <button onClick={() => setConfirmAction('shutdown')} className="btn-danger">
-                  Shutdown
-                </button>
-              ) : (
-                <button onClick={() => setConfirmAction('start')} className="btn-primary">
-                  Start
-                </button>
-              )}
+              <button onClick={() => setConfirmAction('shutdown')} className="btn-danger">
+                Shutdown
+              </button>
             </div>
           </div>
 
@@ -255,16 +245,6 @@ export function DeploymentDetailsPage() {
         message="Are you sure you want to shutdown this deployment? All MongoDB processes will be stopped."
         confirmText="Shutdown"
         confirmVariant="danger"
-        loading={actionLoading}
-      />
-
-      <ConfirmModal
-        open={confirmAction === 'start'}
-        onClose={() => setConfirmAction(null)}
-        onConfirm={() => handleAction('start')}
-        title="Start Deployment"
-        message="Are you sure you want to start this deployment?"
-        confirmText="Start"
         loading={actionLoading}
       />
 

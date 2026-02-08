@@ -92,10 +92,21 @@ export function TenantDetailsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setShowDeleteConfirm(true);
+              if (deployments.length === 0) {
+                setShowDeleteConfirm(true);
+              }
             }}
-            className="text-red-600 hover:text-red-700 p-2"
-            title="Delete Tenant"
+            disabled={deployments.length > 0}
+            className={`p-2 ${
+              deployments.length > 0
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-red-600 hover:text-red-700'
+            }`}
+            title={
+              deployments.length > 0
+                ? 'Delete all deployments first before deleting tenant'
+                : 'Delete Tenant'
+            }
           >
             <TrashIcon className="h-5 w-5" />
           </button>
