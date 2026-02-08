@@ -104,6 +104,7 @@ def create_deployment(
     tenantId: str = Path(..., description="Tenant identifier"),
     request: DeploymentCreateRequest = None
 ):
+    logger.info(f"POST /tenants/{tenantId}/deployments - deploymentId: {request.deploymentId}, type: {request.type}")
     try:
         result = deployments_service.create_deployment(
             tenant_id=tenantId,
@@ -118,15 +119,19 @@ def create_deployment(
             mongos_count=request.mongosCount,
             config_server_count=request.configServerCount
         )
+        logger.info(f"Successfully created deployment: {tenantId}/{request.deploymentId}")
         return result
     except ValueError as e:
         if "already exists" in str(e):
+            logger.warning(f"Deployment already exists: {tenantId}/{request.deploymentId}")
             raise HTTPException(status_code=409, detail=str(e))
         elif "not found" in str(e):
+            logger.warning(f"Tenant not found: {tenantId}")
             raise HTTPException(status_code=404, detail=str(e))
+        logger.error(f"Validation error creating deployment {tenantId}/{request.deploymentId}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.exception("Error creating deployment")
+        logger.exception(f"Error creating deployment {tenantId}/{request.deploymentId}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
