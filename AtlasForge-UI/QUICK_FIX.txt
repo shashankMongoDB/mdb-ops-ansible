@@ -1,0 +1,139 @@
+================================================================================
+                    ATLASFORGE UI - QUICK FIX GUIDE
+================================================================================
+
+PROBLEM: 
+  - "Element type is invalid" error
+  - "Next.js is outdated" warning
+  - npm packages not found
+
+SOLUTION:
+  - Removed incompatible Table component (replaced with Cards)
+  - Updated Next.js to version 15
+  - Removed non-existent npm packages
+  - Fixed all LeafyGreen UI dependencies
+
+================================================================================
+                         INSTALLATION STEPS
+================================================================================
+
+ON YOUR MACBOOK:
+----------------
+
+1. Navigate to project directory:
+   cd /Users/shashank.pandey/Desktop/Codebase/MDBaaS/Github-repo/mdb-ops-ansible/AtlasForge-UI
+
+2. Commit and push fixes (run the script):
+   chmod +x deploy-fix.sh
+   ./deploy-fix.sh
+
+   OR manually:
+   git add .
+   git commit -m "Fix: Replace Table with Cards, update Next.js, remove incompatible packages"
+   git push origin main
+
+
+ON UBUNTU SERVER:
+-----------------
+
+3. SSH to server:
+   ssh ubuntu@ip-172-31-20-249
+
+4. Navigate to project:
+   cd ~/mdb-ops-ansible/AtlasForge-UI
+
+5. Pull latest changes:
+   git pull origin main
+
+6. Clean install:
+   rm -rf node_modules package-lock.json
+   npm cache clean --force
+   npm install --legacy-peer-deps
+
+7. Start dev server:
+   npm run dev
+
+8. Access the app:
+   Open browser: http://ip-172-31-20-249:3000
+
+
+IF npm install FAILS:
+---------------------
+
+Try Yarn instead:
+   npm install -g yarn
+   yarn install
+   yarn dev
+
+
+================================================================================
+                         WHAT WAS CHANGED
+================================================================================
+
+REMOVED:
+  ❌ @leafygreen-ui/table - Causing "Element type is invalid" error
+  ❌ @leafygreen-ui/confirm-modal - Package doesn't exist
+  ❌ @leafygreen-ui/form-footer - Package doesn't exist
+
+UPDATED:
+  ✓ next: 14.2.3 → 15.0.0
+  ✓ @leafygreen-ui/leafygreen-provider: 3.0.0 → 4.0.0
+
+UI CHANGES:
+  ✓ Tenant details page now uses Cards instead of Table
+  ✓ All modals use custom button layouts
+  ✓ Confirmation dialogs use custom Modal implementation
+
+
+================================================================================
+                         VERIFICATION
+================================================================================
+
+After "npm run dev" starts successfully, you should see:
+
+  ✓ Ready in 2-3 seconds
+  ○ Local:   http://localhost:3000
+  ○ Network: http://0.0.0.0:3000
+
+Open in browser and verify:
+  ✓ Home page loads (tenants overview)
+  ✓ Tenant cards display properly
+  ✓ "Onboard Tenant" modal opens
+  ✓ No errors in browser console
+  ✓ Navigation works smoothly
+
+
+================================================================================
+                         TROUBLESHOOTING
+================================================================================
+
+Error: "Cannot resolve dependency tree"
+  → Run: npm install --legacy-peer-deps
+
+Error: "Port 3000 already in use"
+  → Run: lsof -ti:3000 | xargs kill -9
+  → Then: npm run dev
+
+Error: "Module not found"
+  → Run: rm -rf node_modules package-lock.json .next
+  → Then: npm install --legacy-peer-deps
+
+npm still failing?
+  → Use Yarn: npm install -g yarn && yarn install
+
+
+================================================================================
+                         SUCCESS!
+================================================================================
+
+When you see tenant cards displaying properly and no console errors,
+you're ready to:
+
+  1. Create your first tenant
+  2. Create MongoDB deployments
+  3. Test lifecycle operations (scale, upgrade, restart)
+  4. Enable Prometheus monitoring
+
+Enjoy! 🎉
+
+================================================================================

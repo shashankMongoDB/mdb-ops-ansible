@@ -5,13 +5,7 @@ import Card from '@leafygreen-ui/card';
 import Badge from '@leafygreen-ui/badge';
 import Icon from '@leafygreen-ui/icon';
 import IconButton from '@leafygreen-ui/icon-button';
-import { H1, H2, Body } from '@leafygreen-ui/typography';
-import {
-  Table,
-  TableHeader,
-  Row,
-  Cell,
-} from '@leafygreen-ui/table';
+import { H1, H2, H3, Body } from '@leafygreen-ui/typography';
 import { tenantsApi } from '@/lib/api/tenants';
 import { deploymentsApi } from '@/lib/api/deployments';
 import { Tenant, Deployment } from '@/lib/types';
@@ -135,43 +129,55 @@ export default function TenantDetailsPage() {
           </div>
         </Card>
       ) : (
-        <Table
-          data={deployments}
-          columns={[
-            <TableHeader key="id" label="Deployment ID" />,
-            <TableHeader key="name" label="Display Name" />,
-            <TableHeader key="type" label="Type" />,
-            <TableHeader key="version" label="Version" />,
-            <TableHeader key="members" label="Members" />,
-            <TableHeader key="status" label="Status" />,
-            <TableHeader key="actions" label="" />,
-          ]}
-        >
-          {({ datum }) => (
-            <Row key={datum.deploymentId}>
-              <Cell>{datum.deploymentId}</Cell>
-              <Cell>{datum.displayName || '-'}</Cell>
-              <Cell>{datum.type}</Cell>
-              <Cell>{datum.mongoVersion}</Cell>
-              <Cell>{datum.members || '-'}</Cell>
-              <Cell>
-                {datum.status ? (
-                  <StatusBadge status={datum.status} />
-                ) : (
-                  <Badge variant="lightgray">Unknown</Badge>
-                )}
-              </Cell>
-              <Cell>
-                <Button
-                  size="small"
-                  onClick={() => router.push(`/tenants/${tenant.tenantId}/deployments/${datum.deploymentId}`)}
-                >
-                  View Details
-                </Button>
-              </Cell>
-            </Row>
-          )}
-        </Table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {deployments.map((deployment) => (
+            <Card key={deployment.deploymentId} style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                <div style={{ flex: 1 }}>
+                  <H3>{deployment.displayName || deployment.deploymentId}</H3>
+                  <Body style={{ color: '#5C6C75', marginTop: '4px' }}>
+                    {deployment.deploymentId}
+                  </Body>
+                  <div style={{ display: 'flex', gap: '24px', marginTop: '12px', flexWrap: 'wrap' }}>
+                    <div>
+                      <Body style={{ fontSize: '12px', color: '#5C6C75' }}>Type</Body>
+                      <Body style={{ fontWeight: 600 }}>{deployment.type}</Body>
+                    </div>
+                    <div>
+                      <Body style={{ fontSize: '12px', color: '#5C6C75' }}>Version</Body>
+                      <Body style={{ fontWeight: 600 }}>{deployment.mongoVersion}</Body>
+                    </div>
+                    {deployment.members && (
+                      <div>
+                        <Body style={{ fontSize: '12px', color: '#5C6C75' }}>Members</Body>
+                        <Body style={{ fontWeight: 600 }}>{deployment.members}</Body>
+                      </div>
+                    )}
+                    {deployment.environment && (
+                      <div>
+                        <Body style={{ fontSize: '12px', color: '#5C6C75' }}>Environment</Body>
+                        <Badge variant="lightgray">{deployment.environment}</Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end' }}>
+                  {deployment.status ? (
+                    <StatusBadge status={deployment.status} />
+                  ) : (
+                    <Badge variant="lightgray">Unknown</Badge>
+                  )}
+                  <Button
+                    size="small"
+                    onClick={() => router.push(`/tenants/${tenant.tenantId}/deployments/${deployment.deploymentId}`)}
+                  >
+                    View Details
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       )}
 
       <CreateDeploymentModal
