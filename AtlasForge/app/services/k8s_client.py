@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any
+import time
+from typing import Optional, Dict, Any, List
 from kubernetes import client, config as k8s_config
 from kubernetes.client.rest import ApiException
 from app import config
@@ -13,6 +14,7 @@ class K8sClient:
         
         self.core_v1 = client.CoreV1Api()
         self.custom_objects = client.CustomObjectsApi()
+        self.apps_v1 = client.AppsV1Api()
 
     def ensure_namespace(self, name: str, labels: Optional[Dict[str, str]] = None) -> None:
         try:
@@ -223,6 +225,73 @@ class K8sClient:
             if e.status == 404:
                 return None
             raise
+
+    def get_statefulset(self, namespace: str, name: str) -> Optional[Any]:
+        """
+        Get a StatefulSet. Returns StatefulSet object or None if not found.
+        """
+        try:
+            return self.apps_v1.read_namespaced_stateful_set(name=name, namespace=namespace)
+        except ApiException as e:
+            if e.status == 404:
+                return None
+            raise
+
+    def patch_statefulset_replicas(self, namespace: str, name: str, replicas: int) -> None:
+        """
+        Patch a StatefulSet to set the desired replica count.
+        """
+        body = {"spec": {"replicas": replicas}}
+        self.apps_v1.patch_namespaced_stateful_set(name=name, namespace=namespace, body=body)
+
+    def list_pods_for_statefulset(self, namespace: str, statefulset_name: str) -> List[Any]:
+        """
+        List all pods for a StatefulSet, sorted by ordinal.
+        """
+        try:
+            label_selector = f"app={statefulset_name}-svc"
+            pods = self.core_v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
+            
+            sorted_pods = sorted(pods.items, key=lambda p: int(p.metadata.name.split('-')[-1]))
+            return sorted_pods
+        except ApiException:
+            return []
+
+    def delete_pod(self, namespace: str, name: str) -> bool:
+        """
+        Delete a pod. Returns True if deleted, False if not found.
+        """
+        try:
+            self.core_v1.delete_namespaced_pod(name=name, namespace=namespace)
+            return True
+        except ApiException as e:
+            if e.status == 404:
+                return False
+            raise
+
+    def wait_for_pod_ready(self, namespace: str, name: str, timeout: int = 300) -> bool:
+        """
+        Wait for a pod to be Ready. Returns True if ready, False if timeout.
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                pod = self.core_v1.read_namespaced_pod(name=name, namespace=namespace)
+                
+                if pod.status.phase == "Running":
+                    if pod.status.container_statuses:
+                        all_ready = all(cs.ready for cs in pod.status.container_statuses)
+                        if all_ready:
+                            return True
+                
+                time.sleep(5)
+            except ApiException as e:
+                if e.status == 404:
+                    time.sleep(5)
+                    continue
+                raise
+        
+        return False
 
 
 _k8s_instance: Optional[K8sClient] = None

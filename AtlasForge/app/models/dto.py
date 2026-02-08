@@ -71,3 +71,52 @@ class PrometheusConfigResponse(BaseModel):
     externalHost: Optional[str] = None
     externalPort: Optional[int] = None
     serviceType: Optional[str] = None
+
+
+class ConnectionInfoResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    mongoUri: str
+    mongoshExample: str
+
+
+class BackupUpdateRequest(BaseModel):
+    enabled: bool = Field(..., description="Enable or disable backup")
+
+
+class BackupUpdateResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    backupEnabled: bool
+
+
+class MonitoringUpdateRequest(BaseModel):
+    prometheusEnabled: bool = Field(..., description="Enable or disable Prometheus monitoring")
+
+
+class MonitoringUpdateResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    prometheusEnabled: bool
+
+
+class ShutdownResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    action: str
+    previousReplicas: int
+    currentReplicas: int
+
+
+class StartResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    action: str
+    replicas: int
+
+
+class RestartResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    action: str
+    status: str

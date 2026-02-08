@@ -40,11 +40,20 @@ from app.models.dto import (
     DeploymentListItem,
     ErrorResponse,
     PrometheusEnableRequest,
-    PrometheusConfigResponse
+    PrometheusConfigResponse,
+    ConnectionInfoResponse,
+    BackupUpdateRequest,
+    BackupUpdateResponse,
+    MonitoringUpdateRequest,
+    MonitoringUpdateResponse,
+    ShutdownResponse,
+    StartResponse,
+    RestartResponse
 )
 from app.services import tenants_service
 from app.services import deployments_service
 from app.services import monitoring_service
+from app.services import lifecycle_service
 
 logging.basicConfig(
     level=getattr(logging, config.MCP_LOG_LEVEL),
@@ -238,6 +247,151 @@ def get_prometheus_monitoring(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error getting Prometheus monitoring config")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/connection",
+    response_model=ConnectionInfoResponse
+)
+def get_connection_info(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = lifecycle_service.get_connection_info(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting connection info")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup",
+    response_model=BackupUpdateResponse
+)
+def update_backup(
+    request: BackupUpdateRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = lifecycle_service.update_backup_setting(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            enabled=request.enabled
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error updating backup setting")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/monitoring",
+    response_model=MonitoringUpdateResponse
+)
+def update_monitoring(
+    request: MonitoringUpdateRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = lifecycle_service.update_monitoring_setting(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            prometheus_enabled=request.prometheusEnabled
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error updating monitoring setting")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/actions/shutdown",
+    response_model=ShutdownResponse,
+    status_code=202
+)
+def shutdown_deployment(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = lifecycle_service.shutdown_deployment(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error shutting down deployment")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/actions/start",
+    response_model=StartResponse,
+    status_code=202
+)
+def start_deployment(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = lifecycle_service.start_deployment(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error starting deployment")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/actions/restart",
+    response_model=RestartResponse,
+    status_code=202
+)
+def restart_deployment(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = lifecycle_service.restart_deployment(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error restarting deployment")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

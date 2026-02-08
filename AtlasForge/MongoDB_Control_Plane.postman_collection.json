@@ -357,6 +357,146 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Get Connection Info",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/connection",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "connection"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Backup",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Disable Backup",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Monitoring (Prometheus)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prometheusEnabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Disable Monitoring (Prometheus)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prometheusEnabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Shutdown Deployment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/actions/shutdown",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "actions", "shutdown"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Start Deployment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/actions/start",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "actions", "start"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Restart Deployment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/actions/restart",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "actions", "restart"]
+        }
+      },
+      "response": []
     }
   ]
 }
