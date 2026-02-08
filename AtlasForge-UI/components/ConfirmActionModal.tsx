@@ -1,5 +1,7 @@
 import React from 'react';
-import ConfirmationModal from '@leafygreen-ui/confirm-modal';
+import Modal from '@leafygreen-ui/modal';
+import Button from '@leafygreen-ui/button';
+import { Body } from '@leafygreen-ui/typography';
 
 interface ConfirmActionModalProps {
   open: boolean;
@@ -21,17 +23,26 @@ export function ConfirmActionModal({
   variant = 'default',
 }: ConfirmActionModalProps) {
   return (
-    <ConfirmationModal
-      open={open}
-      title={title}
-      onConfirm={onConfirm}
-      onCancel={onCancel}
-      confirmButtonProps={{
-        variant: variant === 'danger' ? 'danger' : 'primary',
-        children: confirmText,
-      }}
-    >
-      {children}
-    </ConfirmationModal>
+    <Modal open={open} setOpen={onCancel}>
+      <div style={{ padding: '24px' }}>
+        <h2 style={{ marginBottom: '16px', fontSize: '20px', fontWeight: 600 }}>
+          {title}
+        </h2>
+        <Body style={{ marginBottom: '24px' }}>
+          {children}
+        </Body>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+          <Button variant="default" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button 
+            variant={variant === 'danger' ? 'danger' : 'primary'}
+            onClick={onConfirm}
+          >
+            {confirmText}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

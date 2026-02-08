@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import Modal from '@leafygreen-ui/modal';
 import TextInput from '@leafygreen-ui/text-input';
 import Button from '@leafygreen-ui/button';
-import { FormFooter } from '@leafygreen-ui/form-footer';
 import { tenantsApi } from '@/lib/api/tenants';
 import { useToast } from './Toast';
 import { CreateTenantRequest } from '@/lib/types';
@@ -107,18 +106,14 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
             />
           </div>
 
-          <FormFooter
-            primaryButton={
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Creating...' : 'Create Tenant'}
-              </Button>
-            }
-            secondaryButton={
-              <Button variant="default" onClick={handleClose} disabled={loading}>
-                Cancel
-              </Button>
-            }
-          />
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <Button variant="default" onClick={handleClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Creating...' : 'Create Tenant'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

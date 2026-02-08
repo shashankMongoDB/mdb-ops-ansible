@@ -3,7 +3,6 @@ import Modal from '@leafygreen-ui/modal';
 import TextInput from '@leafygreen-ui/text-input';
 import Button from '@leafygreen-ui/button';
 import Banner from '@leafygreen-ui/banner';
-import { FormFooter } from '@leafygreen-ui/form-footer';
 import { deploymentsApi } from '@/lib/api/deployments';
 import { useToast } from './Toast';
 import { validateMembers } from '@/lib/utils';
@@ -97,18 +96,14 @@ export function ScaleDeploymentModal({
             </Banner>
           )}
 
-          <FormFooter
-            primaryButton={
-              <Button type="submit" disabled={loading || !membersValidation.valid}>
-                {loading ? 'Scaling...' : 'Scale Deployment'}
-              </Button>
-            }
-            secondaryButton={
-              <Button variant="default" onClick={onClose} disabled={loading}>
-                Cancel
-              </Button>
-            }
-          />
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <Button variant="default" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !membersValidation.valid}>
+              {loading ? 'Scaling...' : 'Scale Deployment'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

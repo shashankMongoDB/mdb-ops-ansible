@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import Modal from '@leafygreen-ui/modal';
 import TextInput from '@leafygreen-ui/text-input';
 import Button from '@leafygreen-ui/button';
-import { FormFooter } from '@leafygreen-ui/form-footer';
 import { RadioBoxGroup, RadioBox } from '@leafygreen-ui/radio-box-group';
 import Banner from '@leafygreen-ui/banner';
 import { deploymentsApi } from '@/lib/api/deployments';
@@ -166,18 +165,14 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId }: Cr
             />
           </div>
 
-          <FormFooter
-            primaryButton={
-              <Button type="submit" disabled={loading || !membersValidation.valid}>
-                {loading ? 'Creating...' : 'Create Deployment'}
-              </Button>
-            }
-            secondaryButton={
-              <Button variant="default" onClick={handleClose} disabled={loading}>
-                Cancel
-              </Button>
-            }
-          />
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <Button variant="default" onClick={handleClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !membersValidation.valid}>
+              {loading ? 'Creating...' : 'Create Deployment'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>
