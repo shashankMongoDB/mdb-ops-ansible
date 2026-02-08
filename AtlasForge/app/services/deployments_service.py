@@ -109,11 +109,6 @@ def create_deployment(
     if deployment_type not in ["Standalone", "ReplicaSet", "ShardedCluster"]:
         raise ValueError(f"Invalid deployment type: {deployment_type}. Must be Standalone, ReplicaSet, or ShardedCluster")
 
-    # Only support ReplicaSet for now
-    if deployment_type != "ReplicaSet":
-        logger.warning(f"Rejecting deployment type '{deployment_type}' - only ReplicaSet is supported")
-        raise ValueError(f"Only ReplicaSet deployments are currently supported. Got: {deployment_type}")
-
     repo = get_repo()
     k8s = get_k8s_client()
 
@@ -140,24 +135,60 @@ def create_deployment(
     
     logger.info(f"No existing MongoDB CR found in K8s for {namespace}/{deployment_id}")
 
-    # Only ReplicaSet is supported (already validated above)
-    if members is None:
-        members = 3
-    
-    logger.info(f"Building ReplicaSet CR - namespace: {namespace}, name: {deployment_id}, version: {mongo_version}, members: {members}")
-    cr_body = _create_replicaset_cr(tenant_id, deployment_id, namespace, mongo_version, members)
-    
-    logger.info(f"Building deployment document - _id: {tenant_id}:{deployment_id}")
-    deployment_doc = _create_replicaset_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, members, created_by)
-    
-    response = {
-        "tenantId": tenant_id,
-        "deploymentId": deployment_id,
-        "type": "ReplicaSet",
-        "mongoVersion": mongo_version,
-        "members": members,
-        "state": "Creating"
-    }
+    if deployment_type == "Standalone":
+        logger.info(f"Building Standalone CR - namespace: {namespace}, name: {deployment_id}, version: {mongo_version}")
+        cr_body = _create_standalone_cr(tenant_id, deployment_id, namespace, mongo_version)
+        deployment_doc = _create_standalone_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, created_by)
+        response = {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "type": "Standalone",
+            "mongoVersion": mongo_version,
+            "state": "Creating"
+        }
+
+    elif deployment_type == "ReplicaSet":
+        if members is None:
+            members = 3
+        logger.info(f"Building ReplicaSet CR - namespace: {namespace}, name: {deployment_id}, version: {mongo_version}, members: {members}")
+        cr_body = _create_replicaset_cr(tenant_id, deployment_id, namespace, mongo_version, members)
+        deployment_doc = _create_replicaset_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, members, created_by)
+        response = {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "type": "ReplicaSet",
+            "mongoVersion": mongo_version,
+            "members": members,
+            "state": "Creating"
+        }
+
+    elif deployment_type == "ShardedCluster":
+        if shard_count is None or mongods_per_shard_count is None or mongos_count is None or config_server_count is None:
+            raise ValueError("ShardedCluster requires shardCount, mongodsPerShardCount, mongosCount, and configServerCount")
+        
+        if shard_count < 1:
+            raise ValueError("shardCount must be at least 1")
+        if mongods_per_shard_count < 1:
+            raise ValueError("mongodsPerShardCount must be at least 1")
+        if mongos_count < 1:
+            raise ValueError("mongosCount must be at least 1")
+        if config_server_count < 3:
+            raise ValueError("configServerCount must be at least 3")
+
+        logger.info(f"Building ShardedCluster CR - namespace: {namespace}, name: {deployment_id}, shards: {shard_count}")
+        cr_body = _create_sharded_cr(tenant_id, deployment_id, namespace, mongo_version, shard_count, mongods_per_shard_count, mongos_count, config_server_count)
+        deployment_doc = _create_sharded_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, shard_count, mongods_per_shard_count, mongos_count, config_server_count, created_by)
+        response = {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "type": "ShardedCluster",
+            "mongoVersion": mongo_version,
+            "shardCount": shard_count,
+            "mongodsPerShardCount": mongods_per_shard_count,
+            "mongosCount": mongos_count,
+            "configServerCount": config_server_count,
+            "state": "Creating"
+        }
 
     try:
         logger.info(f"Creating MongoDB CR in K8s - namespace: {namespace}, name: {deployment_id}")

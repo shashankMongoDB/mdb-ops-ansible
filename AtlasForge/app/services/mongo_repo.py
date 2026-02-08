@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 from app import config
+
+logger = logging.getLogger(__name__)
 
 
 class MongoRepository:
@@ -23,12 +26,18 @@ class MongoRepository:
 
     def get_deployment(self, tenant_id: str, deployment_id: str) -> Optional[Dict[str, Any]]:
         doc_id = f"{tenant_id}:{deployment_id}"
-        return self.deployments.find_one({"_id": doc_id})
+        logger.debug(f"Querying deployment with _id: {doc_id}")
+        result = self.deployments.find_one({"_id": doc_id})
+        logger.debug(f"Query result for {doc_id}: {'Found' if result else 'Not found'}")
+        return result
 
     def insert_deployment(self, doc: Dict[str, Any]) -> None:
         try:
+            logger.info(f"Inserting deployment document with _id: {doc['_id']}")
             self.deployments.insert_one(doc)
-        except DuplicateKeyError:
+            logger.info(f"Successfully inserted deployment: {doc['_id']}")
+        except DuplicateKeyError as e:
+            logger.error(f"Duplicate key error inserting deployment {doc['_id']}: {e}")
             raise ValueError(f"Deployment {doc['_id']} already exists")
 
     def update_deployment(self, tenant_id: str, deployment_id: str, patch: Dict[str, Any]) -> None:
