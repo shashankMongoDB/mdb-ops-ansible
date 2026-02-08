@@ -9,6 +9,7 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
+  "packageManager": "yarn@1.22.22",
   "dependencies": {
     "@leafygreen-ui/badge": "^8.0.0",
     "@leafygreen-ui/banner": "^8.0.0",

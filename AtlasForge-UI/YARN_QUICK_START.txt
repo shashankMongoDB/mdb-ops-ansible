@@ -1,0 +1,129 @@
+================================================================================
+                    ATLASFORGE UI - YARN INSTALLATION
+================================================================================
+
+SIMPLE 3-STEP PROCESS:
+----------------------
+
+STEP 1 - On MacBook (push code):
+---------------------------------
+cd /Users/shashank.pandey/Desktop/Codebase/MDBaaS/Github-repo/mdb-ops-ansible/AtlasForge-UI
+git add .
+git commit -m "Fix: Use Yarn, update Next.js, replace Table with Cards"
+git push origin main
+
+
+STEP 2 - On Ubuntu (pull and install):
+---------------------------------------
+ssh ubuntu@ip-172-31-20-249
+cd ~/mdb-ops-ansible/AtlasForge-UI
+git pull origin main
+rm -rf node_modules yarn.lock package-lock.json
+yarn install
+
+
+STEP 3 - Start the app:
+------------------------
+yarn dev
+
+Then open: http://ip-172-31-20-249:3000
+
+
+================================================================================
+                         YARN COMMANDS CHEAT SHEET
+================================================================================
+
+Install dependencies:     yarn install   (or just: yarn)
+Start dev server:         yarn dev
+Build for production:     yarn build
+Start production:         yarn start
+Type check:               yarn type-check
+Clear cache:              yarn cache clean
+
+
+================================================================================
+                         TROUBLESHOOTING
+================================================================================
+
+Problem: Yarn not installed
+Solution:
+  npm install -g yarn
+  # OR
+  curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+  echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+  sudo apt update && sudo apt install yarn
+
+Problem: Yarn hangs or times out
+Solution:
+  yarn install --network-timeout 100000
+
+Problem: Integrity check failed
+Solution:
+  yarn cache clean
+  rm -rf node_modules yarn.lock
+  yarn install
+
+Problem: Port 3000 already in use
+Solution:
+  lsof -ti:3000 | xargs kill -9
+  yarn dev
+
+Problem: Module not found
+Solution:
+  rm -rf node_modules yarn.lock .next
+  yarn cache clean
+  yarn install
+
+
+================================================================================
+                         EXPECTED OUTPUT
+================================================================================
+
+After "yarn dev" you should see:
+
+  ✓ Ready in 2.5s
+  ○ Local:   http://localhost:3000
+  ○ Network: http://0.0.0.0:3000
+
+Open browser to: http://ip-172-31-20-249:3000
+
+
+================================================================================
+                         WHAT WAS FIXED
+================================================================================
+
+✓ Removed incompatible @leafygreen-ui/table (caused render errors)
+✓ Replaced Table with Card layout (cleaner, more reliable)
+✓ Updated Next.js to 15.0.0 (was 14.2.3)
+✓ Removed non-existent packages (confirm-modal, form-footer)
+✓ Fixed all modal implementations
+✓ Added Yarn as package manager
+✓ Configured network timeout for stability
+
+
+================================================================================
+                         VERIFY IT'S WORKING
+================================================================================
+
+✓ yarn dev starts without errors
+✓ Browser loads homepage (tenants overview)
+✓ Tenant cards display (not tables)
+✓ Can open "Onboard Tenant" modal
+✓ No console errors
+✓ No "Element type is invalid" error
+✓ No "Next.js is outdated" warning
+
+
+================================================================================
+                         THAT'S IT!
+================================================================================
+
+Yarn is more reliable than npm and should work perfectly.
+
+If you still have issues, the most common fix is:
+  rm -rf node_modules yarn.lock
+  yarn cache clean
+  yarn install
+
+Good luck! 🚀
+================================================================================
