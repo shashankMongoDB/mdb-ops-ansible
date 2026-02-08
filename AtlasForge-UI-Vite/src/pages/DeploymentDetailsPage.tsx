@@ -34,8 +34,11 @@ export function DeploymentDetailsPage() {
     try {
       setLoading(true);
       const data = await deploymentsApi.getById(tenantId, deploymentId);
+      console.log('Deployment loaded:', data);
+      console.log('Deployment type:', data.type, 'Members:', data.members);
       setDeployment(data);
     } catch (error: any) {
+      console.error('Failed to load deployment:', error);
       showError('Failed to load deployment details', error.detail || 'An error occurred');
     } finally {
       setLoading(false);
@@ -179,7 +182,7 @@ export function DeploymentDetailsPage() {
           <div>
             <h2 className="text-2xl font-semibold text-mongodb-forest mb-4">Lifecycle Controls</h2>
             <div className="flex gap-3 flex-wrap">
-              {deployment.type === 'ReplicaSet' && (
+              {deployment.type === 'ReplicaSet' && deployment.members && (
                 <button onClick={() => setShowScaleModal(true)} className="btn-primary">
                   Scale Members
                 </button>
@@ -194,6 +197,10 @@ export function DeploymentDetailsPage() {
                 Shutdown
               </button>
             </div>
+            <p className="text-sm text-gray-500 mt-2">
+              Deployment Type: <span className="font-semibold">{deployment.type}</span>
+              {deployment.members && ` | Current Members: ${deployment.members}`}
+            </p>
           </div>
 
           <ConnectionInfo tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />
