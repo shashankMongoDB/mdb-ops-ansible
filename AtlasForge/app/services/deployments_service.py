@@ -367,6 +367,7 @@ def get_deployment_details(tenant_id: str, deployment_id: str) -> Dict[str, Any]
     result = {
         "tenantId": deployment["tenantId"],
         "deploymentId": deployment["deploymentId"],
+        "type": deployment.get("type", "Unknown"),
         "displayName": deployment["displayName"],
         "environment": deployment["environment"],
         "mongoVersion": deployment["lastRequestedSpec"]["mongoVersion"],
@@ -399,6 +400,7 @@ def list_tenant_deployments(tenant_id: str) -> list[Dict[str, Any]]:
         item = {
             "tenantId": d["tenantId"],
             "deploymentId": d["deploymentId"],
+            "type": d.get("type", "Unknown"),
             "displayName": d["displayName"],
             "environment": d["environment"],
             "mongoVersion": d["lastRequestedSpec"]["mongoVersion"],
