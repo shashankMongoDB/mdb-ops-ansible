@@ -70,7 +70,7 @@
       "response": []
     },
     {
-      "name": "Create Deployment - Orders DB",
+      "name": "Create Deployment - Standalone",
       "request": {
         "method": "POST",
         "header": [
@@ -81,7 +81,51 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"deploymentId\": \"rs-orders\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Orders Database\",\n  \"environment\": \"prod\"\n}"
+          "raw": "{\n  \"deploymentId\": \"st-orders\",\n  \"type\": \"Standalone\",\n  \"mongoVersion\": \"8.0.3\",\n  \"displayName\": \"Orders Standalone\",\n  \"environment\": \"dev\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Deployment - ReplicaSet",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-orders\",\n  \"type\": \"ReplicaSet\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Orders Database\",\n  \"environment\": \"prod\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Deployment - ShardedCluster",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"sc-orders\",\n  \"type\": \"ShardedCluster\",\n  \"mongoVersion\": \"8.0.3\",\n  \"shardCount\": 2,\n  \"mongodsPerShardCount\": 3,\n  \"mongosCount\": 2,\n  \"configServerCount\": 3,\n  \"displayName\": \"Orders Sharded Cluster\",\n  \"environment\": \"prod\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/tenants/t-acme/deployments",

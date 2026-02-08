@@ -105,13 +105,18 @@ def create_deployment(
     request: DeploymentCreateRequest = None
 ):
     try:
-        result = deployments_service.create_replicaset_deployment(
+        result = deployments_service.create_deployment(
             tenant_id=tenantId,
             deployment_id=request.deploymentId,
+            deployment_type=request.type,
             mongo_version=request.mongoVersion,
-            members=request.members,
             display_name=request.displayName,
-            environment=request.environment
+            environment=request.environment,
+            members=request.members,
+            shard_count=request.shardCount,
+            mongods_per_shard_count=request.mongodsPerShardCount,
+            mongos_count=request.mongosCount,
+            config_server_count=request.configServerCount
         )
         return result
     except ValueError as e:

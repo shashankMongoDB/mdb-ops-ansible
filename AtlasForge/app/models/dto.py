@@ -16,18 +16,32 @@ class TenantCreateResponse(BaseModel):
 
 class DeploymentCreateRequest(BaseModel):
     deploymentId: str = Field(..., description="DNS-safe deployment identifier")
+    type: str = Field("ReplicaSet", description="Deployment type: Standalone, ReplicaSet, or ShardedCluster")
     mongoVersion: str = Field(..., description="MongoDB version (e.g., 8.0.3)")
-    members: int = Field(3, ge=1, le=50, description="Number of replica set members")
     displayName: str = Field(..., description="Human-readable deployment name")
     environment: str = Field("prod", description="Environment (prod, staging, dev, etc.)")
+    
+    # ReplicaSet specific
+    members: Optional[int] = Field(None, ge=1, le=50, description="Number of replica set members (ReplicaSet only)")
+    
+    # ShardedCluster specific
+    shardCount: Optional[int] = Field(None, ge=1, description="Number of shards (ShardedCluster only)")
+    mongodsPerShardCount: Optional[int] = Field(None, ge=1, description="Mongod members per shard (ShardedCluster only)")
+    mongosCount: Optional[int] = Field(None, ge=1, description="Number of mongos routers (ShardedCluster only)")
+    configServerCount: Optional[int] = Field(None, ge=3, description="Number of config servers (ShardedCluster only)")
 
 
 class DeploymentCreateResponse(BaseModel):
     tenantId: str
     deploymentId: str
+    type: str
     mongoVersion: str
-    members: int
     state: str
+    members: Optional[int] = None
+    shardCount: Optional[int] = None
+    mongodsPerShardCount: Optional[int] = None
+    mongosCount: Optional[int] = None
+    configServerCount: Optional[int] = None
 
 
 class DeploymentDetailResponse(BaseModel):
