@@ -48,12 +48,17 @@ from app.models.dto import (
     MonitoringUpdateResponse,
     ShutdownResponse,
     StartResponse,
-    RestartResponse
+    RestartResponse,
+    ScaleRequest,
+    ScaleResponse,
+    VersionUpgradeRequest,
+    VersionUpgradeResponse
 )
 from app.services import tenants_service
 from app.services import deployments_service
 from app.services import monitoring_service
 from app.services import lifecycle_service
+from app.services import scaling_service
 
 logging.basicConfig(
     level=getattr(logging, config.MCP_LOG_LEVEL),
@@ -392,6 +397,56 @@ def restart_deployment(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error restarting deployment")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/scale",
+    response_model=ScaleResponse
+)
+def scale_deployment(
+    request: ScaleRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = scaling_service.scale_deployment(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            members=request.members
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error scaling deployment")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/version",
+    response_model=VersionUpgradeResponse
+)
+def upgrade_deployment_version(
+    request: VersionUpgradeRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    try:
+        result = scaling_service.upgrade_version(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            mongo_version=request.mongoVersion
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error upgrading deployment version")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

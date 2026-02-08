@@ -120,3 +120,29 @@ class RestartResponse(BaseModel):
     deploymentId: str
     action: str
     status: str
+
+
+class ScaleRequest(BaseModel):
+    members: int = Field(..., ge=1, description="Desired number of replica set members")
+
+
+class ScaleResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    clusterType: str
+    oldMembers: int
+    newMembers: int
+    warning: Optional[str] = None
+
+
+class VersionUpgradeRequest(BaseModel):
+    mongoVersion: str = Field(..., description="Target MongoDB version (e.g., 8.0.3)")
+
+
+class VersionUpgradeResponse(BaseModel):
+    tenantId: str
+    deploymentId: str
+    clusterType: str
+    oldVersion: str
+    newVersion: str
+    message: Optional[str] = None
