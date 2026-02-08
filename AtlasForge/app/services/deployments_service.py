@@ -20,14 +20,7 @@ BASE_STANDALONE_CR = {
         "opsManager": {
             "configMapRef": {"name": ""}
         },
-        "credentials": "",
-        "security": {
-            "authentication": {
-                "enabled": True,
-                "modes": ["SCRAM"]
-            }
-        },
-        "users": []
+        "credentials": ""
     }
 }
 
@@ -186,7 +179,16 @@ def create_deployment(
 
 
 def _create_standalone_cr(tenant_id: str, deployment_id: str, namespace: str, mongo_version: str) -> Dict[str, Any]:
-    """Create a Standalone MongoDB CR."""
+    """
+    Create a Standalone MongoDB CR.
+    
+    Note: Standalone deployments cannot be secured with SCRAM authentication in Kubernetes
+    when using MongoDB Enterprise Operator. Security and users configuration must be omitted
+    to allow the operator to successfully create the StatefulSet and pod. Standalone instances
+    are left unsecured and intended for dev/test environments only.
+    
+    See MongoDB Enterprise Operator documentation for details.
+    """
     cr_body = copy.deepcopy(BASE_STANDALONE_CR)
     cr_body["metadata"]["name"] = deployment_id
     cr_body["metadata"]["namespace"] = namespace
@@ -194,15 +196,10 @@ def _create_standalone_cr(tenant_id: str, deployment_id: str, namespace: str, mo
     cr_body["spec"]["version"] = mongo_version
     cr_body["spec"]["opsManager"]["configMapRef"]["name"] = f"om-{tenant_id}-project"
     cr_body["spec"]["credentials"] = f"om-{tenant_id}-credentials"
-    cr_body["spec"]["users"] = [
-        {
-            "name": "dbAdmin",
-            "db": "admin",
-            "passwordSecretRef": {"name": "mongodb-admin-secret"},
-            "roles": [{"name": "root", "db": "admin"}],
-            "scramCredentialsSecretName": f"{deployment_id}-admin-scram"
-        }
-    ]
+    
+    # DO NOT add spec.security or spec.users for Standalone deployments
+    # The operator cannot reconcile Standalone with authentication enabled
+    
     return cr_body
 
 
@@ -335,10 +332,13 @@ def get_deployment_details(tenant_id: str, deployment_id: str) -> Dict[str, Any]
         "displayName": deployment["displayName"],
         "environment": deployment["environment"],
         "mongoVersion": deployment["lastRequestedSpec"]["mongoVersion"],
-        "members": deployment["lastRequestedSpec"]["members"],
         "createdAt": deployment["createdAt"],
         "state": deployment["lastKnownStatus"].get("phase", "Unknown")
     }
+    
+    # Add members only if present (ReplicaSet)
+    if "members" in deployment["lastRequestedSpec"]:
+        result["members"] = deployment["lastRequestedSpec"]["members"]
 
     cr = k8s.get_mongodb_cr(deployment["namespace"], deployment_id)
     if cr and "status" in cr:
@@ -356,19 +356,25 @@ def list_tenant_deployments(tenant_id: str) -> list[Dict[str, Any]]:
 
     deployments = repo.list_deployments(tenant_id)
 
-    return [
-        {
+    result = []
+    for d in deployments:
+        item = {
             "tenantId": d["tenantId"],
             "deploymentId": d["deploymentId"],
             "displayName": d["displayName"],
             "environment": d["environment"],
             "mongoVersion": d["lastRequestedSpec"]["mongoVersion"],
-            "members": d["lastRequestedSpec"]["members"],
             "state": d["lastKnownStatus"].get("phase", "Unknown"),
             "createdAt": d["createdAt"]
         }
-        for d in deployments
-    ]
+        
+        # Add members only if present (ReplicaSet)
+        if "members" in d["lastRequestedSpec"]:
+            item["members"] = d["lastRequestedSpec"]["members"]
+        
+        result.append(item)
+    
+    return result
 
 
 def delete_deployment(tenant_id: str, deployment_id: str) -> bool:

@@ -50,9 +50,9 @@ class DeploymentDetailResponse(BaseModel):
     displayName: str
     environment: str
     mongoVersion: str
-    members: int
     createdAt: str
     state: str
+    members: Optional[int] = None
     k8sPhase: Optional[str] = None
 
 
@@ -62,9 +62,9 @@ class DeploymentListItem(BaseModel):
     displayName: str
     environment: str
     mongoVersion: str
-    members: int
     state: str
     createdAt: str
+    members: Optional[int] = None
 
 
 class ErrorResponse(BaseModel):
