@@ -34,8 +34,11 @@ export function DeploymentDetailsPage() {
     try {
       setLoading(true);
       const data = await deploymentsApi.getById(tenantId, deploymentId);
-      console.log('Deployment loaded:', data);
-      console.log('Deployment type:', data.type, 'Members:', data.members);
+      console.log('=== DEPLOYMENT API RESPONSE ===');
+      console.log('Full response:', JSON.stringify(data, null, 2));
+      console.log('Type field:', data.type);
+      console.log('Members field:', data.members);
+      console.log('===============================');
       setDeployment(data);
     } catch (error: any) {
       console.error('Failed to load deployment:', error);
@@ -198,9 +201,14 @@ export function DeploymentDetailsPage() {
               </button>
             </div>
             <p className="text-sm text-gray-500 mt-2">
-              Deployment Type: <span className="font-semibold">{deployment.type}</span>
+              Deployment Type: <span className="font-semibold">{deployment.type || '(not set in API response)'}</span>
               {deployment.members && ` | Current Members: ${deployment.members}`}
             </p>
+            {!deployment.type && (
+              <p className="text-xs text-red-600 mt-1">
+                ⚠️ API is not returning 'type' field. Please restart the FastAPI service after deploying the fix.
+              </p>
+            )}
           </div>
 
           <ConnectionInfo tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />

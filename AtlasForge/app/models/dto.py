@@ -47,6 +47,7 @@ class DeploymentCreateResponse(BaseModel):
 class DeploymentDetailResponse(BaseModel):
     tenantId: str
     deploymentId: str
+    type: str
     displayName: str
     environment: str
     mongoVersion: str
@@ -59,6 +60,7 @@ class DeploymentDetailResponse(BaseModel):
 class DeploymentListItem(BaseModel):
     tenantId: str
     deploymentId: str
+    type: str
     displayName: str
     environment: str
     mongoVersion: str
