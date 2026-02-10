@@ -90,6 +90,49 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
                 "publicApiKey": config.MCP_OM_GLOBAL_PRIVATE_KEY
             }
         )
+        
+        # ServiceAccount for MongoDB pods (enterprise)
+        k8s.ensure_service_account(
+            namespace=namespace,
+            name="mongodb-kubernetes-database-pods"
+        )
+    else:
+        # Community plan: Create ServiceAccount, Role, and RoleBinding for operator
+        from kubernetes import client as k8s_client
+        
+        # ServiceAccount for community operator to manage MongoDB resources
+        k8s.ensure_service_account(
+            namespace=namespace,
+            name="mongodb-kubernetes-appdb"
+        )
+        
+        # Role with permissions for secrets, configmaps, and pods
+        rules = [
+            k8s_client.V1PolicyRule(
+                api_groups=[""],
+                resources=["secrets", "configmaps"],
+                verbs=["get", "list", "watch"]
+            ),
+            k8s_client.V1PolicyRule(
+                api_groups=[""],
+                resources=["pods"],
+                verbs=["get", "list", "watch", "update", "patch"]
+            )
+        ]
+        
+        k8s.ensure_role(
+            namespace=namespace,
+            name="mongodb-kubernetes-appdb-role",
+            rules=rules
+        )
+        
+        # RoleBinding to bind ServiceAccount to Role
+        k8s.ensure_role_binding(
+            namespace=namespace,
+            name="mongodb-kubernetes-appdb-rolebinding",
+            role_name="mongodb-kubernetes-appdb-role",
+            service_account_name="mongodb-kubernetes-appdb"
+        )
 
     # Admin password secret for both plans
     admin_password = generate_password()
@@ -97,12 +140,6 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
         namespace=namespace,
         name="mongodb-admin-secret",
         string_data={"password": admin_password}
-    )
-
-    # ServiceAccount for MongoDB pods
-    k8s.ensure_service_account(
-        namespace=namespace,
-        name="mongodb-kubernetes-database-pods"
     )
 
     tenant_doc = {

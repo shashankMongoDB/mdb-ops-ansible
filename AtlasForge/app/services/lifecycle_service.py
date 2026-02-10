@@ -9,6 +9,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Get connection information for a MongoDB deployment.
     Returns connection URI and mongosh example.
+    Supports both enterprise and community deployments.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -22,8 +23,14 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
 
-    cr = k8s.get_mongodb_cr(namespace, deployment_id)
+    # Get CR based on plan
+    if plan == "community":
+        cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+    else:
+        cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
+    
     if not cr:
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 

@@ -77,6 +77,62 @@ class K8sClient:
             else:
                 raise
 
+    def ensure_role(self, namespace: str, name: str, rules: list) -> None:
+        """
+        Create a Role if it does not exist.
+        If it already exists, do nothing (no error).
+        
+        Used for community tenant RBAC setup.
+        """
+        from kubernetes import client as k8s_client
+        
+        try:
+            rbac_v1 = k8s_client.RbacAuthorizationV1Api(self.core_v1.api_client)
+            rbac_v1.read_namespaced_role(name=name, namespace=namespace)
+        except ApiException as e:
+            if e.status == 404:
+                role = k8s_client.V1Role(
+                    metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+                    rules=rules
+                )
+                rbac_v1.create_namespaced_role(namespace=namespace, body=role)
+            else:
+                raise
+
+    def ensure_role_binding(self, namespace: str, name: str, role_name: str, service_account_name: str) -> None:
+        """
+        Create a RoleBinding if it does not exist.
+        If it already exists, do nothing (no error).
+        
+        Binds a ServiceAccount to a Role in the same namespace.
+        Used for community tenant RBAC setup.
+        """
+        from kubernetes import client as k8s_client
+        
+        try:
+            rbac_v1 = k8s_client.RbacAuthorizationV1Api(self.core_v1.api_client)
+            rbac_v1.read_namespaced_role_binding(name=name, namespace=namespace)
+        except ApiException as e:
+            if e.status == 404:
+                role_binding = k8s_client.V1RoleBinding(
+                    metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+                    role_ref=k8s_client.V1RoleRef(
+                        api_group="rbac.authorization.k8s.io",
+                        kind="Role",
+                        name=role_name
+                    ),
+                    subjects=[
+                        k8s_client.V1Subject(
+                            kind="ServiceAccount",
+                            name=service_account_name,
+                            namespace=namespace
+                        )
+                    ]
+                )
+                rbac_v1.create_namespaced_role_binding(namespace=namespace, body=role_binding)
+            else:
+                raise
+
     # ========== Enterprise MongoDB CRs (mongodb.com) ==========
     
     def create_mongodb_enterprise_cr(self, namespace: str, body: Dict[str, Any]) -> None:
