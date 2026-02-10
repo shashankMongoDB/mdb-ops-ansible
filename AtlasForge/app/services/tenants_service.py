@@ -3,6 +3,7 @@ import secrets
 import string
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
+from kubernetes import client as k8s_client
 from app import config
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
@@ -98,8 +99,6 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
         )
     else:
         # Community plan: Create ServiceAccount, Role, and RoleBinding for operator
-        from kubernetes import client as k8s_client
-        
         # ServiceAccount for community operator to manage MongoDB resources
         k8s.ensure_service_account(
             namespace=namespace,
