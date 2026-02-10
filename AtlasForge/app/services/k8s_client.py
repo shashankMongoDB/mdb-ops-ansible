@@ -120,7 +120,7 @@ class K8sClient:
                         name=role_name
                     ),
                     subjects=[
-                        client.V1Subject(
+                        client.RbacV1Subject(
                             kind="ServiceAccount",
                             name=service_account_name,
                             namespace=namespace
