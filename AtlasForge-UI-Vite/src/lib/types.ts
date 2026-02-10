@@ -1,6 +1,7 @@
 export interface Tenant {
   tenantId: string;
   displayName?: string;
+  plan?: 'enterprise' | 'community';
   namespace?: string;
   createdAt?: string;
   environment?: string;
@@ -53,6 +54,7 @@ export interface TenantWithStats extends Tenant {
 export interface CreateTenantRequest {
   tenantId: string;
   displayName?: string;
+  plan?: 'enterprise' | 'community';
   environment?: string;
   notes?: string;
 }

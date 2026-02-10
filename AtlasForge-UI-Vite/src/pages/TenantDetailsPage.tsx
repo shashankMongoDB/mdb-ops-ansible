@@ -82,11 +82,21 @@ export function TenantDetailsPage() {
       <div className="card mb-8">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-mongodb-forest mb-2">
-              {tenant.displayName || tenant.tenantId}
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-mongodb-forest">
+                {tenant.displayName || tenant.tenantId}
+              </h1>
+              {tenant.plan === 'community' ? (
+                <span className="badge badge-blue">Community</span>
+              ) : (
+                <span className="badge badge-green">Enterprise</span>
+              )}
+            </div>
             <p className="text-mongodb-slate mb-1">Tenant ID: {tenant.tenantId}</p>
-            {tenant.namespace && <p className="text-mongodb-slate mb-3">Namespace: {tenant.namespace}</p>}
+            {tenant.namespace && <p className="text-mongodb-slate mb-1">Namespace: {tenant.namespace}</p>}
+            <p className="text-mongodb-slate mb-3">
+              Plan: <span className="font-medium">{tenant.plan === 'community' ? 'Community (No Ops Manager)' : 'Enterprise (Ops Manager)'}</span>
+            </p>
             {tenant.environment && <span className="badge badge-gray">{tenant.environment}</span>}
           </div>
           <button
@@ -199,6 +209,7 @@ export function TenantDetailsPage() {
         onClose={() => setShowCreateModal(false)}
         onSuccess={loadData}
         tenantId={tenant.tenantId}
+        tenantPlan={tenant.plan}
       />
 
       <ConfirmModal

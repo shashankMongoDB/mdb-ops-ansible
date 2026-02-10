@@ -2,6 +2,7 @@ from typing import Dict, Any
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
+from app.services import deployments_community_service
 
 
 def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -43,6 +44,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 def update_backup_setting(tenant_id: str, deployment_id: str, enabled: bool) -> Dict[str, Any]:
     """
     Enable or disable backup for a MongoDB deployment by patching the CR.
+    Only supported for enterprise deployments with Ops Manager.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -50,6 +52,11 @@ def update_backup_setting(tenant_id: str, deployment_id: str, enabled: bool) -> 
     tenant = repo.get_tenant(tenant_id)
     if not tenant:
         raise ValueError(f"Tenant {tenant_id} not found")
+
+    # Check plan - backup only supported for enterprise
+    plan = tenant.get("plan", "enterprise")
+    if plan == "community":
+        raise ValueError("Backup is not supported for community deployments")
 
     deployment = repo.get_deployment(tenant_id, deployment_id)
     if not deployment:
@@ -115,6 +122,7 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Shutdown a deployment by scaling the StatefulSet to 0 replicas.
     Stores the previous replica count for later restoration.
+    Supports both enterprise and community deployments.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -128,6 +136,22 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
+    
+    # Route to community service if needed
+    if plan == "community":
+        result = deployments_community_service.shutdown_deployment_community(namespace, deployment_id)
+        # Store shutdown info in DB
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.membersBeforeShutdown": result["previousReplicas"]
+        })
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            **result
+        }
+    
+    # Enterprise logic continues below
 
     cr = k8s.get_mongodb_cr(namespace, deployment_id)
     if not cr:
@@ -158,6 +182,7 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Start a previously shutdown deployment by scaling the StatefulSet back up.
+    Supports both enterprise and community deployments.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -171,6 +196,21 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
+    
+    # Get target members from stored shutdown info
+    members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown", 3)
+    
+    # Route to community service if needed
+    if plan == "community":
+        result = deployments_community_service.start_deployment_community(namespace, deployment_id, members_before_shutdown)
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            **result
+        }
+    
+    # Enterprise logic continues below
 
     cr = k8s.get_mongodb_cr(namespace, deployment_id)
     if not cr:
@@ -204,7 +244,7 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Restart a deployment by performing a rolling restart of all pods.
-    Deletes each pod in order and waits for it to become ready before proceeding.
+    Supports both enterprise and community deployments.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -212,6 +252,20 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     tenant = repo.get_tenant(tenant_id)
     if not tenant:
         raise ValueError(f"Tenant {tenant_id} not found")
+    
+    namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
+    
+    # Route to community service if needed
+    if plan == "community":
+        result = deployments_community_service.restart_deployment_community(namespace, deployment_id)
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            **result
+        }
+    
+    # Enterprise logic continues below
 
     deployment = repo.get_deployment(tenant_id, deployment_id)
     if not deployment:

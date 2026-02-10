@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services.tenants_service import validate_dns_safe
+from app.services import deployments_community_service
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ def create_deployment(
 ) -> Dict[str, Any]:
     """
     Create a MongoDB deployment of type Standalone, ReplicaSet, or ShardedCluster.
+    Routes to enterprise or community service based on tenant plan.
     """
     logger.info(f"Creating deployment - tenantId: {tenant_id}, deploymentId: {deployment_id}, type: {deployment_type}")
     
@@ -110,7 +112,6 @@ def create_deployment(
         raise ValueError(f"Invalid deployment type: {deployment_type}. Must be Standalone, ReplicaSet, or ShardedCluster")
 
     repo = get_repo()
-    k8s = get_k8s_client()
 
     tenant = repo.get_tenant(tenant_id)
     if not tenant:
@@ -118,6 +119,31 @@ def create_deployment(
         raise ValueError(f"Tenant {tenant_id} not found")
 
     logger.info(f"Tenant found: {tenant_id}, namespace: {tenant.get('namespace')}")
+    
+    # Route based on tenant plan
+    plan = tenant.get("plan", "enterprise")  # Default to enterprise for existing tenants
+    namespace = tenant["namespace"]
+    
+    if plan == "community":
+        logger.info(f"Routing to community deployment service for {tenant_id}/{deployment_id}")
+        deployment_doc, response = deployments_community_service.create_deployment_community(
+            tenant_id=tenant_id,
+            deployment_id=deployment_id,
+            namespace=namespace,
+            deployment_type=deployment_type,
+            mongo_version=mongo_version,
+            display_name=display_name,
+            environment=environment,
+            members=members,
+            created_by=created_by
+        )
+        # Insert deployment doc into DB
+        repo.insert_deployment(deployment_doc)
+        return response
+    
+    # Continue with enterprise logic below
+    logger.info(f"Using enterprise deployment for {tenant_id}/{deployment_id}")
+    k8s = get_k8s_client()
 
     existing_deployment = repo.get_deployment(tenant_id, deployment_id)
     if existing_deployment:
@@ -379,7 +405,13 @@ def get_deployment_details(tenant_id: str, deployment_id: str) -> Dict[str, Any]
     if "members" in deployment["lastRequestedSpec"]:
         result["members"] = deployment["lastRequestedSpec"]["members"]
 
-    cr = k8s.get_mongodb_cr(deployment["namespace"], deployment_id)
+    # Get CR status based on plan
+    plan = deployment.get("plan", "enterprise")
+    if plan == "community":
+        cr = k8s.get_mongodb_community_cr(deployment["namespace"], deployment_id)
+    else:
+        cr = k8s.get_mongodb_enterprise_cr(deployment["namespace"], deployment_id)
+    
     if cr and "status" in cr:
         result["k8sPhase"] = cr["status"].get("phase", "Unknown")
 
@@ -421,6 +453,7 @@ def delete_deployment(tenant_id: str, deployment_id: str) -> bool:
     """
     Delete a deployment by removing the MongoDB CR from Kubernetes
     and the deployment document from control-plane DB.
+    Routes to enterprise or community based on tenant plan.
     Returns True if something was deleted, False if nothing existed.
     """
     repo = get_repo()
@@ -431,8 +464,14 @@ def delete_deployment(tenant_id: str, deployment_id: str) -> bool:
         raise ValueError(f"Tenant {tenant_id} not found")
 
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
 
-    k8s_deleted = k8s.delete_mongodb_cr(namespace, deployment_id)
+    # Delete CR based on plan
+    if plan == "community":
+        k8s_deleted = deployments_community_service.delete_deployment_community(namespace, deployment_id)
+    else:
+        k8s_deleted = k8s.delete_mongodb_enterprise_cr(namespace, deployment_id)
+    
     db_deleted = repo.delete_deployment(tenant_id, deployment_id)
 
     return k8s_deleted or db_deleted

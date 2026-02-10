@@ -103,9 +103,16 @@ export function TenantsPage() {
               onClick={() => navigate(`/tenants/${tenant.tenantId}`)}
               className="card cursor-pointer hover:shadow-md transition-shadow"
             >
-              <h3 className="text-xl font-semibold text-mongodb-forest mb-1">
-                {tenant.displayName || tenant.tenantId}
-              </h3>
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-xl font-semibold text-mongodb-forest">
+                  {tenant.displayName || tenant.tenantId}
+                </h3>
+                {tenant.plan === 'community' ? (
+                  <span className="badge badge-blue text-xs">Community</span>
+                ) : (
+                  <span className="badge badge-green text-xs">Enterprise</span>
+                )}
+              </div>
               <p className="text-sm text-mongodb-slate mb-3">{tenant.tenantId}</p>
 
               {tenant.environment && (

@@ -44,9 +44,12 @@ def get_tenant(tenant_id: str) -> Optional[Dict[str, Any]]:
     return tenant
 
 
-def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
+def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") -> Dict[str, Any]:
     if not validate_dns_safe(tenant_id):
         raise ValueError(f"tenantId '{tenant_id}' is not DNS-safe (must be [a-z0-9-], max 63 chars)")
+
+    if plan not in ["enterprise", "community"]:
+        raise ValueError(f"Invalid plan: {plan}. Must be 'enterprise' or 'community'")
 
     repo = get_repo()
     k8s = get_k8s_client()
@@ -55,32 +58,40 @@ def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
         raise ValueError(f"Tenant {tenant_id} already exists")
 
     namespace = f"{config.MCP_NAMESPACE_PREFIX}{tenant_id}"
-    project_name = f"mdb-{tenant_id}-project"
+    project_name = None
 
     k8s.ensure_namespace(
         name=namespace,
-        labels={"mdb.example.com/tenantId": tenant_id}
-    )
-
-    k8s.ensure_configmap(
-        namespace=namespace,
-        name=f"om-{tenant_id}-project",
-        data={
-            "baseUrl": config.MCP_OPS_MANAGER_URL,
-            "projectName": project_name,
-            "orgId": config.MCP_OPS_MANAGER_ORG
+        labels={
+            "mdb.example.com/tenantId": tenant_id,
+            "mdb.example.com/plan": plan
         }
     )
 
-    k8s.ensure_secret(
-        namespace=namespace,
-        name=f"om-{tenant_id}-credentials",
-        string_data={
-            "user": config.MCP_OM_GLOBAL_PUBLIC_KEY,
-            "publicApiKey": config.MCP_OM_GLOBAL_PRIVATE_KEY
-        }
-    )
+    # Only create Ops Manager resources for enterprise plan
+    if plan == "enterprise":
+        project_name = f"mdb-{tenant_id}-project"
+        
+        k8s.ensure_configmap(
+            namespace=namespace,
+            name=f"om-{tenant_id}-project",
+            data={
+                "baseUrl": config.MCP_OPS_MANAGER_URL,
+                "projectName": project_name,
+                "orgId": config.MCP_OPS_MANAGER_ORG
+            }
+        )
 
+        k8s.ensure_secret(
+            namespace=namespace,
+            name=f"om-{tenant_id}-credentials",
+            string_data={
+                "user": config.MCP_OM_GLOBAL_PUBLIC_KEY,
+                "publicApiKey": config.MCP_OM_GLOBAL_PRIVATE_KEY
+            }
+        )
+
+    # Admin password secret for both plans
     admin_password = generate_password()
     k8s.ensure_secret(
         namespace=namespace,
@@ -88,8 +99,7 @@ def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
         string_data={"password": admin_password}
     )
 
-    # MCK expects this ServiceAccount for MongoDB StatefulSet pods.
-    # Without it, pods fail with 'serviceaccount ... not found' and deployments never become Ready.
+    # ServiceAccount for MongoDB pods
     k8s.ensure_service_account(
         namespace=namespace,
         name="mongodb-kubernetes-database-pods"
@@ -100,12 +110,15 @@ def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
         "tenantId": tenant_id,
         "namespace": namespace,
         "displayName": display_name,
+        "plan": plan,
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "status": "Active",
-        "opsManager": {
+        "status": "Active"
+    }
+
+    if plan == "enterprise":
+        tenant_doc["opsManager"] = {
             "projectName": project_name
         }
-    }
 
     repo.insert_tenant(tenant_doc)
 
@@ -113,14 +126,15 @@ def onboard_tenant(tenant_id: str, display_name: str) -> Dict[str, Any]:
         "tenantId": tenant_id,
         "namespace": namespace,
         "projectName": project_name,
-        "status": "Active"
+        "status": "Active",
+        "plan": plan
     }
 
 
 def delete_tenant(tenant_id: str) -> bool:
     """
     Delete a tenant by:
-    1. Deleting all MongoDB CRs in the tenant namespace
+    1. Deleting all MongoDB CRs in the tenant namespace (enterprise or community)
     2. Deleting the namespace
     3. Deleting all deployment documents from control-plane DB
     4. Deleting the tenant document from control-plane DB
@@ -134,12 +148,21 @@ def delete_tenant(tenant_id: str) -> bool:
         return False
 
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")  # Default to enterprise for existing tenants
 
-    mongo_crs = k8s.list_mongodb_crs(namespace)
-    for cr in mongo_crs:
-        cr_name = cr.get("metadata", {}).get("name")
-        if cr_name:
-            k8s.delete_mongodb_cr(namespace, cr_name)
+    # Delete CRs based on plan
+    if plan == "enterprise":
+        mongo_crs = k8s.list_mongodb_enterprise_crs(namespace)
+        for cr in mongo_crs:
+            cr_name = cr.get("metadata", {}).get("name")
+            if cr_name:
+                k8s.delete_mongodb_enterprise_cr(namespace, cr_name)
+    else:  # community
+        mongo_crs = k8s.list_mongodb_community_crs(namespace)
+        for cr in mongo_crs:
+            cr_name = cr.get("metadata", {}).get("name")
+            if cr_name:
+                k8s.delete_mongodb_community_cr(namespace, cr_name)
 
     k8s.delete_namespace(namespace)
 

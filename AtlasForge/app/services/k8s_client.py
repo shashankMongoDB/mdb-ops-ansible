@@ -77,7 +77,10 @@ class K8sClient:
             else:
                 raise
 
-    def create_mongodb_cr(self, namespace: str, body: Dict[str, Any]) -> None:
+    # ========== Enterprise MongoDB CRs (mongodb.com) ==========
+    
+    def create_mongodb_enterprise_cr(self, namespace: str, body: Dict[str, Any]) -> None:
+        """Create an enterprise MongoDB CR (mongodb.com/v1)"""
         self.custom_objects.create_namespaced_custom_object(
             group="mongodb.com",
             version="v1",
@@ -86,7 +89,8 @@ class K8sClient:
             body=body
         )
 
-    def get_mongodb_cr(self, namespace: str, name: str) -> Optional[Dict[str, Any]]:
+    def get_mongodb_enterprise_cr(self, namespace: str, name: str) -> Optional[Dict[str, Any]]:
+        """Get an enterprise MongoDB CR (mongodb.com/v1)"""
         try:
             return self.custom_objects.get_namespaced_custom_object(
                 group="mongodb.com",
@@ -100,8 +104,8 @@ class K8sClient:
                 return None
             raise
 
-    def list_mongodb_crs(self, namespace: str) -> list[Dict[str, Any]]:
-        """List all MongoDB CRs in a namespace."""
+    def list_mongodb_enterprise_crs(self, namespace: str) -> list[Dict[str, Any]]:
+        """List all enterprise MongoDB CRs in a namespace"""
         try:
             result = self.custom_objects.list_namespaced_custom_object(
                 group="mongodb.com",
@@ -115,10 +119,8 @@ class K8sClient:
                 return []
             raise
 
-    def delete_mongodb_cr(self, namespace: str, name: str) -> bool:
-        """
-        Delete a MongoDB CR. Returns True if deleted, False if not found.
-        """
+    def delete_mongodb_enterprise_cr(self, namespace: str, name: str) -> bool:
+        """Delete an enterprise MongoDB CR"""
         try:
             self.custom_objects.delete_namespaced_custom_object(
                 group="mongodb.com",
@@ -133,6 +135,104 @@ class K8sClient:
                 return False
             raise
 
+    def patch_mongodb_enterprise_cr(self, namespace: str, name: str, patch: Dict[str, Any]) -> None:
+        """Patch an enterprise MongoDB CR"""
+        self.custom_objects.patch_namespaced_custom_object(
+            group="mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodb",
+            name=name,
+            body=patch
+        )
+
+    # ========== Community MongoDB CRs (mongodbcommunity.mongodb.com) ==========
+    
+    def create_mongodb_community_cr(self, namespace: str, body: Dict[str, Any]) -> None:
+        """Create a community MongoDB CR (mongodbcommunity.mongodb.com/v1)"""
+        self.custom_objects.create_namespaced_custom_object(
+            group="mongodbcommunity.mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbcommunity",
+            body=body
+        )
+
+    def get_mongodb_community_cr(self, namespace: str, name: str) -> Optional[Dict[str, Any]]:
+        """Get a community MongoDB CR (mongodbcommunity.mongodb.com/v1)"""
+        try:
+            return self.custom_objects.get_namespaced_custom_object(
+                group="mongodbcommunity.mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbcommunity",
+                name=name
+            )
+        except ApiException as e:
+            if e.status == 404:
+                return None
+            raise
+
+    def list_mongodb_community_crs(self, namespace: str) -> list[Dict[str, Any]]:
+        """List all community MongoDB CRs in a namespace"""
+        try:
+            result = self.custom_objects.list_namespaced_custom_object(
+                group="mongodbcommunity.mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbcommunity"
+            )
+            return result.get("items", [])
+        except ApiException as e:
+            if e.status == 404:
+                return []
+            raise
+
+    def delete_mongodb_community_cr(self, namespace: str, name: str) -> bool:
+        """Delete a community MongoDB CR"""
+        try:
+            self.custom_objects.delete_namespaced_custom_object(
+                group="mongodbcommunity.mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbcommunity",
+                name=name
+            )
+            return True
+        except ApiException as e:
+            if e.status == 404:
+                return False
+            raise
+
+    def patch_mongodb_community_cr(self, namespace: str, name: str, patch: Dict[str, Any]) -> None:
+        """Patch a community MongoDB CR"""
+        self.custom_objects.patch_namespaced_custom_object(
+            group="mongodbcommunity.mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbcommunity",
+            name=name,
+            body=patch
+        )
+
+    # ========== Legacy methods for backward compatibility ==========
+    
+    def create_mongodb_cr(self, namespace: str, body: Dict[str, Any]) -> None:
+        """Legacy method - calls enterprise version"""
+        self.create_mongodb_enterprise_cr(namespace, body)
+
+    def get_mongodb_cr(self, namespace: str, name: str) -> Optional[Dict[str, Any]]:
+        """Legacy method - calls enterprise version"""
+        return self.get_mongodb_enterprise_cr(namespace, name)
+
+    def list_mongodb_crs(self, namespace: str) -> list[Dict[str, Any]]:
+        """Legacy method - calls enterprise version"""
+        return self.list_mongodb_enterprise_crs(namespace)
+
+    def delete_mongodb_cr(self, namespace: str, name: str) -> bool:
+        """Legacy method - calls enterprise version"""
+        return self.delete_mongodb_enterprise_cr(namespace, name)
+
     def delete_namespace(self, name: str) -> bool:
         """
         Delete a namespace. Returns True if deleted, False if not found.
@@ -146,17 +246,8 @@ class K8sClient:
             raise
 
     def patch_mongodb_cr(self, namespace: str, name: str, patch: Dict[str, Any]) -> None:
-        """
-        Patch a MongoDB CR with the given patch data.
-        """
-        self.custom_objects.patch_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodb",
-            name=name,
-            body=patch
-        )
+        """Legacy method - calls enterprise version"""
+        self.patch_mongodb_enterprise_cr(namespace, name, patch)
 
     def ensure_metrics_service(self, namespace: str, deployment_id: str, selector_labels: Dict[str, str]) -> None:
         """

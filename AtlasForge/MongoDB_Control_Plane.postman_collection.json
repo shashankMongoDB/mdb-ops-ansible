@@ -26,7 +26,33 @@
       "response": []
     },
     {
-      "name": "Create Tenant - Acme",
+      "name": "List All Tenants",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Specific Tenant",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Tenant - Acme (Enterprise - Default)",
       "request": {
         "method": "POST",
         "header": [
@@ -37,7 +63,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"tenantId\": \"t-acme\",\n  \"displayName\": \"Acme Corporation\"\n}"
+          "raw": "{\n  \"tenantId\": \"t-acme\",\n  \"displayName\": \"Acme Corporation\",\n  \"plan\": \"enterprise\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/tenants",
@@ -48,7 +74,7 @@
       "response": []
     },
     {
-      "name": "Create Tenant - Globex",
+      "name": "Create Tenant - Globex (Enterprise - Implicit)",
       "request": {
         "method": "POST",
         "header": [
@@ -60,6 +86,50 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"tenantId\": \"t-globex\",\n  \"displayName\": \"Globex Industries\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Tenant - Initech (Community)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"t-initech\",\n  \"displayName\": \"Initech Inc\",\n  \"plan\": \"community\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Tenant - Umbrella (Community)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"t-umbrella\",\n  \"displayName\": \"Umbrella Corporation\",\n  \"plan\": \"community\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/tenants",
@@ -180,6 +250,50 @@
       "response": []
     },
     {
+      "name": "Create Deployment - Community ReplicaSet",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-test\",\n  \"type\": \"ReplicaSet\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 3,\n  \"displayName\": \"Community Test DB\",\n  \"environment\": \"dev\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Deployment - Community 5 Members",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"rs-prod\",\n  \"type\": \"ReplicaSet\",\n  \"mongoVersion\": \"8.0.3\",\n  \"members\": 5,\n  \"displayName\": \"Community Prod DB\",\n  \"environment\": \"prod\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-umbrella/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-umbrella", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "List All Deployments for Tenant",
       "request": {
         "method": "GET",
@@ -289,6 +403,72 @@
           "raw": "{{baseUrl}}/tenants/t-acme/deployments",
           "host": ["{{baseUrl}}"],
           "path": ["tenants", "t-acme", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Community Standalone Not Supported (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deploymentId\": \"st-test\",\n  \"type\": \"Standalone\",\n  \"mongoVersion\": \"8.0.3\",\n  \"displayName\": \"Community Standalone\",\n  \"environment\": \"dev\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Community Backup Not Supported (400)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/backup",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "backup"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Invalid Plan (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenantId\": \"t-invalid\",\n  \"displayName\": \"Invalid Plan Tenant\",\n  \"plan\": \"premium\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants"]
         }
       },
       "response": []
@@ -631,6 +811,67 @@
       "response": []
     },
     {
+      "name": "Scale Community Deployment to 5",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"members\": 5\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/scale",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "scale"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Shutdown Community Deployment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/actions/shutdown",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "actions", "shutdown"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Start Community Deployment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/actions/start",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "actions", "start"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Restart Community Deployment",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/actions/restart",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "actions", "restart"]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Upgrade Version to 8.0.17-ent",
       "request": {
         "method": "PATCH",
@@ -670,6 +911,28 @@
           "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/version",
           "host": ["{{baseUrl}}"],
           "path": ["tenants", "t-acme", "deployments", "rs-orders", "version"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Upgrade Community Deployment Version",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mongoVersion\": \"8.0.4\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/version",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "version"]
         }
       },
       "response": []

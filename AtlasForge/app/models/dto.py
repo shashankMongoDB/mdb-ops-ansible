@@ -1,17 +1,19 @@
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 
 class TenantCreateRequest(BaseModel):
     tenantId: str = Field(..., description="DNS-safe tenant identifier (a-z0-9-, max 63 chars)")
     displayName: str = Field(..., description="Human-readable tenant name")
+    plan: Literal["enterprise", "community"] = Field("enterprise", description="Deployment flavor: enterprise (Ops Manager) or community (standalone operator)")
 
 
 class TenantCreateResponse(BaseModel):
     tenantId: str
     namespace: str
-    projectName: str
+    projectName: Optional[str] = None
     status: str
+    plan: str
 
 
 class DeploymentCreateRequest(BaseModel):

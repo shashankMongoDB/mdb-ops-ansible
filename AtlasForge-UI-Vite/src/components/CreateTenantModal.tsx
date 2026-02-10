@@ -15,6 +15,7 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
   const [formData, setFormData] = useState({
     tenantId: '',
     displayName: '',
+    plan: 'enterprise' as 'enterprise' | 'community',
     environment: '',
     notes: '',
   });
@@ -39,6 +40,7 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
       const request: CreateTenantRequest = {
         tenantId: formData.tenantId.trim(),
         displayName: formData.displayName.trim() || undefined,
+        plan: formData.plan,
         environment: formData.environment.trim() || undefined,
         notes: formData.notes.trim() || undefined,
       };
@@ -55,7 +57,7 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
   };
 
   const handleClose = () => {
-    setFormData({ tenantId: '', displayName: '', environment: '', notes: '' });
+    setFormData({ tenantId: '', displayName: '', plan: 'enterprise', environment: '', notes: '' });
     onClose();
   };
 
@@ -130,6 +132,53 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
                   <p className="mt-1 text-sm text-gray-500">
                     Human-readable name for the tenant
                   </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Deployment Plan <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-y-3">
+                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="plan"
+                        value="enterprise"
+                        checked={formData.plan === 'enterprise'}
+                        onChange={(e) => setFormData({ ...formData, plan: e.target.value as 'enterprise' })}
+                        className="mt-0.5 h-4 w-4 text-mongodb-green focus:ring-mongodb-green"
+                      />
+                      <div className="ml-3 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">Enterprise (Ops Manager)</span>
+                          <span className="badge badge-green text-xs">Recommended</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Full features including Ops Manager integration, backup, and advanced monitoring
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="plan"
+                        value="community"
+                        checked={formData.plan === 'community'}
+                        onChange={(e) => setFormData({ ...formData, plan: e.target.value as 'community' })}
+                        className="mt-0.5 h-4 w-4 text-mongodb-green focus:ring-mongodb-green"
+                      />
+                      <div className="ml-3 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">Community (No Ops Manager)</span>
+                          <span className="badge badge-blue text-xs">Open Source</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          MongoDB Community binaries. Backup and Ops Manager features not available.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 <div>

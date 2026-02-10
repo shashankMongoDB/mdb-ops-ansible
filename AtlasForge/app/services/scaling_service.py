@@ -2,12 +2,14 @@ from typing import Dict, Any, Optional, Tuple
 from packaging import version
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
+from app.services import deployments_community_service
 
 
 def scale_deployment(tenant_id: str, deployment_id: str, members: int) -> Dict[str, Any]:
     """
     Scale a MongoDB deployment by changing the number of members.
     Enforces best practices: minimum 3 members, warns on even numbers.
+    Supports both enterprise and community deployments.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -19,10 +21,41 @@ def scale_deployment(tenant_id: str, deployment_id: str, members: int) -> Dict[s
     deployment = repo.get_deployment(tenant_id, deployment_id)
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
-
+    
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
 
-    cr = k8s.get_mongodb_cr(namespace, deployment_id)
+    # Validate members count
+    if members < 3:
+        raise ValueError("Replica set must have at least 3 members")
+
+    warning = None
+    if members % 2 == 0:
+        warning = "Using an even number of members is not recommended. Consider 3, 5, 7, ... to avoid election ties"
+
+    # Route to community service if needed
+    if plan == "community":
+        deployments_community_service.scale_deployment_community(namespace, deployment_id, members)
+        
+        # Get current members from deployment doc
+        current_members = deployment.get("lastRequestedSpec", {}).get("members", 3)
+        
+        # Update DB
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.members": members
+        })
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "clusterType": "ReplicaSet",
+            "oldMembers": current_members,
+            "newMembers": members,
+            "warning": warning
+        }
+
+    # Enterprise logic continues
+    cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
     if not cr:
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 
@@ -33,19 +66,12 @@ def scale_deployment(tenant_id: str, deployment_id: str, members: int) -> Dict[s
 
     current_members = cr.get("spec", {}).get("members", 3)
 
-    if members < 3:
-        raise ValueError("Replica set must have at least 3 members")
-
-    warning = None
-    if members % 2 == 0:
-        warning = "Using an even number of members is not recommended. Consider 3, 5, 7, ... to avoid election ties"
-
     patch = {
         "spec": {
             "members": members
         }
     }
-    k8s.patch_mongodb_cr(namespace, deployment_id, patch)
+    k8s.patch_mongodb_enterprise_cr(namespace, deployment_id, patch)
 
     repo.update_deployment(tenant_id, deployment_id, {
         "lastRequestedSpec.members": members
@@ -113,6 +139,7 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
     """
     Upgrade MongoDB version for a deployment.
     Blocks downgrades, allows same version (no-op), permits upgrades.
+    Supports both enterprise and community deployments.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -124,16 +151,13 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
     deployment = repo.get_deployment(tenant_id, deployment_id)
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
-
+    
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
 
-    cr = k8s.get_mongodb_cr(namespace, deployment_id)
-    if not cr:
-        raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
-
-    cluster_type = cr.get("spec", {}).get("type", "ReplicaSet")
-    current_version = cr.get("spec", {}).get("version", "")
-
+    # Get current version from deployment doc
+    current_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "")
+    
     comparison = compare_versions(mongo_version, current_version)
 
     if comparison < 0:
@@ -146,18 +170,23 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
-            "clusterType": cluster_type,
+            "clusterType": deployment.get("type", "ReplicaSet"),
             "oldVersion": current_version,
             "newVersion": mongo_version,
             "message": f"No change: deployment is already at version {mongo_version}"
         }
 
-    patch = {
-        "spec": {
-            "version": mongo_version
+    # Route to community service if needed
+    if plan == "community":
+        deployments_community_service.upgrade_version_community(namespace, deployment_id, mongo_version)
+    else:
+        # Enterprise: patch CR
+        patch = {
+            "spec": {
+                "version": mongo_version
+            }
         }
-    }
-    k8s.patch_mongodb_cr(namespace, deployment_id, patch)
+        k8s.patch_mongodb_enterprise_cr(namespace, deployment_id, patch)
 
     repo.update_deployment(tenant_id, deployment_id, {
         "lastRequestedSpec.mongoVersion": mongo_version

@@ -11,9 +11,10 @@ interface CreateDeploymentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   tenantId: string;
+  tenantPlan?: 'enterprise' | 'community';
 }
 
-export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId }: CreateDeploymentModalProps) {
+export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tenantPlan = 'enterprise' }: CreateDeploymentModalProps) {
   const [formData, setFormData] = useState({
     deploymentId: '',
     type: 'ReplicaSet' as 'Standalone' | 'ReplicaSet' | 'ShardedCluster',
@@ -121,6 +122,22 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId }: Cr
                   <XMarkIcon className="h-6 w-6" />
                 </button>
               </div>
+
+              {tenantPlan === 'community' ? (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Community Plan:</span> This deployment will use MongoDB Community binaries. 
+                    Ops Manager backup and advanced features are not available.
+                  </p>
+                </div>
+              ) : (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-sm text-green-800">
+                    <span className="font-medium">Enterprise Plan:</span> This deployment will use Enterprise Advanced 
+                    with Ops Manager integration, including backup and advanced monitoring.
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>

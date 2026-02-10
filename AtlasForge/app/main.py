@@ -119,7 +119,8 @@ def create_tenant(request: TenantCreateRequest):
     try:
         result = tenants_service.onboard_tenant(
             tenant_id=request.tenantId,
-            display_name=request.displayName
+            display_name=request.displayName,
+            plan=request.plan
         )
         return result
     except ValueError as e:

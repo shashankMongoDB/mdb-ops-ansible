@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowPathIcon, ChevronLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { deploymentsApi } from '@/lib/api';
+import { deploymentsApi, tenantsApi } from '@/lib/api';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ScaleModal } from '@/components/ScaleModal';
 import { UpgradeVersionModal } from '@/components/UpgradeVersionModal';
@@ -11,7 +11,7 @@ import { PrometheusCard } from '@/components/PrometheusCard';
 import { BackupCard } from '@/components/BackupCard';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
-import type { Deployment } from '@/lib/types';
+import type { Deployment, Tenant } from '@/lib/types';
 
 type ActionType = 'shutdown' | 'restart' | 'delete' | null;
 type TabType = 'overview' | 'monitoring' | 'backup';
@@ -20,6 +20,7 @@ export function DeploymentDetailsPage() {
   const { tenantId, deploymentId } = useParams<{ tenantId: string; deploymentId: string }>();
   const navigate = useNavigate();
   const [deployment, setDeployment] = useState<Deployment | null>(null);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showScaleModal, setShowScaleModal] = useState(false);
@@ -28,18 +29,25 @@ export function DeploymentDetailsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const { showSuccess, showError } = useToast();
 
+  const tenantPlan = tenant?.plan || 'enterprise';
+
   const loadData = async () => {
     if (!tenantId || !deploymentId) return;
 
     try {
       setLoading(true);
-      const data = await deploymentsApi.getById(tenantId, deploymentId);
+      const [deploymentData, tenantData] = await Promise.all([
+        deploymentsApi.getById(tenantId, deploymentId),
+        tenantsApi.getById(tenantId)
+      ]);
       console.log('=== DEPLOYMENT API RESPONSE ===');
-      console.log('Full response:', JSON.stringify(data, null, 2));
-      console.log('Type field:', data.type);
-      console.log('Members field:', data.members);
+      console.log('Full response:', JSON.stringify(deploymentData, null, 2));
+      console.log('Type field:', deploymentData.type);
+      console.log('Members field:', deploymentData.members);
+      console.log('Tenant plan:', tenantData.plan);
       console.log('===============================');
-      setDeployment(data);
+      setDeployment(deploymentData);
+      setTenant(tenantData);
     } catch (error: any) {
       console.error('Failed to load deployment:', error);
       showError('Failed to load deployment details', error.detail || 'An error occurred');
@@ -109,9 +117,16 @@ export function DeploymentDetailsPage() {
       <div className="card mb-8">
         <div className="flex justify-between items-start">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-mongodb-forest mb-2">
-              {deployment.displayName || deployment.deploymentId}
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-mongodb-forest">
+                {deployment.displayName || deployment.deploymentId}
+              </h1>
+              {tenantPlan === 'community' ? (
+                <span className="badge badge-blue">Community</span>
+              ) : (
+                <span className="badge badge-green">Enterprise</span>
+              )}
+            </div>
             <p className="text-mongodb-slate mb-1">Deployment ID: {deployment.deploymentId}</p>
             <p className="text-mongodb-slate mb-4">Tenant: {deployment.tenantId}</p>
 
@@ -163,7 +178,7 @@ export function DeploymentDetailsPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="flex space-x-8">
-          {(['overview', 'monitoring', 'backup'] as TabType[]).map((tab) => (
+          {(['overview', 'monitoring', ...(tenantPlan === 'enterprise' ? ['backup' as TabType] : [])] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -221,13 +236,25 @@ export function DeploymentDetailsPage() {
         </div>
       )}
 
-      {activeTab === 'backup' && (
+      {activeTab === 'backup' && tenantPlan === 'enterprise' && (
         <div>
           <BackupCard 
             tenantId={deployment.tenantId} 
             deploymentId={deployment.deploymentId}
             initialEnabled={false}
           />
+        </div>
+      )}
+
+      {activeTab === 'backup' && tenantPlan === 'community' && (
+        <div className="card">
+          <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Backup Not Available</h3>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+            <p className="text-sm text-yellow-800">
+              <span className="font-medium">Community Plan Limitation:</span> Backup is only available for Enterprise deployments with Ops Manager integration. 
+              Community deployments use MongoDB Community binaries without Ops Manager backup capabilities.
+            </p>
+          </div>
         </div>
       )}
 
