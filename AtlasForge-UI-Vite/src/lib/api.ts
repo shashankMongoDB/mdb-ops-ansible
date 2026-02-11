@@ -182,6 +182,24 @@ export const deploymentsApi = {
     }
   },
 
+  async revealPrometheusPassword(tenantId: string, deploymentId: string): Promise<PrometheusPasswordReveal> {
+    try {
+      const response = await api.post<PrometheusPasswordReveal>(`/tenants/${tenantId}/deployments/${deploymentId}/monitoring/prometheus/reveal`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async rotatePrometheusPassword(tenantId: string, deploymentId: string): Promise<PrometheusPasswordRotate> {
+    try {
+      const response = await api.post<PrometheusPasswordRotate>(`/tenants/${tenantId}/deployments/${deploymentId}/monitoring/prometheus/rotate`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
   async updateBackup(tenantId: string, deploymentId: string, enabled: boolean): Promise<void> {
     try {
       await api.patch(`/tenants/${tenantId}/deployments/${deploymentId}/backup`, { enabled });

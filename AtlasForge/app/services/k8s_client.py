@@ -490,6 +490,31 @@ class K8sClient:
                 return None
             raise
 
+    def update_secret_data(self, namespace: str, name: str, key: str, value: str) -> None:
+        """
+        Update a specific key in an existing secret.
+        Creates the key if it doesn't exist, updates if it does.
+        """
+        import base64
+        
+        try:
+            secret = self.core_v1.read_namespaced_secret(name=name, namespace=namespace)
+            
+            # Encode the new value
+            encoded_value = base64.b64encode(value.encode('utf-8')).decode('utf-8')
+            
+            # Update the secret data
+            if secret.data is None:
+                secret.data = {}
+            secret.data[key] = encoded_value
+            
+            # Patch the secret
+            self.core_v1.replace_namespaced_secret(name=name, namespace=namespace, body=secret)
+        except ApiException as e:
+            if e.status == 404:
+                raise ValueError(f"Secret {name} not found in namespace {namespace}")
+            raise
+
 
 _k8s_instance: Optional[K8sClient] = None
 

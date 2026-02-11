@@ -170,9 +170,19 @@ class PrometheusScrapeConfigResponse(BaseModel):
     jobName: str = Field(..., description="Prometheus job name for this deployment")
     metricsPath: str = Field(..., description="Metrics endpoint path (e.g., /metrics)")
     username: str = Field(..., description="Basic auth username for Prometheus")
-    password: str = Field(..., description="Password (full on first view, masked afterwards)")
+    passwordMasked: str = Field(..., description="Masked password (e.g., ****ABCD)")
     targets: list[str] = Field(..., description="List of scrape targets (node-ip:port)")
     labels: dict = Field(..., description="Labels to apply to scraped metrics")
     workerNodeIps: list[str] = Field(..., description="All available worker node IPs")
     nodePort: int = Field(..., description="NodePort for metrics service")
-    isFirstView: bool = Field(..., description="True if password is shown in full for the first time")
+    canRevealPassword: bool = Field(..., description="True if password can be revealed (firstViewedAt is null)")
+
+
+class PrometheusPasswordRevealResponse(BaseModel):
+    username: str = Field(..., description="Basic auth username")
+    password: str = Field(..., description="Full password (shown only once)")
+
+
+class PrometheusPasswordRotateResponse(BaseModel):
+    message: str = Field(..., description="Success message")
+    passwordVersion: int = Field(..., description="New password version number")

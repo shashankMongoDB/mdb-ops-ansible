@@ -81,10 +81,20 @@ export interface PrometheusScrapeConfig {
   jobName: string;
   metricsPath: string;
   username: string;
-  password: string;
+  passwordMasked: string;
   targets: string[];
   labels: Record<string, string>;
   workerNodeIps: string[];
   nodePort: number;
-  isFirstView: boolean;
+  canRevealPassword: boolean;
+}
+
+export interface PrometheusPasswordReveal {
+  username: string;
+  password: string;
+}
+
+export interface PrometheusPasswordRotate {
+  message: string;
+  passwordVersion: number;
 }

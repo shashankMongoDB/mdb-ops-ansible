@@ -43,6 +43,8 @@ from app.models.dto import (
     PrometheusEnableRequest,
     PrometheusConfigResponse,
     PrometheusScrapeConfigResponse,
+    PrometheusPasswordRevealResponse,
+    PrometheusPasswordRotateResponse,
     ConnectionInfoResponse,
     BackupUpdateRequest,
     BackupUpdateResponse,
@@ -312,14 +314,15 @@ def get_prometheus_scrape_config(
     deploymentId: str = Path(..., description="Deployment identifier")
 ):
     """
-    Get ready-to-use Prometheus scrape configuration for a deployment.
+    Get Prometheus scrape configuration with MASKED password.
     
     Returns YAML-ready configuration including:
     - Job name and metrics path
-    - Basic auth credentials (full password on first view, masked afterwards)
+    - Basic auth credentials (MASKED password)
     - Target endpoints (worker-ip:nodePort)
     - List of all worker node IPs
     - Labels for scraped metrics
+    - canRevealPassword flag (true if password not yet revealed)
     
     Automatically enables Prometheus metrics if not already enabled.
     Works for both Enterprise (MongoDB) and Community (MongoDBCommunity) deployments.
@@ -336,6 +339,73 @@ def get_prometheus_scrape_config(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error getting Prometheus scrape config")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/monitoring/prometheus/reveal",
+    response_model=PrometheusPasswordRevealResponse
+)
+def reveal_prometheus_password(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Reveal the full Prometheus password ONCE.
+    
+    Only works if the password has not been revealed yet (firstViewedAt is null).
+    After revealing, the password cannot be revealed again until rotated.
+    
+    Returns the full username and password.
+    Works for both Enterprise and Community deployments.
+    """
+    try:
+        result = monitoring_service.reveal_prometheus_password(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "already revealed" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error revealing Prometheus password")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/monitoring/prometheus/rotate",
+    response_model=PrometheusPasswordRotateResponse
+)
+def rotate_prometheus_password(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Rotate the Prometheus password.
+    
+    Generates a new strong random password and updates the mongodb-admin-secret in Kubernetes.
+    Resets firstViewedAt to null, allowing the password to be revealed once again.
+    Increments the password version number.
+    
+    Returns success message and new password version.
+    Works for both Enterprise and Community deployments.
+    """
+    try:
+        result = monitoring_service.rotate_prometheus_password(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error rotating Prometheus password")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

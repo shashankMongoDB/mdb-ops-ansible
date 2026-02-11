@@ -191,13 +191,24 @@ def mask_password(pw: str) -> str:
     return "*" * (len(pw) - 4) + pw[-4:]
 
 
+def generate_strong_password(length: int = 20) -> str:
+    """
+    Generate a strong random password.
+    """
+    import secrets
+    import string
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
 def get_prometheus_scrape_config(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
-    Get ready-to-use Prometheus scrape configuration for a deployment.
-    Includes YAML config, worker node IPs, and credentials.
+    Get Prometheus scrape configuration with MASKED password.
     
-    Password is shown in full only on first view (when prometheus.firstViewedAt is null).
-    Subsequent views show masked password.
+    Returns:
+    - jobName, metricsPath, username, passwordMasked
+    - targets, labels, workerNodeIps, nodePort
+    - canRevealPassword: true if firstViewedAt is null
     
     Supports both enterprise and community deployments.
     """
@@ -277,26 +288,17 @@ def get_prometheus_scrape_config(tenant_id: str, deployment_id: str) -> Dict[str
     secret_name = password_secret_ref.get("name", "mongodb-admin-secret")
     secret_key = password_secret_ref.get("key", "password")
 
-    # Read password from secret
+    # Read password from secret and ALWAYS mask it
     password_raw = k8s.get_secret_data(namespace, secret_name, secret_key)
     if not password_raw:
         raise ValueError(f"Password secret {secret_name} not found or empty in namespace {namespace}")
 
-    # Check if this is first view
+    password_masked = mask_password(password_raw)
+
+    # Check if can reveal password
     prometheus_meta = deployment.get("prometheus", {})
     first_viewed_at = prometheus_meta.get("firstViewedAt")
-    
-    if first_viewed_at is None:
-        # First view - show full password and mark as viewed
-        password = password_raw
-        repo.update_deployment(tenant_id, deployment_id, {
-            "prometheus.firstViewedAt": datetime.now(timezone.utc).isoformat()
-        })
-        is_first_view = True
-    else:
-        # Subsequent view - mask password
-        password = mask_password(password_raw)
-        is_first_view = False
+    can_reveal_password = (first_viewed_at is None)
 
     # Get metrics service
     service_name = f"{deployment_id}-metrics"
@@ -330,10 +332,134 @@ def get_prometheus_scrape_config(tenant_id: str, deployment_id: str) -> Dict[str
         "jobName": job_name,
         "metricsPath": "/metrics",
         "username": username,
-        "password": password,
+        "passwordMasked": password_masked,
         "targets": targets,
         "labels": labels,
         "workerNodeIps": worker_ips,
         "nodePort": node_port,
-        "isFirstView": is_first_view
+        "canRevealPassword": can_reveal_password
+    }
+
+
+def reveal_prometheus_password(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+    """
+    Reveal the full Prometheus password ONCE.
+    
+    Only works if firstViewedAt is null.
+    After revealing, sets firstViewedAt to now.
+    
+    Returns: { username, password } with FULL password.
+    """
+    from datetime import datetime, timezone
+    
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    # Check if already revealed
+    prometheus_meta = deployment.get("prometheus", {})
+    first_viewed_at = prometheus_meta.get("firstViewedAt")
+    
+    if first_viewed_at is not None:
+        raise ValueError("Password already revealed. Rotate to generate a new one.")
+
+    namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
+
+    # Get CR to read prometheus config
+    if plan == "community":
+        cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+    else:
+        cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
+    
+    if not cr:
+        raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
+
+    prometheus_spec = cr.get("spec", {}).get("prometheus", {})
+    username = prometheus_spec.get("username", "prometheus-user")
+    password_secret_ref = prometheus_spec.get("passwordSecretRef", {})
+    secret_name = password_secret_ref.get("name", "mongodb-admin-secret")
+    secret_key = password_secret_ref.get("key", "password")
+
+    # Read full password from secret
+    password = k8s.get_secret_data(namespace, secret_name, secret_key)
+    if not password:
+        raise ValueError(f"Password secret {secret_name} not found or empty in namespace {namespace}")
+
+    # Mark as revealed
+    repo.update_deployment(tenant_id, deployment_id, {
+        "prometheus.firstViewedAt": datetime.now(timezone.utc).isoformat()
+    })
+
+    return {
+        "username": username,
+        "password": password
+    }
+
+
+def rotate_prometheus_password(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+    """
+    Rotate Prometheus password.
+    
+    Generates a new random password, updates mongodb-admin-secret in K8s,
+    resets firstViewedAt to null, and optionally increments passwordVersion.
+    
+    Returns success message.
+    """
+    from datetime import datetime, timezone
+    
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
+
+    # Get CR to read prometheus config
+    if plan == "community":
+        cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+    else:
+        cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
+    
+    if not cr:
+        raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
+
+    prometheus_spec = cr.get("spec", {}).get("prometheus", {})
+    password_secret_ref = prometheus_spec.get("passwordSecretRef", {})
+    secret_name = password_secret_ref.get("name", "mongodb-admin-secret")
+    secret_key = password_secret_ref.get("key", "password")
+
+    # Generate new password
+    new_password = generate_strong_password()
+
+    # Update secret in K8s
+    k8s.update_secret_data(namespace, secret_name, secret_key, new_password)
+
+    # Reset firstViewedAt and increment version
+    prometheus_meta = deployment.get("prometheus", {})
+    password_version = prometheus_meta.get("passwordVersion", 0)
+    
+    repo.update_deployment(tenant_id, deployment_id, {
+        "prometheus.firstViewedAt": None,
+        "prometheus.passwordVersion": password_version + 1,
+        "prometheus.lastRotatedAt": datetime.now(timezone.utc).isoformat()
+    })
+
+    return {
+        "message": "Password rotated successfully. You can now reveal the new password once.",
+        "passwordVersion": password_version + 1
     }

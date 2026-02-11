@@ -583,6 +583,266 @@
       "response": []
     },
     {
+      "name": "Get Prometheus Scrape Config (Enterprise)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/config",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "config"]
+        }
+      },
+      "response": [
+        {
+          "name": "First View - Full Password",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "config"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"jobName\": \"mongo-rs-orders\",\n  \"metricsPath\": \"/metrics\",\n  \"username\": \"prometheus-user\",\n  \"passwordMasked\": \"***************123\",\n  \"targets\": [\n    \"172.31.23.201:31586\"\n  ],\n  \"labels\": {\n    \"app\": \"mongo-rs-orders\"\n  },\n  \"workerNodeIps\": [\n    \"172.31.23.201\",\n    \"172.31.22.150\",\n    \"172.31.25.88\"\n  ],\n  \"nodePort\": 31586,\n  \"canRevealPassword\": true\n}"
+        },
+        {
+          "name": "After Password Revealed",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "config"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"jobName\": \"mongo-rs-orders\",\n  \"metricsPath\": \"/metrics\",\n  \"username\": \"prometheus-user\",\n  \"passwordMasked\": \"***************123\",\n  \"targets\": [\n    \"172.31.23.201:31586\"\n  ],\n  \"labels\": {\n    \"app\": \"mongo-rs-orders\"\n  },\n  \"workerNodeIps\": [\n    \"172.31.23.201\",\n    \"172.31.22.150\",\n    \"172.31.25.88\"\n  ],\n  \"nodePort\": 31586,\n  \"canRevealPassword\": false\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Prometheus Scrape Config (Community)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/monitoring/prometheus/config",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "monitoring", "prometheus", "config"]
+        }
+      },
+      "response": [
+        {
+          "name": "Community - First View",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/monitoring/prometheus/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-initech", "deployments", "rs-test", "monitoring", "prometheus", "config"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"jobName\": \"mongo-rs-test\",\n  \"metricsPath\": \"/metrics\",\n  \"username\": \"prometheus-user\",\n  \"passwordMasked\": \"**********456\",\n  \"targets\": [\n    \"172.31.23.201:32145\"\n  ],\n  \"labels\": {\n    \"app\": \"mongo-rs-test\"\n  },\n  \"workerNodeIps\": [\n    \"172.31.23.201\",\n    \"172.31.22.150\",\n    \"172.31.25.88\"\n  ],\n  \"nodePort\": 32145,\n  \"canRevealPassword\": true\n}"
+        }
+      ]
+    },
+    {
+      "name": "Reveal Prometheus Password (Enterprise - First Time)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/reveal",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "reveal"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success - Full Password",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/reveal",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "reveal"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"username\": \"prometheus-user\",\n  \"password\": \"SuperSecretPass123\"\n}"
+        },
+        {
+          "name": "Error - Already Revealed",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/reveal",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "reveal"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"detail\": \"Password already revealed. Rotate to generate a new one.\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Reveal Prometheus Password (Community)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/monitoring/prometheus/reveal",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "monitoring", "prometheus", "reveal"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/monitoring/prometheus/reveal",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-initech", "deployments", "rs-test", "monitoring", "prometheus", "reveal"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"username\": \"prometheus-user\",\n  \"password\": \"CommunityPass456\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Rotate Prometheus Password (Enterprise)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/rotate",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "rotate"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/monitoring/prometheus/rotate",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-acme", "deployments", "rs-orders", "monitoring", "prometheus", "rotate"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Password rotated successfully. You can now reveal the new password once.\",\n  \"passwordVersion\": 2\n}"
+        }
+      ]
+    },
+    {
+      "name": "Rotate Prometheus Password (Community)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/monitoring/prometheus/rotate",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "monitoring", "prometheus", "rotate"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/monitoring/prometheus/rotate",
+              "host": ["{{baseUrl}}"],
+              "path": ["tenants", "t-initech", "deployments", "rs-test", "monitoring", "prometheus", "rotate"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Password rotated successfully. You can now reveal the new password once.\",\n  \"passwordVersion\": 1\n}"
+        }
+      ]
+    },
+    {
       "name": "Get Connection Info",
       "request": {
         "method": "GET",
