@@ -42,6 +42,7 @@ from app.models.dto import (
     ErrorResponse,
     PrometheusEnableRequest,
     PrometheusConfigResponse,
+    PrometheusScrapeConfigResponse,
     ConnectionInfoResponse,
     BackupUpdateRequest,
     BackupUpdateResponse,
@@ -299,6 +300,42 @@ def get_prometheus_monitoring(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error getting Prometheus monitoring config")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/monitoring/prometheus/config",
+    response_model=PrometheusScrapeConfigResponse
+)
+def get_prometheus_scrape_config(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Get ready-to-use Prometheus scrape configuration for a deployment.
+    
+    Returns YAML-ready configuration including:
+    - Job name and metrics path
+    - Basic auth credentials (full password on first view, masked afterwards)
+    - Target endpoints (worker-ip:nodePort)
+    - List of all worker node IPs
+    - Labels for scraped metrics
+    
+    Automatically enables Prometheus metrics if not already enabled.
+    Works for both Enterprise (MongoDB) and Community (MongoDBCommunity) deployments.
+    """
+    try:
+        result = monitoring_service.get_prometheus_scrape_config(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting Prometheus scrape config")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

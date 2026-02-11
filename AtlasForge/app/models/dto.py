@@ -164,3 +164,15 @@ class VersionUpgradeResponse(BaseModel):
     oldVersion: str
     newVersion: str
     message: Optional[str] = None
+
+
+class PrometheusScrapeConfigResponse(BaseModel):
+    jobName: str = Field(..., description="Prometheus job name for this deployment")
+    metricsPath: str = Field(..., description="Metrics endpoint path (e.g., /metrics)")
+    username: str = Field(..., description="Basic auth username for Prometheus")
+    password: str = Field(..., description="Password (full on first view, masked afterwards)")
+    targets: list[str] = Field(..., description="List of scrape targets (node-ip:port)")
+    labels: dict = Field(..., description="Labels to apply to scraped metrics")
+    workerNodeIps: list[str] = Field(..., description="All available worker node IPs")
+    nodePort: int = Field(..., description="NodePort for metrics service")
+    isFirstView: bool = Field(..., description="True if password is shown in full for the first time")

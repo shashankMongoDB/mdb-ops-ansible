@@ -438,6 +438,58 @@ class K8sClient:
         
         return False
 
+    def list_worker_node_ips(self) -> List[str]:
+        """
+        List all worker node IPs (excluding control-plane nodes).
+        Returns list of InternalIP addresses from worker nodes.
+        """
+        try:
+            nodes = self.core_v1.list_node()
+            worker_ips = []
+            
+            for node in nodes.items:
+                # Check if node has control-plane taint
+                is_control_plane = False
+                if node.spec.taints:
+                    for taint in node.spec.taints:
+                        if taint.key in ["node-role.kubernetes.io/control-plane", 
+                                        "node-role.kubernetes.io/master"]:
+                            is_control_plane = True
+                            break
+                
+                # Skip control-plane nodes
+                if is_control_plane:
+                    continue
+                
+                # Get InternalIP from node addresses
+                if node.status and node.status.addresses:
+                    for addr in node.status.addresses:
+                        if addr.type == "InternalIP":
+                            worker_ips.append(addr.address)
+                            break
+            
+            return worker_ips
+        except ApiException as e:
+            raise RuntimeError(f"Failed to list worker nodes: {e}")
+
+    def get_secret_data(self, namespace: str, name: str, key: str = "password") -> Optional[str]:
+        """
+        Read a secret and return decoded value for a specific key.
+        Returns None if secret or key not found.
+        """
+        import base64
+        
+        try:
+            secret = self.core_v1.read_namespaced_secret(name=name, namespace=namespace)
+            if secret.data and key in secret.data:
+                # Decode base64 data
+                return base64.b64decode(secret.data[key]).decode('utf-8')
+            return None
+        except ApiException as e:
+            if e.status == 404:
+                return None
+            raise
+
 
 _k8s_instance: Optional[K8sClient] = None
 

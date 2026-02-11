@@ -76,3 +76,15 @@ export interface ApiError {
   detail: string;
   status?: number;
 }
+
+export interface PrometheusScrapeConfig {
+  jobName: string;
+  metricsPath: string;
+  username: string;
+  password: string;
+  targets: string[];
+  labels: Record<string, string>;
+  workerNodeIps: string[];
+  nodePort: number;
+  isFirstView: boolean;
+}

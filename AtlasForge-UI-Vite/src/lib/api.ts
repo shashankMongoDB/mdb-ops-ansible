@@ -173,6 +173,15 @@ export const deploymentsApi = {
     }
   },
 
+  async getPrometheusScrapeConfig(tenantId: string, deploymentId: string): Promise<PrometheusScrapeConfig> {
+    try {
+      const response = await api.get<PrometheusScrapeConfig>(`/tenants/${tenantId}/deployments/${deploymentId}/monitoring/prometheus/config`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
   async updateBackup(tenantId: string, deploymentId: string, enabled: boolean): Promise<void> {
     try {
       await api.patch(`/tenants/${tenantId}/deployments/${deploymentId}/backup`, { enabled });

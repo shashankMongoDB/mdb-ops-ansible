@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
+import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { deploymentsApi } from '@/lib/api';
 import { useToast } from './Toast';
-import { ConfirmModal } from './ConfirmModal';
-import type { PrometheusConfig } from '@/lib/types';
+import type { PrometheusScrapeConfig } from '@/lib/types';
 
 interface PrometheusCardProps {
   tenantId: string;
@@ -10,12 +10,10 @@ interface PrometheusCardProps {
 }
 
 export function PrometheusCard({ tenantId, deploymentId }: PrometheusCardProps) {
-  const [config, setConfig] = useState<PrometheusConfig | null>(null);
+  const [config, setConfig] = useState<PrometheusScrapeConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingEnabled, setPendingEnabled] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { showSuccess, showError } = useToast();
 
   useEffect(() => {
@@ -26,12 +24,9 @@ export function PrometheusCard({ tenantId, deploymentId }: PrometheusCardProps) 
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading Prometheus config for:', tenantId, deploymentId);
-      const data = await deploymentsApi.getPrometheusConfig(tenantId, deploymentId);
-      console.log('Prometheus config received:', data);
+      const data = await deploymentsApi.getPrometheusScrapeConfig(tenantId, deploymentId);
       setConfig(data);
     } catch (error: any) {
-      console.error('Failed to load Prometheus config:', error);
       const errorMsg = error.detail || error.message || 'Unknown error';
       setError(errorMsg);
       showError('Failed to load Prometheus config', errorMsg);
@@ -40,34 +35,41 @@ export function PrometheusCard({ tenantId, deploymentId }: PrometheusCardProps) 
     }
   };
 
-  const handleToggle = () => {
-    if (config) {
-      setPendingEnabled(!config.enabled);
-      setShowConfirm(true);
-    }
+  const buildYamlConfig = () => {
+    if (!config) return '';
+
+    const labelsYaml = Object.entries(config.labels)
+      .map(([key, value]) => `        ${key}: "${value}"`)
+      .join('\n');
+
+    return `job_name: "${config.jobName}"
+metrics_path: ${config.metricsPath}
+basic_auth:
+  username: ${config.username}
+  password: ${config.password}
+static_configs:
+  - targets:
+${config.targets.map(t => `    - "${t}"`).join('\n')}
+    labels:
+${labelsYaml}`;
   };
 
-  const handleConfirm = async () => {
-    setUpdating(true);
+  const handleCopy = async () => {
+    const yamlConfig = buildYamlConfig();
     try {
-      const updatedConfig = await deploymentsApi.updatePrometheus(tenantId, deploymentId, pendingEnabled);
-      setConfig(updatedConfig);
-      showSuccess(
-        `Prometheus ${pendingEnabled ? 'enabled' : 'disabled'}`,
-        `Monitoring has been ${pendingEnabled ? 'enabled' : 'disabled'} for this deployment`
-      );
-    } catch (error: any) {
-      showError('Failed to update Prometheus', error.detail);
-    } finally {
-      setUpdating(false);
-      setShowConfirm(false);
+      await navigator.clipboard.writeText(yamlConfig);
+      setCopied(true);
+      showSuccess('Copied!', 'Configuration copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      showError('Failed to copy', 'Could not copy to clipboard');
     }
   };
 
   if (loading) {
     return (
       <div className="card">
-        <div className="text-gray-500">Loading Prometheus config...</div>
+        <div className="text-gray-500">Loading Prometheus configuration...</div>
       </div>
     );
   }
@@ -95,89 +97,91 @@ export function PrometheusCard({ tenantId, deploymentId }: PrometheusCardProps) 
     );
   }
 
-  const prometheusYaml = config.enabled && config.externalHost
-    ? `# Add this to your prometheus.yml:
-
-scrape_configs:
-  - job_name: '${deploymentId}'
-    static_configs:
-      - targets: ['${config.externalHost}:${config.externalPort}']
-    metrics_path: '${config.metricsPath || '/metrics'}'`
-    : '';
-
   return (
-    <>
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-semibold text-mongodb-forest">Prometheus Monitoring</h3>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={config.enabled}
-              onChange={handleToggle}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-mongodb-green/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-mongodb-green"></div>
-          </label>
+    <div className="card">
+      <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Prometheus Scrape Configuration</h3>
+
+      {/* Password warning for first view */}
+      {config.isFirstView && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-sm text-yellow-800 font-medium">
+            ⚠️ Password is shown only once in full. Please copy and store it securely. 
+            It will be masked on subsequent views.
+          </p>
         </div>
+      )}
 
-        {config.enabled ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="badge badge-green">Enabled</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">External Host</label>
-                <p className="text-sm text-gray-600 font-mono">{config.externalHost || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Port</label>
-                <p className="text-sm text-gray-600 font-mono">{config.externalPort || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Metrics Path</label>
-                <p className="text-sm text-gray-600 font-mono">{config.metricsPath || '/metrics'}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Full URL</label>
-                <p className="text-sm text-gray-600 font-mono">
-                  {config.externalHost && config.externalPort 
-                    ? `http://${config.externalHost}:${config.externalPort}${config.metricsPath || '/metrics'}`
-                    : 'Not configured'}
-                </p>
-              </div>
-            </div>
-
-            {config.externalHost && prometheusYaml && (
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2">
-                  Prometheus Configuration (prometheus.yml)
-                </label>
-                <pre className="bg-gray-50 p-4 rounded-md border border-gray-200 text-xs font-mono overflow-x-auto whitespace-pre">
-{prometheusYaml}
-                </pre>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div>
-            <span className="badge badge-gray">Disabled</span>
-            <p className="text-sm text-gray-600 mt-3">Enable Prometheus to expose metrics for monitoring</p>
-          </div>
-        )}
+      {/* Instructions */}
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+        <h4 className="font-medium text-blue-900 mb-2">Instructions:</h4>
+        <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+          <li>Copy the configuration below and add it to your <code className="bg-blue-100 px-1 rounded">prometheus.yml</code> file</li>
+          <li>You can use any of the worker node IPs listed below with NodePort <code className="bg-blue-100 px-1 rounded">{config.nodePort}</code></li>
+          <li>After updating prometheus.yml, restart your Prometheus server</li>
+          <li>Access your Prometheus UI to verify the target health</li>
+        </ol>
       </div>
 
-      <ConfirmModal
-        open={showConfirm}
-        onClose={() => setShowConfirm(false)}
-        onConfirm={handleConfirm}
-        title={`${pendingEnabled ? 'Enable' : 'Disable'} Prometheus Monitoring`}
-        message={`Are you sure you want to ${pendingEnabled ? 'enable' : 'disable'} Prometheus monitoring for this deployment?`}
-        confirmText={pendingEnabled ? 'Enable' : 'Disable'}
-        loading={updating}
-      />
-    </>
+      {/* Worker Node IPs */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Available Worker Node IPs:
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {config.workerNodeIps.map((ip) => (
+            <span key={ip} className="badge badge-gray font-mono text-xs">
+              {ip}
+            </span>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          NodePort: <span className="font-mono">{config.nodePort}</span>
+        </p>
+      </div>
+
+      {/* YAML Configuration */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Prometheus Configuration:
+          </label>
+          <button
+            onClick={handleCopy}
+            className="btn-secondary text-xs flex items-center gap-1"
+          >
+            {copied ? (
+              <>
+                <CheckIcon className="h-4 w-4" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <ClipboardDocumentIcon className="h-4 w-4" />
+                Copy Config
+              </>
+            )}
+          </button>
+        </div>
+        <pre className="bg-gray-50 p-4 rounded-md border border-gray-200 text-xs font-mono overflow-x-auto whitespace-pre">
+{buildYamlConfig()}
+        </pre>
+      </div>
+
+      {/* Additional Details */}
+      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Job Name</label>
+          <p className="text-sm font-mono text-gray-900">{config.jobName}</p>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Username</label>
+          <p className="text-sm font-mono text-gray-900">{config.username}</p>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Metrics Path</label>
+          <p className="text-sm font-mono text-gray-900">{config.metricsPath}</p>
+        </div>
+      </div>
+    </div>
   );
 }
