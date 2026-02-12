@@ -195,7 +195,7 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
     return {
         "tenantId": tenant_id,
         "deploymentId": deployment_id,
-        "clusterType": cluster_type,
+        "clusterType": deployment.get("type", "ReplicaSet"),
         "oldVersion": current_version,
         "newVersion": mongo_version
     }
