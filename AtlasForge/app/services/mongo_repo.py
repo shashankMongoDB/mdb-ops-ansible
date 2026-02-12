@@ -14,6 +14,7 @@ class MongoRepository:
         self.db = self.client[config.MCP_DB_NAME]
         self.tenants = self.db["tenants"]
         self.deployments = self.db["deployments"]
+        self.db_users = self.db["db_users"]
 
     def get_tenant(self, tenant_id: str) -> Optional[Dict[str, Any]]:
         return self.tenants.find_one({"_id": tenant_id})
@@ -71,6 +72,26 @@ class MongoRepository:
         """Delete all deployments for a tenant. Returns count of deleted documents."""
         result = self.deployments.delete_many({"tenantId": tenant_id})
         return result.deleted_count
+
+    # DB Users
+    def insert_db_user(self, doc: Dict[str, Any]) -> None:
+        """Insert a DB user metadata document"""
+        try:
+            self.db_users.insert_one(doc)
+        except DuplicateKeyError:
+            raise ValueError(f"DB user {doc['_id']} already exists")
+
+    def get_db_user(self, tenant_id: str, deployment_id: str, username: str) -> Optional[Dict[str, Any]]:
+        """Get a DB user by tenant, deployment, and username"""
+        doc_id = f"{tenant_id}:{deployment_id}:{username}"
+        return self.db_users.find_one({"_id": doc_id})
+
+    def list_db_users(self, tenant_id: str, deployment_id: str) -> list[Dict[str, Any]]:
+        """List all DB users for a deployment"""
+        return list(self.db_users.find({
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id
+        }))
 
     def close(self):
         self.client.close()

@@ -277,4 +277,32 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  // DB Users
+  async createDBUser(tenantId: string, deploymentId: string, data: { username: string; db: string; rolePreset: string }): Promise<any> {
+    try {
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/users`, data);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async listDBUsers(tenantId: string, deploymentId: string): Promise<any[]> {
+    try {
+      const response = await api.get(`/tenants/${tenantId}/deployments/${deploymentId}/users`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async getUserConnection(tenantId: string, deploymentId: string, username: string): Promise<any> {
+    try {
+      const response = await api.get(`/tenants/${tenantId}/deployments/${deploymentId}/users/${username}/connection`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };

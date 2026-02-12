@@ -62,7 +62,10 @@ from app.models.dto import (
     ScaleRequest,
     ScaleResponse,
     VersionUpgradeRequest,
-    VersionUpgradeResponse
+    VersionUpgradeResponse,
+    CreateDBUserRequest,
+    DBUserResponse,
+    DBUserConnectionResponse
 )
 from app.services import tenants_service
 from app.services import deployments_service
@@ -70,6 +73,7 @@ from app.services import monitoring_service
 from app.services import lifecycle_service
 from app.services import scaling_service
 from app.services import backup_service
+from app.services import db_users_service
 
 logging.basicConfig(
     level=getattr(logging, config.MCP_LOG_LEVEL),
@@ -833,6 +837,94 @@ def upgrade_deployment_version(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error upgrading deployment version")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+# ============================================================
+# DB Users
+# ============================================================
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/users",
+    response_model=DBUserResponse
+)
+def create_db_user(
+    request: CreateDBUserRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Create a database user for a MongoDB deployment.
+    
+    Creates MongoDBUser CR and Secret, returns connection URI.
+    """
+    try:
+        result = db_users_service.create_db_user(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            username=request.username,
+            db=request.db,
+            role_preset=request.rolePreset
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "already exists" in str(e):
+            raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error creating DB user")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/users"
+)
+def list_db_users(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    List all database users for a deployment.
+    
+    Returns metadata only (no passwords).
+    """
+    try:
+        users = db_users_service.list_db_users(tenantId, deploymentId)
+        return users
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error listing DB users")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/users/{username}/connection",
+    response_model=DBUserConnectionResponse
+)
+def get_user_connection(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier"),
+    username: str = Path(..., description="Username")
+):
+    """
+    Get connection URIs for a specific database user.
+    
+    Returns external and internal URIs with credentials.
+    """
+    try:
+        result = db_users_service.get_user_connection(tenantId, deploymentId, username)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting user connection")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

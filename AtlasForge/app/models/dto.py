@@ -231,3 +231,26 @@ class BackupSnapshotResponse(BaseModel):
     status: str = Field(..., description="Snapshot status")
     createdAt: Optional[str] = Field(None, description="Created timestamp (ISO)")
     expiresAt: Optional[str] = Field(None, description="Expiration timestamp (ISO)")
+
+
+# DB Users
+class CreateDBUserRequest(BaseModel):
+    username: str = Field(..., description="Database username")
+    db: str = Field(..., description="Database name")
+    rolePreset: str = Field(..., description="Role preset: readWrite, read, or dbAdmin")
+
+
+class DBUserResponse(BaseModel):
+    username: str
+    db: str
+    roles: list[dict]
+    createdAt: str
+    connectionUri: Optional[str] = None
+
+
+class DBUserConnectionResponse(BaseModel):
+    username: str
+    db: str
+    roles: list[dict]
+    externalUri: Optional[str] = None
+    internalUri: Optional[str] = None

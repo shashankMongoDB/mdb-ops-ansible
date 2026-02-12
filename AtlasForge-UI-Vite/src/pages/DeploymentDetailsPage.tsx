@@ -9,12 +9,14 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { ConnectionInfo } from '@/components/ConnectionInfo';
 import { PrometheusCard } from '@/components/PrometheusCard';
 import { BackupPanel } from '@/components/BackupPanelReadOnly';
+import { CreateUserModal } from '@/components/CreateUserModal';
+import { UserConnectionModal } from '@/components/UserConnectionModal';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment, Tenant } from '@/lib/types';
 
 type ActionType = 'shutdown' | 'restart' | 'delete' | null;
-type TabType = 'overview' | 'monitoring' | 'backup';
+type TabType = 'overview' | 'connection' | 'users' | 'backup' | 'monitoring';
 
 export function DeploymentDetailsPage() {
   const { tenantId, deploymentId } = useParams<{ tenantId: string; deploymentId: string }>();
@@ -27,6 +29,15 @@ export function DeploymentDetailsPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ActionType>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // DB Users state
+  const [dbUsers, setDbUsers] = useState<any[]>([]);
+  const [dbUsersLoading, setDbUsersLoading] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [showUserConnectionModal, setShowUserConnectionModal] = useState(false);
+  const [selectedUserConnection, setSelectedUserConnection] = useState<any>(null);
+  
   const { showSuccess, showError } = useToast();
 
   const tenantPlan = tenant?.plan || 'enterprise';
@@ -101,6 +112,56 @@ export function DeploymentDetailsPage() {
       </div>
     );
   }
+
+  // DB Users handlers
+  const loadDBUsers = async () => {
+    if (!tenantId || !deploymentId) return;
+    
+    setDbUsersLoading(true);
+    try {
+      const users = await deploymentsApi.listDBUsers(tenantId, deploymentId);
+      setDbUsers(users);
+    } catch (error: any) {
+      showError('Failed to load DB users', error.detail);
+    } finally {
+      setDbUsersLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (data: { username: string; db: string; rolePreset: string }) => {
+    if (!tenantId || !deploymentId) return;
+    
+    setCreatingUser(true);
+    try {
+      await deploymentsApi.createDBUser(tenantId, deploymentId, data);
+      showSuccess('User Created', `Database user ${data.username} has been created successfully`);
+      setShowCreateUserModal(false);
+      await loadDBUsers();
+    } catch (error: any) {
+      showError('Failed to create user', error.detail);
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  const handleViewConnection = async (username: string) => {
+    if (!tenantId || !deploymentId) return;
+    
+    try {
+      const connection = await deploymentsApi.getUserConnection(tenantId, deploymentId, username);
+      setSelectedUserConnection(connection);
+      setShowUserConnectionModal(true);
+    } catch (error: any) {
+      showError('Failed to load connection', error.detail);
+    }
+  };
+
+  // Load DB users when switching to users tab
+  useEffect(() => {
+    if (activeTab === 'users' && tenantId && deploymentId) {
+      loadDBUsers();
+    }
+  }, [activeTab, tenantId, deploymentId]);
 
   return (
     <div>
@@ -178,7 +239,7 @@ export function DeploymentDetailsPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="flex space-x-8">
-          {(['overview', 'monitoring', ...(tenantPlan === 'enterprise' ? ['backup' as TabType] : [])] as TabType[]).map((tab) => (
+          {(['overview', 'connection', 'users', ...(tenantPlan === 'enterprise' ? ['backup' as TabType] : []), 'monitoring'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -188,7 +249,7 @@ export function DeploymentDetailsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              {tab}
+              {tab === 'users' ? 'DB Users' : tab}
             </button>
           ))}
         </nav>
@@ -233,6 +294,86 @@ export function DeploymentDetailsPage() {
       {activeTab === 'monitoring' && (
         <div>
           <PrometheusCard tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />
+        </div>
+      )}
+
+      {activeTab === 'connection' && (
+        <ConnectionInfo tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />
+      )}
+
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-semibold text-mongodb-forest">Database Users</h2>
+            <button onClick={() => setShowCreateUserModal(true)} className="btn-primary">
+              Create DB User
+            </button>
+          </div>
+
+          {dbUsersLoading ? (
+            <div className="card">
+              <p className="text-gray-500">Loading users...</p>
+            </div>
+          ) : dbUsers.length === 0 ? (
+            <div className="card text-center py-12">
+              <p className="text-gray-500 mb-4">No database users yet</p>
+              <button onClick={() => setShowCreateUserModal(true)} className="btn-primary">
+                Create First User
+              </button>
+            </div>
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Username
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Database
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Roles
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created At
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {dbUsers.map((user) => (
+                      <tr key={user.username}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {user.username}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {user.db}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {user.roles.map((r: any) => `${r.role}@${r.db}`).join(', ')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(user.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => handleViewConnection(user.username)}
+                            className="text-mongodb-green hover:text-mongodb-green-dark font-medium"
+                          >
+                            View Connection
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -295,6 +436,25 @@ export function DeploymentDetailsPage() {
         confirmText="Delete"
         confirmVariant="danger"
         loading={actionLoading}
+      />
+
+      {/* DB Users Modals */}
+      <CreateUserModal
+        open={showCreateUserModal}
+        onClose={() => setShowCreateUserModal(false)}
+        onSubmit={handleCreateUser}
+        loading={creatingUser}
+      />
+
+      <UserConnectionModal
+        open={showUserConnectionModal}
+        onClose={() => {
+          setShowUserConnectionModal(false);
+          setSelectedUserConnection(null);
+        }}
+        username={selectedUserConnection?.username || ''}
+        externalUri={selectedUserConnection?.externalUri}
+        internalUri={selectedUserConnection?.internalUri}
       />
     </div>
   );
