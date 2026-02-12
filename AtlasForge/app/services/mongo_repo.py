@@ -28,6 +28,10 @@ class MongoRepository:
         except DuplicateKeyError:
             raise ValueError(f"Tenant {doc['_id']} already exists")
 
+    def update_tenant(self, tenant_id: str, patch: Dict[str, Any]) -> None:
+        """Update tenant fields"""
+        self.tenants.update_one({"_id": tenant_id}, {"$set": patch})
+
     def get_deployment(self, tenant_id: str, deployment_id: str) -> Optional[Dict[str, Any]]:
         doc_id = f"{tenant_id}:{deployment_id}"
         logger.debug(f"Querying deployment with _id: {doc_id}")
