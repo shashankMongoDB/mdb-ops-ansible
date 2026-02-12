@@ -14,6 +14,7 @@ ProjectId Discovery:
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from app.services.mongo_repo import get_repo
+from app.services.k8s_client import get_k8s_client
 from app.services.opsmanager_backup_client import get_om_backup_client
 from app.services.opsmanager_project_client import get_om_project_client
 
@@ -179,9 +180,9 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     Get backup status for a deployment.
     
     Returns:
-    - backupEnabled: bool
+    - backupEnabled: bool (from K8s CR spec.backup.enabled)
     - policyName: string or null
-    - status: "NEVER_RUN" / "ACTIVE" / "ERROR"
+    - status: "NEVER_RUN" / "ACTIVE" / "NOT_CONFIGURED" / "NOT_READY" / "ERROR"
     - lastSnapshotTime: ISO string or null
     - pitrEnabled: bool
     - pitrWindowStart: ISO string or null
@@ -190,6 +191,7 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     Raises ValueError if not Enterprise plan.
     """
     repo = get_repo()
+    k8s = get_k8s_client()
     om_client = get_om_backup_client()
 
     tenant = repo.get_tenant(tenant_id)
@@ -202,6 +204,18 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
+    namespace = tenant["namespace"]
+    
+    # Check K8s CR to see if backup is enabled (source of truth)
+    cr = k8s.get_mongodb_cr(namespace, deployment_id)
+    backup_enabled_in_k8s = False
+    
+    if cr and cr.get("spec", {}).get("backup"):
+        backup_mode = cr.get("spec", {}).get("backup", {}).get("mode")
+        backup_enabled_in_k8s = backup_mode == "enabled"
+    
+    print(f"[BACKUP_STATUS] K8s CR backup enabled: {backup_enabled_in_k8s}")
+
     # Lazily discover and cache projectId (read-only lookup)
     om_project_id = _discover_and_cache_project_id(tenant, deployment)
     cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
@@ -209,7 +223,7 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not om_project_id:
         # OM project not found yet - operator may not have created it
         return {
-            "backupEnabled": False,
+            "backupEnabled": backup_enabled_in_k8s,
             "policyName": None,
             "status": "NOT_READY",
             "lastSnapshotTime": None,
@@ -222,10 +236,11 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         backup_config = om_client.get_backup_config(om_project_id, cluster_name)
         
         if not backup_config:
+            # K8s says enabled but OM config doesn't exist yet
             return {
-                "backupEnabled": False,
+                "backupEnabled": backup_enabled_in_k8s,
                 "policyName": None,
-                "status": "NOT_CONFIGURED",
+                "status": "NOT_CONFIGURED" if backup_enabled_in_k8s else "NEVER_RUN",
                 "lastSnapshotTime": None,
                 "pitrEnabled": False,
                 "pitrWindowStart": None,
@@ -264,19 +279,19 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        # If OM API fails (404 = not configured, other = error)
+        # If OM API fails (404/400 = not configured, other = error)
         error_msg = str(e)
-        is_not_configured = "404" in error_msg or "Bad Request" in error_msg
+        is_not_configured = "404" in error_msg or "Bad Request" in error_msg or "400" in error_msg
         
         return {
-            "backupEnabled": False,
+            "backupEnabled": backup_enabled_in_k8s,
             "policyName": None,
             "status": "NOT_CONFIGURED" if is_not_configured else "ERROR",
             "lastSnapshotTime": None,
             "pitrEnabled": False,
             "pitrWindowStart": None,
             "pitrWindowEnd": None,
-            "error": "Backup not configured in Ops Manager yet" if is_not_configured else error_msg
+            "error": "Backup enabled in Kubernetes. Waiting for Ops Manager backup configuration..." if is_not_configured else error_msg
         }
 
 
