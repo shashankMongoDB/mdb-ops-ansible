@@ -619,6 +619,94 @@ def list_backup_snapshots(
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/start"
+)
+def start_backup(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Start backup for a deployment in Ops Manager.
+    
+    Uses OM internal endpoint to set backup state to STARTED.
+    Only available for Enterprise plan deployments.
+    """
+    try:
+        result = backup_service.start_backup(tenantId, deploymentId)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error starting backup")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/stop"
+)
+def stop_backup(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Stop backup for a deployment in Ops Manager.
+    
+    Uses OM internal endpoint to set backup state to STOPPED.
+    Only available for Enterprise plan deployments.
+    """
+    try:
+        result = backup_service.stop_backup(tenantId, deploymentId)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error stopping backup")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/restore"
+)
+def restore_backup(
+    request: Dict[str, Any],
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Restore a deployment from a snapshot.
+    
+    Creates a restore job in Ops Manager for automated (in-place) restore.
+    Only available for Enterprise plan deployments.
+    
+    Body: { "snapshotId": "snapshot-id-here" }
+    """
+    try:
+        snapshot_id = request.get("snapshotId")
+        if not snapshot_id:
+            raise HTTPException(status_code=400, detail="snapshotId is required")
+        
+        result = backup_service.restore_snapshot(tenantId, deploymentId, snapshot_id)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error restoring backup")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
 @app.patch(
     "/tenants/{tenantId}/deployments/{deploymentId}/monitoring",
     response_model=MonitoringUpdateResponse

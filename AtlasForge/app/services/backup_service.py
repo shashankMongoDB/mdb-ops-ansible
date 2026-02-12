@@ -515,3 +515,117 @@ def list_backup_snapshots(tenant_id: str, deployment_id: str, limit: int = 20) -
             print(f"[BACKUP] Backup not configured in OM yet, returning empty snapshots list")
             return []
         raise ValueError(f"Failed to list snapshots: {str(e)}")
+
+
+def start_backup(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+    """
+    Start backup for a deployment in Ops Manager.
+    
+    Uses OM 8.0.10 internal endpoint to set backup state to STARTED.
+    Enterprise only.
+    """
+    repo = get_repo()
+    om_client = get_om_backup_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    _check_enterprise_plan(tenant)
+
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    # Lazily discover projectId
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
+    cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
+    
+    if not om_project_id:
+        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
+
+    try:
+        result = om_client.start_backup(om_project_id, cluster_name)
+        return {
+            "message": f"Backup started for deployment {deployment_id}",
+            "state": result.get("state", "STARTED")
+        }
+    except Exception as e:
+        raise ValueError(f"Failed to start backup: {str(e)}")
+
+
+def stop_backup(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+    """
+    Stop backup for a deployment in Ops Manager.
+    
+    Uses OM 8.0.10 internal endpoint to set backup state to STOPPED.
+    Enterprise only.
+    """
+    repo = get_repo()
+    om_client = get_om_backup_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    _check_enterprise_plan(tenant)
+
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    # Lazily discover projectId
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
+    cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
+    
+    if not om_project_id:
+        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
+
+    try:
+        result = om_client.stop_backup(om_project_id, cluster_name)
+        return {
+            "message": f"Backup stopped for deployment {deployment_id}",
+            "state": result.get("state", "STOPPED")
+        }
+    except Exception as e:
+        raise ValueError(f"Failed to stop backup: {str(e)}")
+
+
+def restore_snapshot(tenant_id: str, deployment_id: str, snapshot_id: str) -> Dict[str, Any]:
+    """
+    Restore a deployment from a snapshot.
+    
+    Creates a restore job in Ops Manager.
+    Enterprise only.
+    """
+    repo = get_repo()
+    om_client = get_om_backup_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    _check_enterprise_plan(tenant)
+
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    # Lazily discover projectId
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
+    cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
+    
+    if not om_project_id:
+        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
+
+    try:
+        restore_job = om_client.restore_snapshot(om_project_id, cluster_name, snapshot_id)
+        
+        return {
+            "message": f"Restore job submitted for deployment {deployment_id}",
+            "restoreJobId": restore_job.get("id"),
+            "status": "SUBMITTED",
+            "snapshotId": snapshot_id
+        }
+    except Exception as e:
+        raise ValueError(f"Failed to restore snapshot: {str(e)}")

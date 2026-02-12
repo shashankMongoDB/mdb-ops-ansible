@@ -250,4 +250,28 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  async startBackup(tenantId: string, deploymentId: string): Promise<void> {
+    try {
+      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/start`);
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async stopBackup(tenantId: string, deploymentId: string): Promise<void> {
+    try {
+      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/stop`);
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async restoreBackup(tenantId: string, deploymentId: string, snapshotId: string): Promise<void> {
+    try {
+      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/restore`, { snapshotId });
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };

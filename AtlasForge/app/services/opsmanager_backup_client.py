@@ -155,6 +155,75 @@ class OpsManagerBackupClient:
         path = f"/groups/{project_id}/clusters/{cluster_name}/snapshots/{snapshot_id}"
         return self._get(path)
 
+    def start_backup(self, project_id: str, cluster_name: str) -> Dict[str, Any]:
+        """
+        Start backup for a cluster using OM internal endpoint.
+        
+        Ops Manager 8.0.10 internal endpoint.
+        POST /backup/web/config/{projectId}/{clusterName}
+        Body: { "state": "STARTED" }
+        """
+        # Internal OM endpoint (not /api/public/v1.0)
+        url = f"{self.base_url}/backup/web/config/{project_id}/{cluster_name}"
+        
+        data = {"state": "STARTED"}
+        
+        print(f"[OM_BACKUP] Starting backup: POST {url}")
+        print(f"[OM_BACKUP] Data: {data}")
+        
+        response = requests.post(url, auth=self.auth, headers=self.headers, json=data)
+        response.raise_for_status()
+        
+        print(f"[OM_BACKUP] Backup started successfully")
+        return {"state": "STARTED"}
+
+    def stop_backup(self, project_id: str, cluster_name: str) -> Dict[str, Any]:
+        """
+        Stop backup for a cluster using OM internal endpoint.
+        
+        Ops Manager 8.0.10 internal endpoint.
+        POST /backup/web/config/{projectId}/{clusterName}
+        Body: { "state": "STOPPED" }
+        """
+        # Internal OM endpoint (not /api/public/v1.0)
+        url = f"{self.base_url}/backup/web/config/{project_id}/{cluster_name}"
+        
+        data = {"state": "STOPPED"}
+        
+        print(f"[OM_BACKUP] Stopping backup: POST {url}")
+        print(f"[OM_BACKUP] Data: {data}")
+        
+        response = requests.post(url, auth=self.auth, headers=self.headers, json=data)
+        response.raise_for_status()
+        
+        print(f"[OM_BACKUP] Backup stopped successfully")
+        return {"state": "STOPPED"}
+
+    def restore_snapshot(self, project_id: str, cluster_name: str, snapshot_id: str) -> Dict[str, Any]:
+        """
+        Create a restore job from a snapshot.
+        
+        Ops Manager 8.x restore endpoint.
+        POST /api/public/v1.0/groups/{projectId}/backup/restoreJobs
+        """
+        path = f"/groups/{project_id}/backup/restoreJobs"
+        
+        # Restore job payload for automated (in-place) restore
+        data = {
+            "snapshotId": snapshot_id,
+            "deliveryType": "automated",  # In-place restore
+            "targetGroupId": project_id,
+            "targetClusterName": cluster_name
+        }
+        
+        print(f"[OM_BACKUP] Creating restore job: POST {self.base_url}/api/public/v1.0{path}")
+        print(f"[OM_BACKUP] Data: {data}")
+        
+        result = self._post(path, data)
+        
+        print(f"[OM_BACKUP] Restore job created: {result.get('id')}")
+        return result
+
 
 _om_backup_client: Optional[OpsManagerBackupClient] = None
 

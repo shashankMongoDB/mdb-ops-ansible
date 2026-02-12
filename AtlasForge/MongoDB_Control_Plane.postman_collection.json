@@ -974,6 +974,54 @@
       "response": []
     },
     {
+      "name": "Start Backup",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/start",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "start"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Stop Backup",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/stop",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "stop"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Restore from Snapshot",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"snapshotId\": \"snapshot-id-here\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/restore",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "restore"]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Enable Monitoring (Prometheus)",
       "request": {
         "method": "PATCH",

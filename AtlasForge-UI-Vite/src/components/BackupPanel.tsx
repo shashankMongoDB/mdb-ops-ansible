@@ -30,6 +30,17 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
   
   const [autoRefresh, setAutoRefresh] = useState(false);
   
+  // Start/Stop backup state
+  const [startingBackup, setStartingBackup] = useState(false);
+  const [stoppingBackup, setStoppingBackup] = useState(false);
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  
+  // Restore state
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+  const [restoringBackup, setRestoringBackup] = useState(false);
+  
   const { showSuccess, showError: showErrorToast } = useToast();
 
   useEffect(() => {
@@ -129,7 +140,7 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
     setTriggeringSnapshot(true);
     setShowSnapshotConfirm(false);
     
-    try {
+    try:
       await deploymentsApi.triggerBackupSnapshot(tenantId, deploymentId);
       showSuccess('Snapshot Triggered', 'On-demand snapshot has been initiated');
       await loadData();
@@ -137,6 +148,57 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
       showErrorToast('Failed to trigger snapshot', error.detail);
     } finally {
       setTriggeringSnapshot(false);
+    }
+  };
+
+  const handleStartBackup = async () => {
+    setStartingBackup(true);
+    setShowStartConfirm(false);
+    
+    try {
+      await deploymentsApi.startBackup(tenantId, deploymentId);
+      showSuccess('Backup Started', 'Backup has been started in Ops Manager');
+      await loadData();
+    } catch (error: any) {
+      showErrorToast('Failed to start backup', error.detail);
+    } finally {
+      setStartingBackup(false);
+    }
+  };
+
+  const handleStopBackup = async () => {
+    setStoppingBackup(true);
+    setShowStopConfirm(false);
+    
+    try {
+      await deploymentsApi.stopBackup(tenantId, deploymentId);
+      showSuccess('Backup Stopped', 'Backup has been stopped in Ops Manager');
+      await loadData();
+    } catch (error: any) {
+      showErrorToast('Failed to stop backup', error.detail);
+    } finally {
+      setStoppingBackup(false);
+    }
+  };
+
+  const handleRestoreSnapshot = async () => {
+    if (!selectedSnapshot) return;
+    
+    setRestoringBackup(true);
+    setShowRestoreConfirm(false);
+    
+    try {
+      await deploymentsApi.restoreBackup(tenantId, deploymentId, selectedSnapshot);
+      showSuccess(
+        'Restore Job Submitted', 
+        'Restore job has been submitted in Ops Manager. Monitor progress in the Ops Manager UI.'
+      );
+      setSelectedSnapshot(null);
+      await loadData();
+    } catch (error: any) {
+      showErrorToast('Failed to restore snapshot', error.detail);
+    } finally {
+      setRestoringBackup(false);
     }
   };
 
@@ -268,15 +330,38 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="badge badge-green">Enabled</span>
-                <span className={`badge ${
-                  status.status === 'ACTIVE' ? 'badge-green' :
-                  status.status === 'ERROR' ? 'badge-red' :
-                  'badge-gray'
-                }`}>
-                  {status.status}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="badge badge-green">Enabled</span>
+                  <span className={`badge ${
+                    status.status === 'ACTIVE' || status.status === 'STARTED' ? 'badge-green' :
+                    status.status === 'STOPPED' ? 'badge-gray' :
+                    status.status === 'ERROR' ? 'badge-red' :
+                    'badge-gray'
+                  }`}>
+                    {status.status}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {status.status !== 'STARTED' && status.status !== 'ACTIVE' && (
+                    <button
+                      onClick={() => setShowStartConfirm(true)}
+                      disabled={startingBackup}
+                      className="btn-primary text-sm"
+                    >
+                      {startingBackup ? 'Starting...' : 'Start Backup'}
+                    </button>
+                  )}
+                  {(status.status === 'STARTED' || status.status === 'ACTIVE') && (
+                    <button
+                      onClick={() => setShowStopConfirm(true)}
+                      disabled={stoppingBackup}
+                      className="btn-secondary text-sm"
+                    >
+                      {stoppingBackup ? 'Stopping...' : 'Stop Backup'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -333,6 +418,7 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -363,6 +449,20 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {formatDateTime(snapshot.expiresAt)}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {snapshot.status === 'COMPLETED' && (
+                          <button
+                            onClick={() => {
+                              setSelectedSnapshot(snapshot.snapshotId);
+                              setShowRestoreConfirm(true);
+                            }}
+                            disabled={restoringBackup}
+                            className="text-mongodb-green hover:text-mongodb-green-dark text-sm font-medium"
+                          >
+                            Restore
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -446,6 +546,42 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
         message="Trigger an on-demand backup snapshot? This snapshot will be retained for 7 days."
         confirmText="Take Snapshot"
         loading={triggeringSnapshot}
+      />
+
+      {/* Start Backup Confirmation */}
+      <ConfirmModal
+        open={showStartConfirm}
+        onClose={() => setShowStartConfirm(false)}
+        onConfirm={handleStartBackup}
+        title="Start Backup"
+        message="Start backup for this deployment in Ops Manager? This will enable automated snapshots according to the assigned backup policy."
+        confirmText="Start Backup"
+        loading={startingBackup}
+      />
+
+      {/* Stop Backup Confirmation */}
+      <ConfirmModal
+        open={showStopConfirm}
+        onClose={() => setShowStopConfirm(false)}
+        onConfirm={handleStopBackup}
+        title="Stop Backup"
+        message="Stop backup for this deployment in Ops Manager? This will pause automated snapshots. Existing snapshots will be retained."
+        confirmText="Stop Backup"
+        loading={stoppingBackup}
+      />
+
+      {/* Restore Confirmation */}
+      <ConfirmModal
+        open={showRestoreConfirm}
+        onClose={() => {
+          setShowRestoreConfirm(false);
+          setSelectedSnapshot(null);
+        }}
+        onConfirm={handleRestoreSnapshot}
+        title="Restore from Snapshot"
+        message={`Restore this deployment from snapshot ${selectedSnapshot}? This will create a restore job in Ops Manager. Monitor progress in the Ops Manager UI.`}
+        confirmText="Restore"
+        loading={restoringBackup}
       />
     </>
   );
