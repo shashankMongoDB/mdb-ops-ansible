@@ -58,6 +58,102 @@ class K8sClient:
             else:
                 raise
 
+    def ensure_external_service(self, namespace: str, deployment_id: str) -> tuple[str, int]:
+        """
+        Ensure external NodePort service exists for a MongoDB deployment.
+        
+        Creates a NodePort service for external access (VPC clients).
+        Returns (service_name, node_port).
+        
+        Args:
+            namespace: Kubernetes namespace
+            deployment_id: MongoDB deployment ID
+            
+        Returns:
+            Tuple of (service_name, node_port)
+        """
+        service_name = f"{deployment_id}-external"
+        
+        # Check if service already exists
+        try:
+            existing_svc = self.core_v1.read_namespaced_service(service_name, namespace)
+            # Service exists - get the NodePort
+            for port in existing_svc.spec.ports:
+                if port.name == "mongodb":
+                    return (service_name, port.node_port)
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+        
+        # Create NodePort service
+        service = client.V1Service(
+            api_version="v1",
+            kind="Service",
+            metadata=client.V1ObjectMeta(
+                name=service_name,
+                namespace=namespace,
+                labels={
+                    "app": deployment_id,
+                    "mdb.example.com/external": "true"
+                }
+            ),
+            spec=client.V1ServiceSpec(
+                type="NodePort",
+                selector={
+                    "app": f"{deployment_id}-svc"
+                },
+                ports=[
+                    client.V1ServicePort(
+                        name="mongodb",
+                        port=27017,
+                        target_port=27017,
+                        protocol="TCP"
+                        # nodePort auto-assigned by K8s
+                    )
+                ]
+            )
+        )
+        
+        created_svc = self.core_v1.create_namespaced_service(namespace, service)
+        
+        # Get the assigned NodePort
+        node_port = None
+        for port in created_svc.spec.ports:
+            if port.name == "mongodb":
+                node_port = port.node_port
+                break
+        
+        return (service_name, node_port)
+
+    def get_worker_node_ip(self) -> str:
+        """
+        Get the InternalIP of the first worker node.
+        
+        Returns:
+            Node IP address as string
+        """
+        nodes = self.core_v1.list_node()
+        
+        for node in nodes.items:
+            # Skip control-plane nodes
+            if "node-role.kubernetes.io/control-plane" in node.metadata.labels:
+                continue
+            if "node-role.kubernetes.io/master" in node.metadata.labels:
+                continue
+            
+            # Get InternalIP
+            for addr in node.status.addresses:
+                if addr.type == "InternalIP":
+                    return addr.address
+        
+        # Fallback: return first node's internal IP
+        if nodes.items:
+            for addr in nodes.items[0].status.addresses:
+                if addr.type == "InternalIP":
+                    return addr.address
+        
+        raise ValueError("No worker nodes found in cluster")
+
     def ensure_service_account(self, namespace: str, name: str) -> None:
         """
         Create a ServiceAccount if it does not exist.

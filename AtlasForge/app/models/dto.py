@@ -92,16 +92,13 @@ class PrometheusConfigResponse(BaseModel):
 
 
 class ConnectionInfoResponse(BaseModel):
-    tenantId: str
+    namespace: str
     deploymentId: str
+    replicaSet: str
     internalUri: str
+    externalHostPort: Optional[str] = None
     externalUri: Optional[str] = None
-    accessMethod: str
-    mongoshExample: Optional[str] = None
-    portForwardCommand: str
-    message: Optional[str] = None
-    # Legacy field for backward compatibility
-    mongoUri: Optional[str] = None
+    error: Optional[str] = None
 
 
 class BackupUpdateRequest(BaseModel):

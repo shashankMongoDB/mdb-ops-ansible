@@ -9,7 +9,10 @@ from app.services import backup_service
 def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Get connection information for a MongoDB deployment.
-    Returns connection URI and mongosh example.
+    
+    Automatically creates NodePort service for external access.
+    Returns both internal (K8s) and external (VPC) connection URIs.
+    
     Supports both enterprise and community deployments.
     """
     repo = get_repo()
@@ -26,7 +29,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
 
-    # Get CR based on plan
+    # Get CR based on plan to read replica set name
     if plan == "community":
         cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
     else:
@@ -35,88 +38,48 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not cr:
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 
-    service_name = f"{deployment_id}-svc"
-    port = 27017
+    # Get replica set name from CR
+    replica_set_name = deployment_id  # Default
+    if plan == "community":
+        # MongoDBCommunity CR
+        replica_set_name = cr.get("spec", {}).get("replicaSet", deployment_id)
+    else:
+        # MongoDB Enterprise CR
+        replica_set_name = cr.get("metadata", {}).get("name", deployment_id)
 
-    # Internal URI (works only from within K8s cluster)
-    internal_uri = f"mongodb://{service_name}.{namespace}.svc.cluster.local:{port}"
+    # Internal service (ClusterIP)
+    internal_service = f"{deployment_id}-svc"
+    internal_host_port = f"{internal_service}.{namespace}.svc.cluster.local:27017"
+    internal_uri = f"mongodb://{internal_host_port}/?replicaSet={replica_set_name}"
     
-    # External access instructions (requires port-forward or NodePort/LoadBalancer)
-    # Check if there's an external service
+    # Ensure external NodePort service exists
     try:
-        service = k8s.core_v1.read_namespaced_service(service_name, namespace)
-        service_type = service.spec.type
+        external_service_name, node_port = k8s.ensure_external_service(namespace, deployment_id)
+        worker_node_ip = k8s.get_worker_node_ip()
         
-        if service_type == "LoadBalancer":
-            # Get LoadBalancer IP/hostname
-            if service.status.load_balancer.ingress:
-                lb_ingress = service.status.load_balancer.ingress[0]
-                external_host = lb_ingress.hostname or lb_ingress.ip
-                external_uri = f"mongodb://{external_host}:{port}"
-                access_method = "LoadBalancer"
-            else:
-                external_uri = None
-                access_method = "LoadBalancer (pending)"
-        elif service_type == "NodePort":
-            # Get NodePort
-            node_port = None
-            for port_spec in service.spec.ports:
-                if port_spec.port == port:
-                    node_port = port_spec.node_port
-                    break
-            
-            if node_port:
-                # Need to get node IP
-                nodes = k8s.core_v1.list_node()
-                if nodes.items:
-                    # Get first node's external IP
-                    node = nodes.items[0]
-                    external_ip = None
-                    for addr in node.status.addresses:
-                        if addr.type == "ExternalIP":
-                            external_ip = addr.address
-                            break
-                    
-                    if external_ip:
-                        external_uri = f"mongodb://{external_ip}:{node_port}"
-                    else:
-                        # Fallback to internal IP
-                        for addr in node.status.addresses:
-                            if addr.type == "InternalIP":
-                                external_ip = addr.address
-                                break
-                        external_uri = f"mongodb://{external_ip}:{node_port}" if external_ip else None
-                else:
-                    external_uri = None
-                access_method = f"NodePort (port {node_port})"
-            else:
-                external_uri = None
-                access_method = "NodePort (port not found)"
-        else:
-            # ClusterIP - need port-forward
-            external_uri = None
-            access_method = "Port Forward Required"
+        external_host_port = f"{worker_node_ip}:{node_port}"
+        external_uri = f"mongodb://{external_host_port}/?replicaSet={replica_set_name}"
+        
+        return {
+            "namespace": namespace,
+            "deploymentId": deployment_id,
+            "replicaSet": replica_set_name,
+            "internalUri": internal_uri,
+            "externalHostPort": external_host_port,
+            "externalUri": external_uri
+        }
+        
     except Exception as e:
-        external_uri = None
-        access_method = "Unknown"
-
-    # Build response
-    response = {
-        "tenantId": tenant_id,
-        "deploymentId": deployment_id,
-        "internalUri": internal_uri,
-        "externalUri": external_uri,
-        "accessMethod": access_method,
-        "mongoshExample": f'mongosh "{external_uri}"' if external_uri else None,
-        "portForwardCommand": f'kubectl port-forward -n {namespace} svc/{service_name} {port}:{port}'
-    }
-    
-    # Add helpful message
-    if not external_uri:
-        response["message"] = f"External access not configured. Use port-forward: kubectl port-forward -n {namespace} svc/{service_name} {port}:{port}"
-        response["mongoshExample"] = f'mongosh "mongodb://localhost:{port}"  # After running port-forward command'
-    
-    return response
+        # Fallback if external service creation fails
+        return {
+            "namespace": namespace,
+            "deploymentId": deployment_id,
+            "replicaSet": replica_set_name,
+            "internalUri": internal_uri,
+            "externalHostPort": None,
+            "externalUri": None,
+            "error": f"Failed to create external service: {str(e)}"
+        }
 
 
 def update_backup_setting(tenant_id: str, deployment_id: str, enabled: bool) -> Dict[str, Any]:

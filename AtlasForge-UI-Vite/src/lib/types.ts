@@ -32,17 +32,13 @@ export interface Deployment {
 }
 
 export interface ConnectionInfo {
-  tenantId: string;
+  namespace: string;
   deploymentId: string;
+  replicaSet: string;
   internalUri: string;
+  externalHostPort?: string | null;
   externalUri?: string | null;
-  accessMethod: string;
-  mongoshExample?: string | null;
-  portForwardCommand: string;
-  message?: string | null;
-  // Legacy
-  mongoUri?: string;
-  hosts?: string[];
+  error?: string | null;
 }
 
 export interface PrometheusConfig {
