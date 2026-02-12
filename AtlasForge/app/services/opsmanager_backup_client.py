@@ -79,46 +79,63 @@ class OpsManagerBackupClient:
         path = f"/groups/{project_id}/backupConfigs/{cluster_name}"
         return self._patch(path, config)
 
+    def set_backup_policy(self, project_id: str, cluster_name: str, policy_id: str) -> Dict[str, Any]:
+        """
+        Set backup policy for a cluster.
+        
+        Ops Manager requires GET full config, modify, PUT back.
+        """
+        path = f"/groups/{project_id}/backupConfigs/{cluster_name}"
+        
+        print(f"[OM_BACKUP] Getting current backup config for {cluster_name}")
+        
+        # GET current backup config
+        current_config = self.get_backup_config(project_id, cluster_name)
+        
+        if not current_config:
+            raise ValueError(f"No backup configuration found for cluster {cluster_name}")
+        
+        print(f"[OM_BACKUP] Current config: policyItemId={current_config.get('policyItemId')}, statusName={current_config.get('statusName')}")
+        
+        # Modify policy field (OM uses 'policyItemId' not 'policyId')
+        current_config['policyItemId'] = policy_id
+        
+        print(f"[OM_BACKUP] Setting policyItemId to: {policy_id}")
+        print(f"[OM_BACKUP] Updating backup config: PUT {self.base_url}/api/public/v1.0{path}")
+        
+        # PUT full config back
+        response = requests.put(
+            f"{self.base_url}/api/public/v1.0{path}",
+            auth=self.auth,
+            headers=self.headers,
+            json=current_config
+        )
+        response.raise_for_status()
+        
+        print(f"[OM_BACKUP] Policy updated successfully")
+        return response.json()
+
     def trigger_snapshot(self, project_id: str, cluster_name: str, description: str = "On-demand snapshot") -> Dict[str, Any]:
         """
         Trigger an on-demand snapshot.
         
-        Ops Manager API endpoint for creating on-demand snapshots.
-        Reference: https://www.mongodb.com/docs/ops-manager/current/reference/api/snapshots/
+        Ops Manager 8.x endpoint for creating on-demand snapshots.
+        Reference: https://www.mongodb.com/docs/ops-manager/current/reference/api/snapshots-create-one/
+        
+        POST /groups/{groupId}/backup/snapshots/{clusterName}
         """
-        # Try different endpoint paths based on OM version
-        # Path 1: POST /groups/{projectId}/clusters/{clusterName}/backup/snapshots
-        path = f"/groups/{project_id}/clusters/{cluster_name}/backup/snapshots"
+        # Correct endpoint for OM 8.x
+        path = f"/groups/{project_id}/backup/snapshots/{cluster_name}"
         
         data = {
             "description": description,
             "retentionDays": 7
         }
         
-        try:
-            print(f"[OM_BACKUP] Triggering snapshot: POST {self.base_url}/api/public/v1.0{path}")
-            return self._post(path, data)
-        except Exception as e:
-            error_msg = str(e)
-            print(f"[OM_BACKUP] Snapshot trigger failed with path1: {error_msg}")
-            
-            # Try alternative path if first fails
-            if "405" in error_msg or "404" in error_msg:
-                # Path 2: Some OM versions use backupJobs endpoint
-                alt_path = f"/groups/{project_id}/backupConfigs/{cluster_name}/snapshotSchedule"
-                print(f"[OM_BACKUP] Trying alternative: POST {self.base_url}/api/public/v1.0{alt_path}")
-                
-                try:
-                    # Request immediate snapshot via schedule
-                    schedule_data = {
-                        "snapshotIntervalHours": 0,
-                        "snapshotRetentionDays": 7
-                    }
-                    return self._post(alt_path, schedule_data)
-                except Exception as e2:
-                    print(f"[OM_BACKUP] Alternative path also failed: {str(e2)}")
-            
-            raise
+        print(f"[OM_BACKUP] Triggering snapshot: POST {self.base_url}/api/public/v1.0{path}")
+        print(f"[OM_BACKUP] Data: {data}")
+        
+        return self._post(path, data)
 
     def list_snapshots(self, project_id: str, cluster_name: str, limit: int = 20) -> List[Dict[str, Any]]:
         """

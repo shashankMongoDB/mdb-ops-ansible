@@ -401,11 +401,8 @@ def set_backup_policy(tenant_id: str, deployment_id: str, policy_id: str) -> Dic
         raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
 
     try:
-        # Update backup config with new policy
-        config = {
-            "policyId": policy_id
-        }
-        om_client.update_backup_config(om_project_id, cluster_name, config)
+        # Use the proper set_backup_policy method (GET/modify/PUT)
+        om_client.set_backup_policy(om_project_id, cluster_name, policy_id)
         
         return {
             "message": f"Backup policy updated successfully for deployment {deployment_id}"
