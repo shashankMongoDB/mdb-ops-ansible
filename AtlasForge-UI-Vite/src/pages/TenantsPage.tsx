@@ -1,17 +1,43 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { tenantsApi, deploymentsApi } from '@/lib/api';
 import { CreateTenantModal } from '@/components/CreateTenantModal';
 import { useToast } from '@/components/Toast';
 import type { TenantWithStats } from '@/lib/types';
+
+type PlanFilter = 'all' | 'enterprise' | 'community';
 
 export function TenantsPage() {
   const navigate = useNavigate();
   const [tenants, setTenants] = useState<TenantWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [planFilter, setPlanFilter] = useState<PlanFilter>('all');
   const { showError } = useToast();
+
+  // Filtered tenants based on search and plan filter
+  const filteredTenants = useMemo(() => {
+    let filtered = tenants;
+
+    // Apply plan filter
+    if (planFilter !== 'all') {
+      filtered = filtered.filter((t) => t.plan === planFilter);
+    }
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter((t) =>
+        t.tenantId.toLowerCase().includes(search) ||
+        (t.displayName && t.displayName.toLowerCase().includes(search)) ||
+        (t.namespace && t.namespace.toLowerCase().includes(search))
+      );
+    }
+
+    return filtered;
+  }, [tenants, searchTerm, planFilter]);
 
   const loadTenants = async () => {
     try {
@@ -68,7 +94,7 @@ export function TenantsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-mongodb-forest mb-2">Tenants</h1>
           <p className="text-mongodb-slate">Manage your MongoDB tenants and deployments</p>
@@ -88,6 +114,61 @@ export function TenantsPage() {
         </div>
       </div>
 
+      {/* Search and Filter */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 relative">
+          <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search tenants by ID, name, or namespace..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-mongodb-green focus:border-mongodb-green"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setPlanFilter('all')}
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              planFilter === 'all'
+                ? 'bg-mongodb-green text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setPlanFilter('enterprise')}
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              planFilter === 'enterprise'
+                ? 'bg-green-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Enterprise
+          </button>
+          <button
+            onClick={() => setPlanFilter('community')}
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              planFilter === 'community'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Community
+          </button>
+        </div>
+      </div>
+
+      {/* Results Count */}
+      {tenants.length > 0 && (
+        <div className="mb-4">
+          <p className="text-sm text-gray-600">
+            Showing {filteredTenants.length} of {tenants.length} tenant{tenants.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
+
       {tenants.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-gray-600 mb-4">No tenants found. Create your first tenant to get started.</p>
@@ -95,9 +176,16 @@ export function TenantsPage() {
             Onboard Tenant
           </button>
         </div>
+      ) : filteredTenants.length === 0 ? (
+        <div className="card text-center py-12">
+          <p className="text-gray-600 mb-4">No tenants match your search criteria.</p>
+          <button onClick={() => { setSearchTerm(''); setPlanFilter('all'); }} className="btn-secondary">
+            Clear Filters
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tenants.map((tenant) => (
+          {filteredTenants.map((tenant) => (
             <div
               key={tenant.tenantId}
               onClick={() => navigate(`/tenants/${tenant.tenantId}`)}

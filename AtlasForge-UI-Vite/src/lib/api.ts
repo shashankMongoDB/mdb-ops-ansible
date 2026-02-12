@@ -207,4 +207,47 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  async getBackupStatus(tenantId: string, deploymentId: string): Promise<BackupStatus> {
+    try {
+      const response = await api.get<BackupStatus>(`/tenants/${tenantId}/deployments/${deploymentId}/backup/status`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async listBackupPolicies(tenantId: string): Promise<BackupPolicy[]> {
+    try {
+      const response = await api.get<BackupPolicy[]>(`/tenants/${tenantId}/backup/policies`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async setBackupPolicy(tenantId: string, deploymentId: string, policyId: string): Promise<void> {
+    try {
+      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/policy`, { policyId });
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async triggerBackupSnapshot(tenantId: string, deploymentId: string): Promise<void> {
+    try {
+      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/snapshotNow`);
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async listBackupSnapshots(tenantId: string, deploymentId: string): Promise<BackupSnapshot[]> {
+    try {
+      const response = await api.get<BackupSnapshot[]>(`/tenants/${tenantId}/deployments/${deploymentId}/backup/snapshots`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };

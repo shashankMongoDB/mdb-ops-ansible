@@ -8,7 +8,7 @@ import { UpgradeVersionModal } from '@/components/UpgradeVersionModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ConnectionInfo } from '@/components/ConnectionInfo';
 import { PrometheusCard } from '@/components/PrometheusCard';
-import { BackupCard } from '@/components/BackupCard';
+import { BackupPanel } from '@/components/BackupPanel';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment, Tenant } from '@/lib/types';
@@ -236,26 +236,12 @@ export function DeploymentDetailsPage() {
         </div>
       )}
 
-      {activeTab === 'backup' && tenantPlan === 'enterprise' && (
-        <div>
-          <BackupCard 
-            tenantId={deployment.tenantId} 
-            deploymentId={deployment.deploymentId}
-            initialEnabled={false}
-          />
-        </div>
-      )}
-
-      {activeTab === 'backup' && tenantPlan === 'community' && (
-        <div className="card">
-          <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Backup Not Available</h3>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-            <p className="text-sm text-yellow-800">
-              <span className="font-medium">Community Plan Limitation:</span> Backup is only available for Enterprise deployments with Ops Manager integration. 
-              Community deployments use MongoDB Community binaries without Ops Manager backup capabilities.
-            </p>
-          </div>
-        </div>
+      {activeTab === 'backup' && (
+        <BackupPanel 
+          tenantId={deployment.tenantId} 
+          deploymentId={deployment.deploymentId}
+          tenantPlan={tenantPlan}
+        />
       )}
 
       {/* Modals */}
