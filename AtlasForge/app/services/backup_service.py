@@ -47,7 +47,11 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
     # Get OM project ID and cluster name
+    # Try deployment first, then fallback to tenant
     om_project_id = deployment.get("omProjectId")
+    if not om_project_id:
+        om_project_id = tenant.get("opsManager", {}).get("projectId")
+    
     cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
     
     if not om_project_id:

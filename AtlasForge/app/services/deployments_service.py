@@ -145,6 +145,9 @@ def create_deployment(
     logger.info(f"Using enterprise deployment for {tenant_id}/{deployment_id}")
     k8s = get_k8s_client()
 
+    # Get Ops Manager projectId for enterprise deployments
+    om_project_id = tenant.get("opsManager", {}).get("projectId")
+    
     existing_deployment = repo.get_deployment(tenant_id, deployment_id)
     if existing_deployment:
         logger.error(f"Deployment already exists in DB - tenantId: {tenant_id}, deploymentId: {deployment_id}")
@@ -164,7 +167,7 @@ def create_deployment(
     if deployment_type == "Standalone":
         logger.info(f"Building Standalone CR - namespace: {namespace}, name: {deployment_id}, version: {mongo_version}")
         cr_body = _create_standalone_cr(tenant_id, deployment_id, namespace, mongo_version)
-        deployment_doc = _create_standalone_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, created_by)
+        deployment_doc = _create_standalone_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, created_by, om_project_id)
         response = {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
@@ -178,7 +181,7 @@ def create_deployment(
             members = 3
         logger.info(f"Building ReplicaSet CR - namespace: {namespace}, name: {deployment_id}, version: {mongo_version}, members: {members}")
         cr_body = _create_replicaset_cr(tenant_id, deployment_id, namespace, mongo_version, members)
-        deployment_doc = _create_replicaset_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, members, created_by)
+        deployment_doc = _create_replicaset_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, members, created_by, om_project_id)
         response = {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
@@ -203,7 +206,7 @@ def create_deployment(
 
         logger.info(f"Building ShardedCluster CR - namespace: {namespace}, name: {deployment_id}, shards: {shard_count}")
         cr_body = _create_sharded_cr(tenant_id, deployment_id, namespace, mongo_version, shard_count, mongods_per_shard_count, mongos_count, config_server_count)
-        deployment_doc = _create_sharded_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, shard_count, mongods_per_shard_count, mongos_count, config_server_count, created_by)
+        deployment_doc = _create_sharded_doc(tenant_id, deployment_id, namespace, display_name, environment, mongo_version, shard_count, mongods_per_shard_count, mongos_count, config_server_count, created_by, om_project_id)
         response = {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
@@ -305,9 +308,9 @@ def _create_sharded_cr(tenant_id: str, deployment_id: str, namespace: str, mongo
     return cr_body
 
 
-def _create_standalone_doc(tenant_id: str, deployment_id: str, namespace: str, display_name: str, environment: str, mongo_version: str, created_by: str) -> Dict[str, Any]:
+def _create_standalone_doc(tenant_id: str, deployment_id: str, namespace: str, display_name: str, environment: str, mongo_version: str, created_by: str, om_project_id: Optional[str] = None) -> Dict[str, Any]:
     """Create deployment document for Standalone."""
-    return {
+    doc = {
         "_id": f"{tenant_id}:{deployment_id}",
         "tenantId": tenant_id,
         "deploymentId": deployment_id,
@@ -327,11 +330,15 @@ def _create_standalone_doc(tenant_id: str, deployment_id: str, namespace: str, d
             "phase": "Creating"
         }
     }
+    if om_project_id:
+        doc["omProjectId"] = om_project_id
+        doc["rsName"] = deployment_id  # For backup API
+    return doc
 
 
-def _create_replicaset_doc(tenant_id: str, deployment_id: str, namespace: str, display_name: str, environment: str, mongo_version: str, members: int, created_by: str) -> Dict[str, Any]:
+def _create_replicaset_doc(tenant_id: str, deployment_id: str, namespace: str, display_name: str, environment: str, mongo_version: str, members: int, created_by: str, om_project_id: Optional[str] = None) -> Dict[str, Any]:
     """Create deployment document for ReplicaSet."""
-    return {
+    doc = {
         "_id": f"{tenant_id}:{deployment_id}",
         "tenantId": tenant_id,
         "deploymentId": deployment_id,
@@ -352,11 +359,15 @@ def _create_replicaset_doc(tenant_id: str, deployment_id: str, namespace: str, d
             "phase": "Creating"
         }
     }
+    if om_project_id:
+        doc["omProjectId"] = om_project_id
+        doc["rsName"] = deployment_id  # For backup API
+    return doc
 
 
-def _create_sharded_doc(tenant_id: str, deployment_id: str, namespace: str, display_name: str, environment: str, mongo_version: str, shard_count: int, mongods_per_shard_count: int, mongos_count: int, config_server_count: int, created_by: str) -> Dict[str, Any]:
+def _create_sharded_doc(tenant_id: str, deployment_id: str, namespace: str, display_name: str, environment: str, mongo_version: str, shard_count: int, mongods_per_shard_count: int, mongos_count: int, config_server_count: int, created_by: str, om_project_id: Optional[str] = None) -> Dict[str, Any]:
     """Create deployment document for ShardedCluster."""
-    return {
+    doc = {
         "_id": f"{tenant_id}:{deployment_id}",
         "tenantId": tenant_id,
         "deploymentId": deployment_id,
@@ -380,6 +391,10 @@ def _create_sharded_doc(tenant_id: str, deployment_id: str, namespace: str, disp
             "phase": "Creating"
         }
     }
+    if om_project_id:
+        doc["omProjectId"] = om_project_id
+        doc["clusterName"] = deployment_id  # For backup API
+    return doc
 
 
 def get_deployment_details(tenant_id: str, deployment_id: str) -> Dict[str, Any]:

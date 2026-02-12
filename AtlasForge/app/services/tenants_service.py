@@ -7,6 +7,7 @@ from kubernetes import client as k8s_client
 from app import config
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
+from app.services.opsmanager_project_client import get_om_project_client
 
 
 def validate_dns_safe(value: str, max_length: int = 63) -> bool:
@@ -60,6 +61,7 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
 
     namespace = f"{config.MCP_NAMESPACE_PREFIX}{tenant_id}"
     project_name = None
+    project_id = None
 
     k8s.ensure_namespace(
         name=namespace,
@@ -72,6 +74,15 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
     # Only create Ops Manager resources for enterprise plan
     if plan == "enterprise":
         project_name = f"mdb-{tenant_id}-project"
+        org_id = config.MCP_OPS_MANAGER_ORG
+        
+        # Resolve/create Ops Manager project and get projectId
+        try:
+            om_project_client = get_om_project_client()
+            project_doc = om_project_client.ensure_project(org_id, project_name)
+            project_id = project_doc.get("id")
+        except Exception as e:
+            raise ValueError(f"Failed to resolve Ops Manager project: {str(e)}")
         
         k8s.ensure_configmap(
             namespace=namespace,
@@ -79,7 +90,7 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
             data={
                 "baseUrl": config.MCP_OPS_MANAGER_URL,
                 "projectName": project_name,
-                "orgId": config.MCP_OPS_MANAGER_ORG
+                "orgId": org_id
             }
         )
 
@@ -153,7 +164,9 @@ def onboard_tenant(tenant_id: str, display_name: str, plan: str = "enterprise") 
 
     if plan == "enterprise":
         tenant_doc["opsManager"] = {
-            "projectName": project_name
+            "projectName": project_name,
+            "projectId": project_id,
+            "orgId": config.MCP_OPS_MANAGER_ORG
         }
 
     repo.insert_tenant(tenant_doc)
