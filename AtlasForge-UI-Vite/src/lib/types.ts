@@ -32,8 +32,16 @@ export interface Deployment {
 }
 
 export interface ConnectionInfo {
-  mongoUri: string;
-  mongoshExample: string;
+  tenantId: string;
+  deploymentId: string;
+  internalUri: string;
+  externalUri?: string | null;
+  accessMethod: string;
+  mongoshExample?: string | null;
+  portForwardCommand: string;
+  message?: string | null;
+  // Legacy
+  mongoUri?: string;
   hosts?: string[];
 }
 

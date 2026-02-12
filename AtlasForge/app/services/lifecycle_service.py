@@ -38,15 +38,85 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     service_name = f"{deployment_id}-svc"
     port = 27017
 
-    mongo_uri = f"mongodb://{service_name}.{namespace}.svc.cluster.local:{port}"
-    mongosh_example = f'mongosh "{mongo_uri}"'
+    # Internal URI (works only from within K8s cluster)
+    internal_uri = f"mongodb://{service_name}.{namespace}.svc.cluster.local:{port}"
+    
+    # External access instructions (requires port-forward or NodePort/LoadBalancer)
+    # Check if there's an external service
+    try:
+        service = k8s.core_v1.read_namespaced_service(service_name, namespace)
+        service_type = service.spec.type
+        
+        if service_type == "LoadBalancer":
+            # Get LoadBalancer IP/hostname
+            if service.status.load_balancer.ingress:
+                lb_ingress = service.status.load_balancer.ingress[0]
+                external_host = lb_ingress.hostname or lb_ingress.ip
+                external_uri = f"mongodb://{external_host}:{port}"
+                access_method = "LoadBalancer"
+            else:
+                external_uri = None
+                access_method = "LoadBalancer (pending)"
+        elif service_type == "NodePort":
+            # Get NodePort
+            node_port = None
+            for port_spec in service.spec.ports:
+                if port_spec.port == port:
+                    node_port = port_spec.node_port
+                    break
+            
+            if node_port:
+                # Need to get node IP
+                nodes = k8s.core_v1.list_node()
+                if nodes.items:
+                    # Get first node's external IP
+                    node = nodes.items[0]
+                    external_ip = None
+                    for addr in node.status.addresses:
+                        if addr.type == "ExternalIP":
+                            external_ip = addr.address
+                            break
+                    
+                    if external_ip:
+                        external_uri = f"mongodb://{external_ip}:{node_port}"
+                    else:
+                        # Fallback to internal IP
+                        for addr in node.status.addresses:
+                            if addr.type == "InternalIP":
+                                external_ip = addr.address
+                                break
+                        external_uri = f"mongodb://{external_ip}:{node_port}" if external_ip else None
+                else:
+                    external_uri = None
+                access_method = f"NodePort (port {node_port})"
+            else:
+                external_uri = None
+                access_method = "NodePort (port not found)"
+        else:
+            # ClusterIP - need port-forward
+            external_uri = None
+            access_method = "Port Forward Required"
+    except Exception as e:
+        external_uri = None
+        access_method = "Unknown"
 
-    return {
+    # Build response
+    response = {
         "tenantId": tenant_id,
         "deploymentId": deployment_id,
-        "mongoUri": mongo_uri,
-        "mongoshExample": mongosh_example
+        "internalUri": internal_uri,
+        "externalUri": external_uri,
+        "accessMethod": access_method,
+        "mongoshExample": f'mongosh "{external_uri}"' if external_uri else None,
+        "portForwardCommand": f'kubectl port-forward -n {namespace} svc/{service_name} {port}:{port}'
     }
+    
+    # Add helpful message
+    if not external_uri:
+        response["message"] = f"External access not configured. Use port-forward: kubectl port-forward -n {namespace} svc/{service_name} {port}:{port}"
+        response["mongoshExample"] = f'mongosh "mongodb://localhost:{port}"  # After running port-forward command'
+    
+    return response
 
 
 def update_backup_setting(tenant_id: str, deployment_id: str, enabled: bool) -> Dict[str, Any]:

@@ -62,11 +62,50 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
       <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Connection Information</h3>
 
       <div className="space-y-4">
+        {/* Access Method Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <p className="text-sm text-blue-800">
+            <span className="font-medium">Access Method:</span> {connectionInfo.accessMethod}
+          </p>
+          {connectionInfo.message && (
+            <p className="text-sm text-blue-700 mt-1">{connectionInfo.message}</p>
+          )}
+        </div>
+
+        {/* External URI (if available) */}
+        {connectionInfo.externalUri && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">External MongoDB URI</label>
+              <button
+                onClick={() => handleCopy(connectionInfo.externalUri!, 'uri')}
+                className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
+              >
+                {copiedUri ? (
+                  <>
+                    <CheckIcon className="h-4 w-4" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <ClipboardDocumentIcon className="h-4 w-4" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-sm break-all">
+              {connectionInfo.externalUri}
+            </div>
+          </div>
+        )}
+
+        {/* Port Forward Command */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700">MongoDB URI</label>
+            <label className="text-sm font-medium text-gray-700">Port Forward Command</label>
             <button
-              onClick={() => handleCopy(connectionInfo.mongoUri, 'uri')}
+              onClick={() => handleCopy(connectionInfo.portForwardCommand, 'uri')}
               className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
             >
               {copiedUri ? (
@@ -83,32 +122,46 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
             </button>
           </div>
           <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-sm break-all">
-            {connectionInfo.mongoUri}
+            {connectionInfo.portForwardCommand}
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Run this command in a terminal, then connect to localhost:27017
+          </p>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700">mongosh Example</label>
-            <button
-              onClick={() => handleCopy(connectionInfo.mongoshExample, 'mongosh')}
-              className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
-            >
-              {copiedMongosh ? (
-                <>
-                  <CheckIcon className="h-4 w-4" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <ClipboardDocumentIcon className="h-4 w-4" />
-                  Copy
-                </>
-              )}
-            </button>
+        {/* mongosh Command */}
+        {connectionInfo.mongoshExample && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">mongosh Command</label>
+              <button
+                onClick={() => handleCopy(connectionInfo.mongoshExample, 'mongosh')}
+                className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
+              >
+                {copiedMongosh ? (
+                  <>
+                    <CheckIcon className="h-4 w-4" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <ClipboardDocumentIcon className="h-4 w-4" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-sm break-all">
+              {connectionInfo.mongoshExample}
+            </div>
           </div>
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-sm break-all">
-            {connectionInfo.mongoshExample}
+        )}
+
+        {/* Internal URI (for reference) */}
+        <div className="pt-4 border-t">
+          <label className="text-sm font-medium text-gray-500">Internal URI (K8s cluster only)</label>
+          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all mt-2">
+            {connectionInfo.internalUri}
           </div>
         </div>
       </div>
