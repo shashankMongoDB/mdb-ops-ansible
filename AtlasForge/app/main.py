@@ -620,57 +620,39 @@ def list_backup_snapshots(
 
 
 @app.post(
-    "/tenants/{tenantId}/deployments/{deploymentId}/backup/start"
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/policy"
 )
-def start_backup(
+def set_backup_policy_unsupported(
     tenantId: str = Path(..., description="Tenant identifier"),
     deploymentId: str = Path(..., description="Deployment identifier")
 ):
     """
-    Start backup for a deployment in Ops Manager.
+    Change backup policy (NOT SUPPORTED via API).
     
-    Uses OM internal endpoint to set backup state to STARTED.
-    Only available for Enterprise plan deployments.
+    Use Ops Manager UI to change backup policies.
     """
-    try:
-        result = backup_service.start_backup(tenantId, deploymentId)
-        return result
-    except ValueError as e:
-        if "not found" in str(e):
-            raise HTTPException(status_code=404, detail=str(e))
-        if "only available for Enterprise" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("Error starting backup")
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+    raise HTTPException(
+        status_code=501,
+        detail="Changing backup policy via API is not supported; use Ops Manager UI."
+    )
 
 
 @app.post(
-    "/tenants/{tenantId}/deployments/{deploymentId}/backup/stop"
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/snapshotNow"
 )
-def stop_backup(
+def trigger_snapshot_unsupported(
     tenantId: str = Path(..., description="Tenant identifier"),
     deploymentId: str = Path(..., description="Deployment identifier")
 ):
     """
-    Stop backup for a deployment in Ops Manager.
+    Trigger on-demand snapshot (NOT SUPPORTED via API).
     
-    Uses OM internal endpoint to set backup state to STOPPED.
-    Only available for Enterprise plan deployments.
+    Use Ops Manager UI to trigger on-demand snapshots.
     """
-    try:
-        result = backup_service.stop_backup(tenantId, deploymentId)
-        return result
-    except ValueError as e:
-        if "not found" in str(e):
-            raise HTTPException(status_code=404, detail=str(e))
-        if "only available for Enterprise" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("Error stopping backup")
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+    raise HTTPException(
+        status_code=501,
+        detail="On-demand snapshot via API is not supported; use Ops Manager UI."
+    )
 
 
 @app.post(

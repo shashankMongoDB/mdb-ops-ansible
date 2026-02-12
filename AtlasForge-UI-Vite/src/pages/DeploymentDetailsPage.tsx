@@ -8,7 +8,7 @@ import { UpgradeVersionModal } from '@/components/UpgradeVersionModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ConnectionInfo } from '@/components/ConnectionInfo';
 import { PrometheusCard } from '@/components/PrometheusCard';
-import { BackupPanel } from '@/components/BackupPanel';
+import { BackupPanel } from '@/components/BackupPanelReadOnly';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment, Tenant } from '@/lib/types';

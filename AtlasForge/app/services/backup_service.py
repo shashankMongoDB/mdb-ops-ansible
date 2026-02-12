@@ -177,18 +177,20 @@ def _discover_and_cache_project_id(tenant: Dict[str, Any], deployment: Dict[str,
 
 def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
-    Get backup status for a deployment.
+    Get backup status for a deployment (read-only).
+    
+    Uses Ops Manager public API:
+    GET /api/public/v1.0/groups/{groupId}/backupConfigs/{clusterName}
     
     Returns:
-    - backupEnabled: bool (from K8s CR spec.backup.enabled)
+    - backupEnabled: bool
     - policyName: string or null
-    - status: "NEVER_RUN" / "ACTIVE" / "NOT_CONFIGURED" / "NOT_READY" / "ERROR"
+    - status: "ACTIVE" | "NEVER_RUN" | "NOT_CONFIGURED" | "ERROR"
     - lastSnapshotTime: ISO string or null
     - pitrEnabled: bool
-    - pitrWindowStart: ISO string or null
-    - pitrWindowEnd: ISO string or null
+    - error: string or null
     
-    Raises ValueError if not Enterprise plan.
+    Enterprise only. Returns 400 for Community plan.
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -236,15 +238,13 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         backup_config = om_client.get_backup_config(om_project_id, cluster_name)
         
         if not backup_config:
-            # K8s says enabled but OM config doesn't exist yet
             return {
-                "backupEnabled": backup_enabled_in_k8s,
+                "backupEnabled": False,
                 "policyName": None,
-                "status": "NOT_CONFIGURED" if backup_enabled_in_k8s else "NEVER_RUN",
+                "status": "NOT_CONFIGURED",
                 "lastSnapshotTime": None,
                 "pitrEnabled": False,
-                "pitrWindowStart": None,
-                "pitrWindowEnd": None
+                "error": "Backup config not found in Ops Manager for this deployment."
             }
 
         # Parse OM backup config
@@ -284,14 +284,12 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         is_not_configured = "404" in error_msg or "Bad Request" in error_msg or "400" in error_msg
         
         return {
-            "backupEnabled": backup_enabled_in_k8s,
+            "backupEnabled": False,
             "policyName": None,
             "status": "NOT_CONFIGURED" if is_not_configured else "ERROR",
             "lastSnapshotTime": None,
             "pitrEnabled": False,
-            "pitrWindowStart": None,
-            "pitrWindowEnd": None,
-            "error": "Backup enabled in Kubernetes. Waiting for Ops Manager backup configuration..." if is_not_configured else error_msg
+            "error": "Backup config not found in Ops Manager (backup may not be configured yet)." if is_not_configured else f"Error retrieving backup status: {error_msg}"
         }
 
 
@@ -517,78 +515,9 @@ def list_backup_snapshots(tenant_id: str, deployment_id: str, limit: int = 20) -
         raise ValueError(f"Failed to list snapshots: {str(e)}")
 
 
-def start_backup(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
-    """
-    Start backup for a deployment in Ops Manager.
-    
-    Uses OM 8.0.10 internal endpoint to set backup state to STARTED.
-    Enterprise only.
-    """
-    repo = get_repo()
-    om_client = get_om_backup_client()
-
-    tenant = repo.get_tenant(tenant_id)
-    if not tenant:
-        raise ValueError(f"Tenant {tenant_id} not found")
-
-    _check_enterprise_plan(tenant)
-
-    deployment = repo.get_deployment(tenant_id, deployment_id)
-    if not deployment:
-        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
-
-    # Lazily discover projectId
-    om_project_id = _discover_and_cache_project_id(tenant, deployment)
-    cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
-    
-    if not om_project_id:
-        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
-
-    try:
-        result = om_client.start_backup(om_project_id, cluster_name)
-        return {
-            "message": f"Backup started for deployment {deployment_id}",
-            "state": result.get("state", "STARTED")
-        }
-    except Exception as e:
-        raise ValueError(f"Failed to start backup: {str(e)}")
-
-
-def stop_backup(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
-    """
-    Stop backup for a deployment in Ops Manager.
-    
-    Uses OM 8.0.10 internal endpoint to set backup state to STOPPED.
-    Enterprise only.
-    """
-    repo = get_repo()
-    om_client = get_om_backup_client()
-
-    tenant = repo.get_tenant(tenant_id)
-    if not tenant:
-        raise ValueError(f"Tenant {tenant_id} not found")
-
-    _check_enterprise_plan(tenant)
-
-    deployment = repo.get_deployment(tenant_id, deployment_id)
-    if not deployment:
-        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
-
-    # Lazily discover projectId
-    om_project_id = _discover_and_cache_project_id(tenant, deployment)
-    cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
-    
-    if not om_project_id:
-        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
-
-    try:
-        result = om_client.stop_backup(om_project_id, cluster_name)
-        return {
-            "message": f"Backup stopped for deployment {deployment_id}",
-            "state": result.get("state", "STOPPED")
-        }
-    except Exception as e:
-        raise ValueError(f"Failed to stop backup: {str(e)}")
+# NOTE: Start/Stop backup operations removed
+# These require internal /backup/web/config endpoints which are browser-only
+# Use Ops Manager UI for start/stop backup operations
 
 
 def restore_snapshot(tenant_id: str, deployment_id: str, snapshot_id: str) -> Dict[str, Any]:
