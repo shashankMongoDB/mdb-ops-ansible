@@ -79,26 +79,28 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
     }
   };
 
-  const handleDbRolesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = e.target.options;
-    const selected: string[] = [];
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selected.push(options[i].value);
-      }
-    }
-    setSelectedDbRoles(selected);
+  const handleDbRoleToggle = (roleName: string) => {
+    setSelectedDbRoles(prev => 
+      prev.includes(roleName) 
+        ? prev.filter(r => r !== roleName)
+        : [...prev, roleName]
+    );
   };
 
-  const handleAdminRolesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = e.target.options;
-    const selected: string[] = [];
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selected.push(options[i].value);
-      }
-    }
-    setSelectedAdminRoles(selected);
+  const handleAdminRoleToggle = (roleName: string) => {
+    setSelectedAdminRoles(prev => 
+      prev.includes(roleName) 
+        ? prev.filter(r => r !== roleName)
+        : [...prev, roleName]
+    );
+  };
+
+  const removeDbRole = (roleName: string) => {
+    setSelectedDbRoles(prev => prev.filter(r => r !== roleName));
+  };
+
+  const removeAdminRole = (roleName: string) => {
+    setSelectedAdminRoles(prev => prev.filter(r => r !== roleName));
   };
 
   return (
@@ -174,59 +176,120 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                     />
                   </div>
 
-                  {/* Database Roles (Multi-select) */}
+                  {/* Database Roles */}
                   <div>
-                    <label htmlFor="dbRoles" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Database Roles ({db})
                     </label>
-                    <select
-                      id="dbRoles"
-                      multiple
-                      value={selectedDbRoles}
-                      onChange={handleDbRolesChange}
-                      className="input w-full h-32"
-                      disabled={loading}
-                    >
+                    
+                    {/* Selected badges */}
+                    {selectedDbRoles.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-50 rounded border border-gray-200 min-h-[40px]">
+                        {selectedDbRoles.map((roleName) => (
+                          <span
+                            key={roleName}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-mongodb-green text-white text-xs font-medium rounded-full"
+                          >
+                            {roleName}@{db}
+                            <button
+                              type="button"
+                              onClick={() => removeDbRole(roleName)}
+                              disabled={loading}
+                              className="hover:bg-mongodb-green-dark rounded-full p-0.5"
+                            >
+                              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Clickable list */}
+                    <div className="border border-gray-200 rounded-md max-h-40 overflow-y-auto">
                       {DB_ROLES.map((role) => (
-                        <option key={role.name} value={role.name}>
-                          {role.name}@{db} - {role.description}
-                        </option>
+                        <label
+                          key={role.name}
+                          className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${
+                            selectedDbRoles.includes(role.name) ? 'bg-green-50' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedDbRoles.includes(role.name)}
+                            onChange={() => handleDbRoleToggle(role.name)}
+                            disabled={loading}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {role.name}@{db}
+                            </div>
+                            <div className="text-xs text-gray-500">{role.description}</div>
+                          </div>
+                        </label>
                       ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Hold Ctrl/Cmd to select multiple roles
-                    </p>
+                    </div>
                   </div>
 
-                  {/* Admin Roles (Multi-select, Optional) */}
+                  {/* Admin Roles */}
                   <div>
-                    <label htmlFor="adminRoles" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Admin Roles (Optional)
                     </label>
-                    <select
-                      id="adminRoles"
-                      multiple
-                      value={selectedAdminRoles}
-                      onChange={handleAdminRolesChange}
-                      className="input w-full h-40"
-                      disabled={loading}
-                    >
+                    
+                    {/* Selected badges */}
+                    {selectedAdminRoles.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-50 rounded border border-gray-200 min-h-[40px]">
+                        {selectedAdminRoles.map((roleName) => (
+                          <span
+                            key={roleName}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-gray-700 text-white text-xs font-medium rounded-full"
+                          >
+                            {roleName}@admin
+                            <button
+                              type="button"
+                              onClick={() => removeAdminRole(roleName)}
+                              disabled={loading}
+                              className="hover:bg-gray-800 rounded-full p-0.5"
+                            >
+                              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Clickable list */}
+                    <div className="border border-gray-200 rounded-md max-h-48 overflow-y-auto">
                       {ADMIN_ROLES.map((role) => (
-                        <option key={role.name} value={role.name}>
-                          {role.name}@admin - {role.description}
-                        </option>
+                        <label
+                          key={role.name}
+                          className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0 ${
+                            selectedAdminRoles.includes(role.name) ? 'bg-gray-100' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAdminRoles.includes(role.name)}
+                            onChange={() => handleAdminRoleToggle(role.name)}
+                            disabled={loading}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {role.name}@admin
+                            </div>
+                            <div className="text-xs text-gray-500">{role.description}</div>
+                          </div>
+                        </label>
                       ))}
-                    </select>
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Hold Ctrl/Cmd to select multiple admin roles for cluster-wide privileges
-                    </p>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                    <p className="text-xs text-blue-800">
-                      <strong>Selected roles:</strong> {selectedDbRoles.length > 0 && selectedDbRoles.map(r => `${r}@${db}`).join(', ')}
-                      {selectedAdminRoles.length > 0 && `, ${selectedAdminRoles.map(r => `${r}@admin`).join(', ')}`}
-                      {selectedDbRoles.length === 0 && selectedAdminRoles.length === 0 && 'readWrite@' + db + ' (default)'}
+                      Select admin roles for cluster-wide privileges
                     </p>
                   </div>
 
