@@ -36,16 +36,18 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
     loadData();
   }, [tenantId, deploymentId]);
 
-  // Auto-refresh when status is NOT_READY (waiting for OM project)
+  // Auto-refresh when status is NOT_READY or NOT_CONFIGURED (waiting for OM)
   useEffect(() => {
-    if (status?.status === 'NOT_READY' && autoRefresh) {
+    const isWaiting = status?.status === 'NOT_READY' || status?.status === 'NOT_CONFIGURED';
+    
+    if (isWaiting && autoRefresh) {
       const timer = setTimeout(() => {
         loadData();
       }, 5000); // Check every 5 seconds
       
       return () => clearTimeout(timer);
-    } else if (status?.status !== 'NOT_READY' && autoRefresh) {
-      // Stop auto-refresh when status changes
+    } else if (!isWaiting && autoRefresh) {
+      // Stop auto-refresh when status changes to ready
       setAutoRefresh(false);
     }
   }, [status, autoRefresh]);
@@ -211,7 +213,7 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
             </button>
           </div>
 
-          {status.status === 'NOT_READY' ? (
+          {status.status === 'NOT_READY' || status.status === 'NOT_CONFIGURED' ? (
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span className="badge badge-blue">Initializing</span>
@@ -222,11 +224,17 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
                 <p className="text-sm text-blue-800 mb-2">
-                  <span className="font-medium">Discovering Ops Manager Project:</span> Backup has been enabled in Kubernetes. 
-                  Looking up the Ops Manager project to retrieve backup configuration.
+                  <span className="font-medium">
+                    {status.status === 'NOT_READY' ? 'Discovering Ops Manager Project:' : 'Backup Configuration In Progress:'}
+                  </span> 
+                  {status.status === 'NOT_READY' 
+                    ? ' Looking up the Ops Manager project to retrieve backup configuration.'
+                    : ' Backup has been enabled in Kubernetes. The operator is creating backup configuration in Ops Manager.'}
                 </p>
                 <p className="text-sm text-blue-700">
-                  Project should already exist. If this persists, the project may not be visible in Ops Manager yet.
+                  {status.status === 'NOT_READY'
+                    ? 'Project should already exist. If this persists, the project may not be visible in Ops Manager yet.'
+                    : 'This usually takes 30-60 seconds. The operator will create backup config and assign a policy.'}
                 </p>
               </div>
               <div className="mt-4 flex gap-2">

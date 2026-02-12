@@ -3,6 +3,7 @@ from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
 from app.services import deployments_community_service
+from app.services import backup_service
 
 
 def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -95,6 +96,15 @@ def update_backup_setting(tenant_id: str, deployment_id: str, enabled: bool) -> 
     repo.update_deployment(tenant_id, deployment_id, {
         "lastRequestedSpec.backupEnabled": enabled
     })
+
+    # If enabling backup, ensure backup config + policy in Ops Manager
+    if enabled:
+        print(f"[LIFECYCLE] Backup enabled, ensuring OM config for {tenant_id}/{deployment_id}")
+        try:
+            backup_service.ensure_backup_config_and_policy(tenant_id, deployment_id)
+        except Exception as e:
+            # Don't fail the PATCH if OM is not ready - just log
+            print(f"[LIFECYCLE] Could not ensure backup config (OM may not be ready): {str(e)}")
 
     return {
         "tenantId": tenant_id,

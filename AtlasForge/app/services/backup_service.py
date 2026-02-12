@@ -25,6 +25,85 @@ def _check_enterprise_plan(tenant: Dict[str, Any]) -> None:
         raise ValueError("Backup via Ops Manager is only available for Enterprise deployments.")
 
 
+def ensure_backup_config_and_policy(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+    """
+    Ensure backup config exists in Ops Manager and has a policy assigned.
+    
+    Called after enabling backup via K8s CR.
+    - Discovers projectId if needed
+    - Creates backup config in OM if missing
+    - Assigns default policy if none assigned
+    
+    Returns status dict or None if not ready yet.
+    Does NOT fail - just logs errors and returns None.
+    """
+    repo = get_repo()
+    om_client = get_om_backup_client()
+    
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        print(f"[BACKUP_ENSURE] Tenant not found: {tenant_id}")
+        return None
+    
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        print(f"[BACKUP_ENSURE] Deployment not found: {deployment_id}")
+        return None
+    
+    try:
+        # Discover projectId
+        om_project_id = _discover_and_cache_project_id(tenant, deployment)
+        cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
+        
+        if not om_project_id:
+            print(f"[BACKUP_ENSURE] OM project not found yet for {tenant_id}")
+            return None
+        
+        print(f"[BACKUP_ENSURE] Checking backup config for projectId={om_project_id}, cluster={cluster_name}")
+        
+        # Check if backup config exists
+        backup_config = om_client.get_backup_config(om_project_id, cluster_name)
+        
+        if not backup_config:
+            # Backup config doesn't exist - need to wait for operator to enable it
+            # The operator will create the config when spec.backup.enabled=true
+            print(f"[BACKUP_ENSURE] Backup config not created by operator yet")
+            return None
+        
+        print(f"[BACKUP_ENSURE] Backup config exists: {backup_config.get('statusName')}")
+        
+        # Check if policy is assigned
+        if not backup_config.get("policyName") and not backup_config.get("backupPolicyId"):
+            # No policy assigned - try to assign default
+            print(f"[BACKUP_ENSURE] No policy assigned, looking for default policy")
+            
+            try:
+                # List available policies
+                policies = om_client.list_backup_policies(om_project_id)
+                
+                if policies and len(policies) > 0:
+                    # Assign first/default policy
+                    default_policy_id = policies[0].get("id") or policies[0].get("clusterId")
+                    print(f"[BACKUP_ENSURE] Assigning default policy: {default_policy_id}")
+                    
+                    om_client.update_backup_config(om_project_id, cluster_name, {
+                        "backupPolicyId": default_policy_id
+                    })
+                    print(f"[BACKUP_ENSURE] Default policy assigned successfully")
+                else:
+                    print(f"[BACKUP_ENSURE] No policies available in OM")
+            except Exception as e:
+                print(f"[BACKUP_ENSURE] Failed to assign policy: {str(e)}")
+        else:
+            print(f"[BACKUP_ENSURE] Policy already assigned: {backup_config.get('policyName')}")
+        
+        return {"success": True, "projectId": om_project_id}
+        
+    except Exception as e:
+        print(f"[BACKUP_ENSURE] Error: {type(e).__name__}: {str(e)}")
+        return None
+
+
 def _discover_and_cache_project_id(tenant: Dict[str, Any], deployment: Dict[str, Any]) -> Optional[str]:
     """
     Lazily discover Ops Manager projectId by name lookup (read-only).
@@ -146,7 +225,7 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             return {
                 "backupEnabled": False,
                 "policyName": None,
-                "status": "NEVER_RUN",
+                "status": "NOT_CONFIGURED",
                 "lastSnapshotTime": None,
                 "pitrEnabled": False,
                 "pitrWindowStart": None,
@@ -185,16 +264,19 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        # If OM API fails, return error status
+        # If OM API fails (404 = not configured, other = error)
+        error_msg = str(e)
+        is_not_configured = "404" in error_msg or "Bad Request" in error_msg
+        
         return {
             "backupEnabled": False,
             "policyName": None,
-            "status": "ERROR",
+            "status": "NOT_CONFIGURED" if is_not_configured else "ERROR",
             "lastSnapshotTime": None,
             "pitrEnabled": False,
             "pitrWindowStart": None,
             "pitrWindowEnd": None,
-            "error": str(e)
+            "error": "Backup not configured in Ops Manager yet" if is_not_configured else error_msg
         }
 
 
@@ -394,4 +476,9 @@ def list_backup_snapshots(tenant_id: str, deployment_id: str, limit: int = 20) -
         return snapshots
 
     except Exception as e:
+        # If backup not configured in OM, return empty list instead of error
+        error_msg = str(e)
+        if "404" in error_msg or "Bad Request" in error_msg or "400" in error_msg:
+            print(f"[BACKUP] Backup not configured in OM yet, returning empty snapshots list")
+            return []
         raise ValueError(f"Failed to list snapshots: {str(e)}")
