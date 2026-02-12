@@ -222,11 +222,11 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
                 <p className="text-sm text-blue-800 mb-2">
-                  <span className="font-medium">Waiting for Ops Manager:</span> Backup has been enabled in Kubernetes. 
-                  The MongoDB operator is creating the Ops Manager project and automation configuration.
+                  <span className="font-medium">Discovering Ops Manager Project:</span> Backup has been enabled in Kubernetes. 
+                  Looking up the Ops Manager project to retrieve backup configuration.
                 </p>
                 <p className="text-sm text-blue-700">
-                  This usually takes 1-3 minutes. Status will update automatically when ready.
+                  Project should already exist. If this persists, the project may not be visible in Ops Manager yet.
                 </p>
               </div>
               <div className="mt-4 flex gap-2">

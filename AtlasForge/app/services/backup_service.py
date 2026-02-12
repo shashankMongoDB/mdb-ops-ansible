@@ -61,19 +61,23 @@ def _discover_and_cache_project_id(tenant: Dict[str, Any], deployment: Dict[str,
     
     try:
         # Read-only lookup - do NOT create
+        print(f"[BACKUP] Looking up OM project: org_id={org_id}, project_name={project_name}")
         project = om_project_client.get_project_by_name(org_id, project_name)
         
         if not project:
             # Project not found yet - operator may not have created it
+            print(f"[BACKUP] Project '{project_name}' not found in Ops Manager yet")
             return None
         
         project_id = project.get("id")
+        print(f"[BACKUP] Found project! projectId={project_id}")
         
         # Cache projectId in tenant document
         if "opsManager" not in tenant:
             tenant["opsManager"] = {}
         tenant["opsManager"]["projectId"] = project_id
         repo.update_tenant(tenant["tenantId"], {"opsManager": tenant["opsManager"]})
+        print(f"[BACKUP] Cached projectId in tenant: {tenant['tenantId']}")
         
         # Cache projectId in deployment document
         repo.update_deployment(
@@ -81,11 +85,13 @@ def _discover_and_cache_project_id(tenant: Dict[str, Any], deployment: Dict[str,
             deployment["deploymentId"],
             {"omProjectId": project_id}
         )
+        print(f"[BACKUP] Cached projectId in deployment: {deployment['deploymentId']}")
         
         return project_id
         
-    except Exception:
+    except Exception as e:
         # Ops Manager not reachable or other error - return None
+        print(f"[BACKUP] Error discovering projectId: {type(e).__name__}: {str(e)}")
         return None
 
 

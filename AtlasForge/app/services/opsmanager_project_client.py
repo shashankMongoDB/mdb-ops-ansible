@@ -47,20 +47,31 @@ class OpsManagerProjectClient:
         """
         try:
             path = f"/orgs/{org_id}/groups"  # groups = projects in OM API
+            url = f"{self.base_url}/api/public/v1.0{path}"
+            print(f"[OM_PROJECT] Calling: GET {url}")
+            
             result = self._get(path)
             
             # OM returns "results" array of projects
             projects = result.get("results", [])
+            print(f"[OM_PROJECT] Found {len(projects)} projects in org {org_id}")
             
             # Find project by name
             for project in projects:
+                print(f"[OM_PROJECT] Checking project: {project.get('name')} (id={project.get('id')})")
                 if project.get("name") == project_name:
+                    print(f"[OM_PROJECT] MATCH! Found project '{project_name}' with id={project.get('id')}")
                     return project
             
+            print(f"[OM_PROJECT] Project '{project_name}' not found in {len(projects)} projects")
             return None
         except requests.exceptions.HTTPError as e:
+            print(f"[OM_PROJECT] HTTP Error {e.response.status_code}: {e.response.text}")
             if e.response.status_code == 404:
                 return None
+            raise
+        except Exception as e:
+            print(f"[OM_PROJECT] Exception: {type(e).__name__}: {str(e)}")
             raise
 
     # NOTE: create_project and ensure_project removed
