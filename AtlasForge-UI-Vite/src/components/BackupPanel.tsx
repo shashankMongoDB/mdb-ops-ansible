@@ -145,7 +145,7 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
     setTriggeringSnapshot(true);
     setShowSnapshotConfirm(false);
     
-    try:
+    try {
       await deploymentsApi.triggerBackupSnapshot(tenantId, deploymentId);
       showSuccess('Snapshot Triggered', 'On-demand snapshot has been initiated');
       await loadData();
