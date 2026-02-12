@@ -124,8 +124,7 @@ def create_db_user(
     }
 
     try:
-        custom_api = client.CustomObjectsApi(k8s.api_client)
-        custom_api.create_namespaced_custom_object(
+        k8s.custom_objects.create_namespaced_custom_object(
             group="mongodb.com",
             version="v1",
             namespace=namespace,
