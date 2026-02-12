@@ -71,14 +71,6 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
           </div>
         )}
 
-        {/* Info Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-          <p className="text-sm text-blue-800">
-            <span className="font-medium">External access is automatically configured</span> via NodePort service. 
-            Use the External URI from VMs/clients that can reach the worker node IP.
-          </p>
-        </div>
-
         {/* Deployment Info */}
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
@@ -95,14 +87,11 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
           </div>
         </div>
 
-        {/* External URI */}
+        {/* External MongoDB URI */}
         {connectionInfo.externalUri && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">
-                External URI 
-                <span className="text-xs text-gray-500 ml-2">(from VPC clients)</span>
-              </label>
+              <label className="text-sm font-medium text-gray-700">External MongoDB URI</label>
               <button
                 onClick={() => handleCopy(connectionInfo.externalUri!, 'uri')}
                 className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
@@ -123,26 +112,52 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
             <div className="bg-mongodb-green bg-opacity-5 p-3 rounded-md border border-mongodb-green font-mono text-sm break-all">
               {connectionInfo.externalUri}
             </div>
-            {connectionInfo.externalHostPort && (
-              <p className="text-xs text-gray-500 mt-1">
-                Host: {connectionInfo.externalHostPort}
+            
+            {/* Access Method Explanation */}
+            <div className="mt-2 bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p className="text-xs text-blue-800">
+                <span className="font-medium">Access Method:</span> This URI is accessible from clients within the same VPC 
+                via private networking to the Kubernetes NodePort endpoint. 
+                It is <strong>not reachable from the public internet</strong> unless explicitly exposed 
+                through a load balancer or firewall rule.
               </p>
-            )}
+            </div>
+
+            {/* mongosh Example */}
+            <div className="mt-3">
+              <label className="text-xs text-gray-500 block mb-1">mongosh Connection Example:</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200 font-mono text-xs break-all">
+                  mongosh "{connectionInfo.externalUri}"
+                </div>
+                <button
+                  onClick={() => handleCopy(`mongosh "${connectionInfo.externalUri}"`, 'mongosh')}
+                  className="flex-shrink-0 text-mongodb-green hover:text-mongodb-green-dark"
+                  title="Copy mongosh command"
+                >
+                  {copiedMongosh ? (
+                    <CheckIcon className="h-4 w-4" />
+                  ) : (
+                    <ClipboardDocumentIcon className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Internal URI */}
-        <div>
+        {/* Internal URI (K8s cluster only) */}
+        <div className="pt-4 border-t">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-gray-500">
               Internal URI 
-              <span className="text-xs text-gray-500 ml-2">(from inside K8s cluster)</span>
+              <span className="text-xs text-gray-400 ml-2">(K8s cluster only)</span>
             </label>
             <button
-              onClick={() => handleCopy(connectionInfo.internalUri, 'mongosh')}
-              className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
+              onClick={() => handleCopy(connectionInfo.internalUri, 'uri')}
+              className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
             >
-              {copiedMongosh ? (
+              {copiedUri ? (
                 <>
                   <CheckIcon className="h-4 w-4" />
                   Copied
@@ -155,29 +170,8 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
               )}
             </button>
           </div>
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-sm break-all">
+          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all">
             {connectionInfo.internalUri}
-          </div>
-        </div>
-
-        {/* mongosh Examples */}
-        <div className="pt-4 border-t">
-          <label className="text-sm font-medium text-gray-700 block mb-3">mongosh Examples</label>
-          
-          {connectionInfo.externalUri && (
-            <div className="mb-3">
-              <p className="text-xs text-gray-500 mb-1">From VPC (outside K8s):</p>
-              <div className="bg-gray-50 p-2 rounded border border-gray-200 font-mono text-xs break-all">
-                mongosh "{connectionInfo.externalUri}"
-              </div>
-            </div>
-          )}
-          
-          <div>
-            <p className="text-xs text-gray-500 mb-1">From inside K8s cluster:</p>
-            <div className="bg-gray-50 p-2 rounded border border-gray-200 font-mono text-xs break-all">
-              mongosh "{connectionInfo.internalUri}"
-            </div>
           </div>
         </div>
       </div>

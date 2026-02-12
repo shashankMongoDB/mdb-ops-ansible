@@ -50,7 +50,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     # Internal service (ClusterIP)
     internal_service = f"{deployment_id}-svc"
     internal_host_port = f"{internal_service}.{namespace}.svc.cluster.local:27017"
-    internal_uri = f"mongodb://{internal_host_port}/?replicaSet={replica_set_name}"
+    internal_uri = f"mongodb://{internal_host_port}"
     
     # Ensure external NodePort service exists
     try:
@@ -58,7 +58,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         worker_node_ip = k8s.get_worker_node_ip()
         
         external_host_port = f"{worker_node_ip}:{node_port}"
-        external_uri = f"mongodb://{external_host_port}/?replicaSet={replica_set_name}"
+        external_uri = f"mongodb://{external_host_port}"
         
         return {
             "namespace": namespace,
