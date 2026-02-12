@@ -28,11 +28,27 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
   const [showEnableConfirm, setShowEnableConfirm] = useState(false);
   const [enablingBackup, setEnablingBackup] = useState(false);
   
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  
   const { showSuccess, showError: showErrorToast } = useToast();
 
   useEffect(() => {
     loadData();
   }, [tenantId, deploymentId]);
+
+  // Auto-refresh when status is NOT_READY (waiting for OM project)
+  useEffect(() => {
+    if (status?.status === 'NOT_READY' && autoRefresh) {
+      const timer = setTimeout(() => {
+        loadData();
+      }, 5000); // Check every 5 seconds
+      
+      return () => clearTimeout(timer);
+    } else if (status?.status !== 'NOT_READY' && autoRefresh) {
+      // Stop auto-refresh when status changes
+      setAutoRefresh(false);
+    }
+  }, [status, autoRefresh]);
 
   const loadData = async () => {
     if (tenantPlan === 'community') {
@@ -76,7 +92,8 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
     
     try {
       await deploymentsApi.updateBackup(tenantId, deploymentId, true);
-      showSuccess('Backup Enabled', 'Backup has been enabled for this deployment');
+      showSuccess('Backup Enabled', 'Backup has been enabled. Waiting for Ops Manager to initialize...');
+      setAutoRefresh(true); // Start auto-refresh
       await loadData();
     } catch (error: any) {
       showErrorToast('Failed to enable backup', error.detail);
@@ -194,7 +211,40 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
             </button>
           </div>
 
-          {!status.backupEnabled ? (
+          {status.status === 'NOT_READY' ? (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="badge badge-blue">Initializing</span>
+                <div className="flex items-center gap-1">
+                  <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  {autoRefresh && <span className="text-xs text-gray-500">Auto-refreshing...</span>}
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <p className="text-sm text-blue-800 mb-2">
+                  <span className="font-medium">Waiting for Ops Manager:</span> Backup has been enabled in Kubernetes. 
+                  The MongoDB operator is creating the Ops Manager project and automation configuration.
+                </p>
+                <p className="text-sm text-blue-700">
+                  This usually takes 1-3 minutes. Status will update automatically when ready.
+                </p>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={loadData}
+                  className="btn-secondary text-sm"
+                >
+                  Check Again
+                </button>
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`text-sm px-3 py-2 rounded ${autoRefresh ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+                >
+                  {autoRefresh ? 'Stop Auto-Refresh' : 'Enable Auto-Refresh'}
+                </button>
+              </div>
+            </div>
+          ) : !status.backupEnabled ? (
             <div>
               <span className="badge badge-gray">Disabled</span>
               <p className="text-sm text-gray-600 mt-3 mb-4">

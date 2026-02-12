@@ -900,6 +900,80 @@
       "response": []
     },
     {
+      "name": "Get Backup Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "status"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Backup Policies",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/backup/policies",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "backup", "policies"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Set Backup Policy",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"policyId\": \"policy-id-here\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/policy",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "policy"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Trigger Backup Snapshot",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/snapshotNow",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "snapshotNow"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Backup Snapshots",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/backup/snapshots",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "backup", "snapshots"]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Enable Monitoring (Prometheus)",
       "request": {
         "method": "PATCH",
