@@ -317,15 +317,36 @@ def list_backup_policies(tenant_id: str) -> List[Dict[str, Any]]:
 
     _check_enterprise_plan(tenant)
 
-    # Get any deployment to discover OM project ID
-    deployments = repo.list_tenant_deployments(tenant_id)
-    if not deployments or len(deployments) == 0:
-        return []
-
-    # Lazily discover projectId from first deployment
-    om_project_id = _discover_and_cache_project_id(tenant, deployments[0])
+    # Get projectId from tenant (or discover it)
+    om_project_id = tenant.get("opsManager", {}).get("projectId")
+    
     if not om_project_id:
-        return []  # OM project not found yet
+        # Try to discover it
+        project_name = tenant.get("opsManager", {}).get("projectName")
+        org_id = tenant.get("opsManager", {}).get("orgId")
+        
+        if not project_name or not org_id:
+            return []  # Can't look up without project name
+        
+        try:
+            om_project_client = get_om_project_client()
+            project = om_project_client.get_project_by_name(org_id, project_name)
+            
+            if not project:
+                return []  # Project not found yet
+            
+            om_project_id = project.get("id")
+            
+            # Cache it in tenant
+            if "opsManager" not in tenant:
+                tenant["opsManager"] = {}
+            tenant["opsManager"]["projectId"] = om_project_id
+            repo.update_tenant(tenant_id, {"opsManager": tenant["opsManager"]})
+        except Exception:
+            return []  # Can't discover project
+    
+    if not om_project_id:
+        return []  # Still no project ID
 
     try:
         configs = om_client.list_backup_policies(om_project_id)
