@@ -251,25 +251,28 @@ export const deploymentsApi = {
     }
   },
 
-  async startBackup(tenantId: string, deploymentId: string): Promise<void> {
+  async startBackup(tenantId: string, deploymentId: string): Promise<any> {
     try {
-      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/start`);
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/start`);
+      return response.data;
     } catch (error) {
       return handleError(error);
     }
   },
 
-  async stopBackup(tenantId: string, deploymentId: string): Promise<void> {
+  async stopBackup(tenantId: string, deploymentId: string): Promise<any> {
     try {
-      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/stop`);
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/stop`);
+      return response.data;
     } catch (error) {
       return handleError(error);
     }
   },
 
-  async restoreBackup(tenantId: string, deploymentId: string, snapshotId: string): Promise<void> {
+  async restoreBackup(tenantId: string, deploymentId: string, snapshotId: string): Promise<any> {
     try {
-      await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/restore`, { snapshotId });
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/backup/restore`, { snapshotId });
+      return response.data;
     } catch (error) {
       return handleError(error);
     }

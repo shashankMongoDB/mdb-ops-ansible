@@ -5,6 +5,11 @@ import { useToast } from './Toast';
 import { ConfirmModal } from './ConfirmModal';
 import type { BackupStatus, BackupPolicy, BackupSnapshot } from '@/lib/types';
 
+// Type guard to ensure all API methods exist
+if (!deploymentsApi.startBackup || !deploymentsApi.stopBackup || !deploymentsApi.restoreBackup) {
+  console.error('Missing backup API methods');
+}
+
 interface BackupPanelProps {
   tenantId: string;
   deploymentId: string;

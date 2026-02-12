@@ -27,7 +27,7 @@ MAIN ENDPOINTS:
 """
 
 import logging
-from typing import List
+from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
