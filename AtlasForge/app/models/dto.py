@@ -186,3 +186,45 @@ class PrometheusPasswordRevealResponse(BaseModel):
 class PrometheusPasswordRotateResponse(BaseModel):
     message: str = Field(..., description="Success message")
     passwordVersion: int = Field(..., description="New password version number")
+
+
+class BackupStatusResponse(BaseModel):
+    backupEnabled: bool = Field(..., description="Whether backup is enabled")
+    policyName: Optional[str] = Field(None, description="Backup policy name")
+    status: str = Field(..., description="Backup status: NEVER_RUN / ACTIVE / ERROR")
+    lastSnapshotTime: Optional[str] = Field(None, description="Last snapshot time (ISO)")
+    pitrEnabled: bool = Field(..., description="Point-in-time restore enabled")
+    pitrWindowStart: Optional[str] = Field(None, description="PITR window start")
+    pitrWindowEnd: Optional[str] = Field(None, description="PITR window end")
+    error: Optional[str] = Field(None, description="Error message if status is ERROR")
+
+
+class BackupPolicyResponse(BaseModel):
+    policyId: str = Field(..., description="Policy identifier")
+    name: str = Field(..., description="Policy name")
+    description: str = Field(..., description="Policy description")
+    frequency: str = Field(..., description="Backup frequency")
+    retention: str = Field(..., description="Retention period")
+
+
+class BackupPolicySetRequest(BaseModel):
+    policyId: str = Field(..., description="Policy ID to assign")
+
+
+class BackupPolicySetResponse(BaseModel):
+    message: str = Field(..., description="Success message")
+
+
+class BackupSnapshotTriggerResponse(BaseModel):
+    message: str = Field(..., description="Success message")
+    snapshotId: Optional[str] = Field(None, description="Snapshot ID")
+    status: Optional[str] = Field(None, description="Snapshot status")
+    createdAt: Optional[str] = Field(None, description="Created timestamp")
+
+
+class BackupSnapshotResponse(BaseModel):
+    snapshotId: str = Field(..., description="Snapshot identifier")
+    type: str = Field(..., description="Snapshot type: scheduled or on-demand")
+    status: str = Field(..., description="Snapshot status")
+    createdAt: Optional[str] = Field(None, description="Created timestamp (ISO)")
+    expiresAt: Optional[str] = Field(None, description="Expiration timestamp (ISO)")

@@ -98,3 +98,30 @@ export interface PrometheusPasswordRotate {
   message: string;
   passwordVersion: number;
 }
+
+export interface BackupStatus {
+  backupEnabled: boolean;
+  policyName: string | null;
+  status: string;
+  lastSnapshotTime: string | null;
+  pitrEnabled: boolean;
+  pitrWindowStart: string | null;
+  pitrWindowEnd: string | null;
+  error?: string;
+}
+
+export interface BackupPolicy {
+  policyId: string;
+  name: string;
+  description: string;
+  frequency: string;
+  retention: string;
+}
+
+export interface BackupSnapshot {
+  snapshotId: string;
+  type: string;
+  status: string;
+  createdAt: string | null;
+  expiresAt: string | null;
+}

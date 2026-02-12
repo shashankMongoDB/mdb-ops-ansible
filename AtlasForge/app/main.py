@@ -48,6 +48,12 @@ from app.models.dto import (
     ConnectionInfoResponse,
     BackupUpdateRequest,
     BackupUpdateResponse,
+    BackupStatusResponse,
+    BackupPolicyResponse,
+    BackupPolicySetRequest,
+    BackupPolicySetResponse,
+    BackupSnapshotTriggerResponse,
+    BackupSnapshotResponse,
     MonitoringUpdateRequest,
     MonitoringUpdateResponse,
     ShutdownResponse,
@@ -63,6 +69,7 @@ from app.services import deployments_service
 from app.services import monitoring_service
 from app.services import lifecycle_service
 from app.services import scaling_service
+from app.services import backup_service
 
 logging.basicConfig(
     level=getattr(logging, config.MCP_LOG_LEVEL),
@@ -454,6 +461,161 @@ def update_backup(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error updating backup setting")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/status",
+    response_model=BackupStatusResponse
+)
+def get_backup_status(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Get backup status for an Enterprise deployment.
+    
+    Returns backup configuration including policy, status, last snapshot time, and PITR info.
+    Only available for Enterprise plan deployments.
+    """
+    try:
+        result = backup_service.get_backup_status(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting backup status")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/backup/policies",
+    response_model=list[BackupPolicyResponse]
+)
+def list_backup_policies(
+    tenantId: str = Path(..., description="Tenant identifier")
+):
+    """
+    List available backup policies for an Enterprise tenant.
+    
+    Returns list of policies from Ops Manager.
+    Only available for Enterprise plan tenants.
+    """
+    try:
+        result = backup_service.list_backup_policies(tenant_id=tenantId)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error listing backup policies")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/policy",
+    response_model=BackupPolicySetResponse
+)
+def set_backup_policy(
+    request: BackupPolicySetRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Set backup policy for an Enterprise deployment.
+    
+    Assigns the specified policy to this deployment's backup configuration.
+    Only available for Enterprise plan deployments.
+    """
+    try:
+        result = backup_service.set_backup_policy(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            policy_id=request.policyId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error setting backup policy")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/snapshotNow",
+    response_model=BackupSnapshotTriggerResponse
+)
+def trigger_backup_snapshot(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Trigger an on-demand backup snapshot for an Enterprise deployment.
+    
+    Creates an immediate snapshot via Ops Manager.
+    Only available for Enterprise plan deployments.
+    """
+    try:
+        result = backup_service.trigger_backup_snapshot(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error triggering backup snapshot")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/backup/snapshots",
+    response_model=list[BackupSnapshotResponse]
+)
+def list_backup_snapshots(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier"),
+    limit: int = 20
+):
+    """
+    List backup snapshots for an Enterprise deployment.
+    
+    Returns list of snapshots with status and timestamps.
+    Only available for Enterprise plan deployments.
+    """
+    try:
+        result = backup_service.list_backup_snapshots(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            limit=limit
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        if "only available for Enterprise" in str(e):
+            raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error listing backup snapshots")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
