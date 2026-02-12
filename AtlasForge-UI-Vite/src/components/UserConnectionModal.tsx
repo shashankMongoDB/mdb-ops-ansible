@@ -19,8 +19,10 @@ export function UserConnectionModal({
 }: UserConnectionModalProps) {
   const [copiedExternal, setCopiedExternal] = useState(false);
   const [copiedInternal, setCopiedInternal] = useState(false);
+  const [copiedExternalMongosh, setCopiedExternalMongosh] = useState(false);
+  const [copiedInternalMongosh, setCopiedInternalMongosh] = useState(false);
 
-  const handleCopy = async (text: string, type: 'external' | 'internal') => {
+  const handleCopy = async (text: string, type: 'external' | 'internal' | 'externalMongosh' | 'internalMongosh') => {
     try {
       // Try modern clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -40,9 +42,15 @@ export function UserConnectionModal({
       if (type === 'external') {
         setCopiedExternal(true);
         setTimeout(() => setCopiedExternal(false), 2000);
-      } else {
+      } else if (type === 'internal') {
         setCopiedInternal(true);
         setTimeout(() => setCopiedInternal(false), 2000);
+      } else if (type === 'externalMongosh') {
+        setCopiedExternalMongosh(true);
+        setTimeout(() => setCopiedExternalMongosh(false), 2000);
+      } else if (type === 'internalMongosh') {
+        setCopiedInternalMongosh(true);
+        setTimeout(() => setCopiedInternalMongosh(false), 2000);
       }
     } catch (err) {
       console.error('Failed to copy:', err);
@@ -89,72 +97,126 @@ export function UserConnectionModal({
                   </button>
                 </div>
 
-                <div className="space-y-4">
-                  {/* External URI */}
+                <div className="space-y-6">
+                  {/* External Connection */}
                   {externalUri && (
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          External URI
-                          <span className="text-xs text-gray-500 ml-2">(from VPC clients)</span>
-                        </label>
-                        <button
-                          onClick={() => handleCopy(externalUri, 'external')}
-                          className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
-                        >
-                          {copiedExternal ? (
-                            <>
-                              <CheckIcon className="h-4 w-4" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <ClipboardDocumentIcon className="h-4 w-4" />
-                              Copy
-                            </>
-                          )}
-                        </button>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                        External Connection <span className="text-xs text-gray-500 font-normal">(from VPC clients)</span>
+                      </h3>
+                      
+                      {/* External URI */}
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-medium text-gray-600">Connection String</label>
+                          <button
+                            onClick={() => handleCopy(externalUri, 'external')}
+                            className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
+                          >
+                            {copiedExternal ? (
+                              <>
+                                <CheckIcon className="h-3 w-3" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <ClipboardDocumentIcon className="h-3 w-3" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="bg-mongodb-green bg-opacity-5 p-3 rounded-md border border-mongodb-green font-mono text-xs break-all">
+                          {externalUri}
+                        </div>
                       </div>
-                      <div className="bg-mongodb-green bg-opacity-5 p-3 rounded-md border border-mongodb-green font-mono text-xs break-all">
-                        {externalUri}
+
+                      {/* External mongosh Command */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-medium text-gray-600">mongosh Command</label>
+                          <button
+                            onClick={() => handleCopy(`mongosh "${externalUri}"`, 'externalMongosh')}
+                            className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
+                          >
+                            {copiedExternalMongosh ? (
+                              <>
+                                <CheckIcon className="h-3 w-3" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <ClipboardDocumentIcon className="h-3 w-3" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="bg-gray-900 p-3 rounded-md font-mono text-xs text-green-400 break-all">
+                          mongosh "{externalUri}"
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Use from VMs or apps that can reach the node IP and port
-                      </p>
                     </div>
                   )}
 
-                  {/* Internal URI */}
+                  {/* Internal Connection */}
                   {internalUri && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Internal URI
-                          <span className="text-xs text-gray-500 ml-2">(from inside K8s cluster)</span>
-                        </label>
-                        <button
-                          onClick={() => handleCopy(internalUri, 'internal')}
-                          className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
-                        >
-                          {copiedInternal ? (
-                            <>
-                              <CheckIcon className="h-4 w-4" />
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <ClipboardDocumentIcon className="h-4 w-4" />
-                              Copy
-                            </>
-                          )}
-                        </button>
+                    <div className="pt-4 border-t">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                        Internal Connection <span className="text-xs text-gray-500 font-normal">(from inside K8s cluster)</span>
+                      </h3>
+                      
+                      {/* Internal URI */}
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-medium text-gray-600">Connection String</label>
+                          <button
+                            onClick={() => handleCopy(internalUri, 'internal')}
+                            className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
+                          >
+                            {copiedInternal ? (
+                              <>
+                                <CheckIcon className="h-3 w-3" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <ClipboardDocumentIcon className="h-3 w-3" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all">
+                          {internalUri}
+                        </div>
                       </div>
-                      <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all">
-                        {internalUri}
+
+                      {/* Internal mongosh Command */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-medium text-gray-600">mongosh Command</label>
+                          <button
+                            onClick={() => handleCopy(`mongosh "${internalUri}"`, 'internalMongosh')}
+                            className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
+                          >
+                            {copiedInternalMongosh ? (
+                              <>
+                                <CheckIcon className="h-3 w-3" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <ClipboardDocumentIcon className="h-3 w-3" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="bg-gray-900 p-3 rounded-md font-mono text-xs text-green-400 break-all">
+                          mongosh "{internalUri}"
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Use from apps running inside the Kubernetes cluster
-                      </p>
                     </div>
                   )}
 

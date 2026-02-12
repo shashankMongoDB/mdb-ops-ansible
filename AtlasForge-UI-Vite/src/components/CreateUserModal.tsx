@@ -32,8 +32,8 @@ const DB_ROLES = [
 export function CreateUserModal({ open, onClose, onSubmit, loading = false }: CreateUserModalProps) {
   const [username, setUsername] = useState('');
   const [db, setDb] = useState('appdb');
-  const [selectedDbRole, setSelectedDbRole] = useState<string>('readWrite');
-  const [selectedAdminRole, setSelectedAdminRole] = useState<string>('');
+  const [selectedDbRoles, setSelectedDbRoles] = useState<string[]>(['readWrite']);
+  const [selectedAdminRoles, setSelectedAdminRoles] = useState<string[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,15 +45,15 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
     // Build roles array
     const roles: Array<{ db: string; name: string }> = [];
     
-    // Add database role
-    if (selectedDbRole) {
-      roles.push({ db: db.trim(), name: selectedDbRole });
-    }
+    // Add database roles
+    selectedDbRoles.forEach(roleName => {
+      roles.push({ db: db.trim(), name: roleName });
+    });
     
-    // Add admin role if selected
-    if (selectedAdminRole) {
-      roles.push({ db: 'admin', name: selectedAdminRole });
-    }
+    // Add admin roles
+    selectedAdminRoles.forEach(roleName => {
+      roles.push({ db: 'admin', name: roleName });
+    });
 
     // Default to readWrite if no roles selected
     if (roles.length === 0) {
@@ -65,18 +65,40 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
     // Reset form
     setUsername('');
     setDb('appdb');
-    setSelectedDbRole('readWrite');
-    setSelectedAdminRole('');
+    setSelectedDbRoles(['readWrite']);
+    setSelectedAdminRoles([]);
   };
 
   const handleClose = () => {
     if (!loading) {
       setUsername('');
       setDb('appdb');
-      setSelectedDbRole('readWrite');
-      setSelectedAdminRole('');
+      setSelectedDbRoles(['readWrite']);
+      setSelectedAdminRoles([]);
       onClose();
     }
+  };
+
+  const handleDbRolesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const options = e.target.options;
+    const selected: string[] = [];
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) {
+        selected.push(options[i].value);
+      }
+    }
+    setSelectedDbRoles(selected);
+  };
+
+  const handleAdminRolesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const options = e.target.options;
+    const selected: string[] = [];
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) {
+        selected.push(options[i].value);
+      }
+    }
+    setSelectedAdminRoles(selected);
   };
 
   return (
@@ -152,16 +174,17 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                     />
                   </div>
 
-                  {/* Database Role */}
+                  {/* Database Roles (Multi-select) */}
                   <div>
-                    <label htmlFor="dbRole" className="block text-sm font-medium text-gray-700 mb-1">
-                      Database Role ({db})
+                    <label htmlFor="dbRoles" className="block text-sm font-medium text-gray-700 mb-1">
+                      Database Roles ({db})
                     </label>
                     <select
-                      id="dbRole"
-                      value={selectedDbRole}
-                      onChange={(e) => setSelectedDbRole(e.target.value)}
-                      className="input w-full"
+                      id="dbRoles"
+                      multiple
+                      value={selectedDbRoles}
+                      onChange={handleDbRolesChange}
+                      className="input w-full h-32"
                       disabled={loading}
                     >
                       {DB_ROLES.map((role) => (
@@ -170,21 +193,24 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                         </option>
                       ))}
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Hold Ctrl/Cmd to select multiple roles
+                    </p>
                   </div>
 
-                  {/* Admin Role (Optional) */}
+                  {/* Admin Roles (Multi-select, Optional) */}
                   <div>
-                    <label htmlFor="adminRole" className="block text-sm font-medium text-gray-700 mb-1">
-                      Admin Role (Optional)
+                    <label htmlFor="adminRoles" className="block text-sm font-medium text-gray-700 mb-1">
+                      Admin Roles (Optional)
                     </label>
                     <select
-                      id="adminRole"
-                      value={selectedAdminRole}
-                      onChange={(e) => setSelectedAdminRole(e.target.value)}
-                      className="input w-full"
+                      id="adminRoles"
+                      multiple
+                      value={selectedAdminRoles}
+                      onChange={handleAdminRolesChange}
+                      className="input w-full h-40"
                       disabled={loading}
                     >
-                      <option value="">None</option>
                       {ADMIN_ROLES.map((role) => (
                         <option key={role.name} value={role.name}>
                           {role.name}@admin - {role.description}
@@ -192,7 +218,15 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Select an admin role for cluster-wide privileges
+                      Hold Ctrl/Cmd to select multiple admin roles for cluster-wide privileges
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <p className="text-xs text-blue-800">
+                      <strong>Selected roles:</strong> {selectedDbRoles.length > 0 && selectedDbRoles.map(r => `${r}@${db}`).join(', ')}
+                      {selectedAdminRoles.length > 0 && `, ${selectedAdminRoles.map(r => `${r}@admin`).join(', ')}`}
+                      {selectedDbRoles.length === 0 && selectedAdminRoles.length === 0 && 'readWrite@' + db + ' (default)'}
                     </p>
                   </div>
 
