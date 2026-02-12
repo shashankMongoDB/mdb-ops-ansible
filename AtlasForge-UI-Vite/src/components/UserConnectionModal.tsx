@@ -22,7 +22,21 @@ export function UserConnectionModal({
 
   const handleCopy = async (text: string, type: 'external' | 'internal') => {
     try {
-      await navigator.clipboard.writeText(text);
+      // Try modern clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      
       if (type === 'external') {
         setCopiedExternal(true);
         setTimeout(() => setCopiedExternal(false), 2000);
@@ -32,6 +46,7 @@ export function UserConnectionModal({
       }
     } catch (err) {
       console.error('Failed to copy:', err);
+      alert('Failed to copy to clipboard. Please copy manually.');
     }
   };
 

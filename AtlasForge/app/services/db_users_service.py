@@ -171,14 +171,13 @@ def create_db_user(
 
     # Get connection info
     conn_info = get_connection_info(tenant_id, deployment_id)
-    replica_set = conn_info.get("replicaSet", deployment_id)
     external_host_port = conn_info.get("externalHostPort")
 
     # Build connection URI with URL-encoded password (handles special characters)
     connection_uri = None
     if external_host_port:
         encoded_password = quote_plus(password)
-        connection_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}?replicaSet={replica_set}"
+        connection_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}"
 
     return {
         "username": username,
@@ -261,7 +260,6 @@ def get_user_connection(
 
     # Get connection info
     conn_info = get_connection_info(tenant_id, deployment_id)
-    replica_set = conn_info.get("replicaSet", deployment_id)
     external_host_port = conn_info.get("externalHostPort")
     internal_uri_base = conn_info.get("internalUri", "")
     
@@ -277,11 +275,11 @@ def get_user_connection(
     # Build URIs with credentials and encoded password
     external_uri = None
     if external_host_port:
-        external_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}?replicaSet={replica_set}"
+        external_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}"
 
     internal_uri = None
     if internal_host:
-        internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}?replicaSet={replica_set}"
+        internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}"
 
     return {
         "username": username,

@@ -32,8 +32,8 @@ const DB_ROLES = [
 export function CreateUserModal({ open, onClose, onSubmit, loading = false }: CreateUserModalProps) {
   const [username, setUsername] = useState('');
   const [db, setDb] = useState('appdb');
-  const [selectedDbRoles, setSelectedDbRoles] = useState<string[]>(['readWrite']);
-  const [selectedAdminRoles, setSelectedAdminRoles] = useState<string[]>([]);
+  const [selectedDbRole, setSelectedDbRole] = useState<string>('readWrite');
+  const [selectedAdminRole, setSelectedAdminRole] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,15 +45,15 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
     // Build roles array
     const roles: Array<{ db: string; name: string }> = [];
     
-    // Add database roles
-    selectedDbRoles.forEach(roleName => {
-      roles.push({ db: db.trim(), name: roleName });
-    });
+    // Add database role
+    if (selectedDbRole) {
+      roles.push({ db: db.trim(), name: selectedDbRole });
+    }
     
-    // Add admin roles
-    selectedAdminRoles.forEach(roleName => {
-      roles.push({ db: 'admin', name: roleName });
-    });
+    // Add admin role if selected
+    if (selectedAdminRole) {
+      roles.push({ db: 'admin', name: selectedAdminRole });
+    }
 
     // Default to readWrite if no roles selected
     if (roles.length === 0) {
@@ -65,34 +65,18 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
     // Reset form
     setUsername('');
     setDb('appdb');
-    setSelectedDbRoles(['readWrite']);
-    setSelectedAdminRoles([]);
+    setSelectedDbRole('readWrite');
+    setSelectedAdminRole('');
   };
 
   const handleClose = () => {
     if (!loading) {
       setUsername('');
       setDb('appdb');
-      setSelectedDbRoles(['readWrite']);
-      setSelectedAdminRoles([]);
+      setSelectedDbRole('readWrite');
+      setSelectedAdminRole('');
       onClose();
     }
-  };
-
-  const toggleDbRole = (roleName: string) => {
-    setSelectedDbRoles(prev => 
-      prev.includes(roleName) 
-        ? prev.filter(r => r !== roleName)
-        : [...prev, roleName]
-    );
-  };
-
-  const toggleAdminRole = (roleName: string) => {
-    setSelectedAdminRoles(prev => 
-      prev.includes(roleName) 
-        ? prev.filter(r => r !== roleName)
-        : [...prev, roleName]
-    );
   };
 
   return (
@@ -135,7 +119,7 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
                       Username
@@ -168,63 +152,51 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                     />
                   </div>
 
-                  {/* Database Roles */}
+                  {/* Database Role */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Database Roles ({db})
+                    <label htmlFor="dbRole" className="block text-sm font-medium text-gray-700 mb-1">
+                      Database Role ({db})
                     </label>
-                    <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200 max-h-48 overflow-y-auto">
+                    <select
+                      id="dbRole"
+                      value={selectedDbRole}
+                      onChange={(e) => setSelectedDbRole(e.target.value)}
+                      className="input w-full"
+                      disabled={loading}
+                    >
                       {DB_ROLES.map((role) => (
-                        <label key={role.name} className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded">
-                          <input
-                            type="checkbox"
-                            checked={selectedDbRoles.includes(role.name)}
-                            onChange={() => toggleDbRole(role.name)}
-                            disabled={loading}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">
-                              {role.name}@{db}
-                            </div>
-                            <div className="text-xs text-gray-500">{role.description}</div>
-                          </div>
-                        </label>
+                        <option key={role.name} value={role.name}>
+                          {role.name}@{db} - {role.description}
+                        </option>
                       ))}
-                    </div>
+                    </select>
                   </div>
 
-                  {/* Admin Roles */}
+                  {/* Admin Role (Optional) */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Admin Roles (admin database)
+                    <label htmlFor="adminRole" className="block text-sm font-medium text-gray-700 mb-1">
+                      Admin Role (Optional)
                     </label>
-                    <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200 max-h-48 overflow-y-auto">
+                    <select
+                      id="adminRole"
+                      value={selectedAdminRole}
+                      onChange={(e) => setSelectedAdminRole(e.target.value)}
+                      className="input w-full"
+                      disabled={loading}
+                    >
+                      <option value="">None</option>
                       {ADMIN_ROLES.map((role) => (
-                        <label key={role.name} className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded">
-                          <input
-                            type="checkbox"
-                            checked={selectedAdminRoles.includes(role.name)}
-                            onChange={() => toggleAdminRole(role.name)}
-                            disabled={loading}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">
-                              {role.name}@admin
-                            </div>
-                            <div className="text-xs text-gray-500">{role.description}</div>
-                          </div>
-                        </label>
+                        <option key={role.name} value={role.name}>
+                          {role.name}@admin - {role.description}
+                        </option>
                       ))}
-                    </div>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select an admin role for cluster-wide privileges
+                    </p>
                   </div>
 
-                  <p className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
-                    💡 If no roles are selected, the user will be created with readWrite@{db} by default.
-                  </p>
-
-                  <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-white border-t">
+                  <div className="flex justify-end gap-3 pt-4">
                     <button
                       type="button"
                       onClick={handleClose}
