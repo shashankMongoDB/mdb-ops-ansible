@@ -71,49 +71,7 @@ export function DeploymentDetailsPage() {
     loadData();
   }, [tenantId, deploymentId]); // Removed auto-refresh to prevent flickering
 
-  const handleAction = async (action: ActionType) => {
-    if (!tenantId || !deploymentId || !action) return;
-
-    setActionLoading(true);
-    try {
-      switch (action) {
-        case 'shutdown':
-          await deploymentsApi.shutdown(tenantId, deploymentId);
-          showSuccess('Shutdown initiated', 'Deployment is shutting down');
-          break;
-        case 'restart':
-          await deploymentsApi.restart(tenantId, deploymentId);
-          showSuccess('Restart initiated', 'Deployment is restarting');
-          break;
-        case 'delete':
-          await deploymentsApi.delete(tenantId, deploymentId);
-          showSuccess('Deployment deleted', 'Deployment has been deleted');
-          navigate(`/tenants/${tenantId}`);
-          return;
-      }
-      setConfirmAction(null);
-      await loadData();
-    } catch (error: any) {
-      showError(`Failed to ${action} deployment`, error.detail || 'An error occurred');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <div className="text-gray-500">Loading deployment details...</div>;
-  }
-
-  if (!deployment) {
-    return (
-      <div>
-        <h1 className="text-3xl font-bold text-mongodb-forest mb-2">Deployment Not Found</h1>
-        <p className="text-mongodb-slate">The requested deployment could not be found.</p>
-      </div>
-    );
-  }
-
-  // DB Users handlers
+  // DB Users handlers (must be before conditional returns)
   const loadDBUsers = async () => {
     if (!tenantId || !deploymentId) return;
     
@@ -162,6 +120,48 @@ export function DeploymentDetailsPage() {
       loadDBUsers();
     }
   }, [activeTab, tenantId, deploymentId]);
+
+  const handleAction = async (action: ActionType) => {
+    if (!tenantId || !deploymentId || !action) return;
+
+    setActionLoading(true);
+    try {
+      switch (action) {
+        case 'shutdown':
+          await deploymentsApi.shutdown(tenantId, deploymentId);
+          showSuccess('Shutdown initiated', 'Deployment is shutting down');
+          break;
+        case 'restart':
+          await deploymentsApi.restart(tenantId, deploymentId);
+          showSuccess('Restart initiated', 'Deployment is restarting');
+          break;
+        case 'delete':
+          await deploymentsApi.delete(tenantId, deploymentId);
+          showSuccess('Deployment deleted', 'Deployment has been deleted');
+          navigate(`/tenants/${tenantId}`);
+          return;
+      }
+      setConfirmAction(null);
+      await loadData();
+    } catch (error: any) {
+      showError(`Failed to ${action} deployment`, error.detail || 'An error occurred');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-gray-500">Loading deployment details...</div>;
+  }
+
+  if (!deployment) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-mongodb-forest mb-2">Deployment Not Found</h1>
+        <p className="text-mongodb-slate">The requested deployment could not be found.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
