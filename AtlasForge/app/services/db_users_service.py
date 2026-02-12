@@ -106,19 +106,18 @@ def create_db_user(
         "spec": {
             "db": db,
             "username": username,
-            "passwordSecretRef": {
+            "passwordSecretKeyRef": {
                 "name": secret_name,
                 "key": "password"
             },
             "roles": [
                 {
-                    "db": db,
-                    "role": role_preset
+                    "name": role_preset,
+                    "db": db
                 }
             ],
             "mongodbResourceRef": {
-                "name": deployment_id,
-                "namespace": namespace
+                "name": deployment_id
             }
         }
     }
