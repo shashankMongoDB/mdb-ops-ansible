@@ -3,12 +3,19 @@ Backup Service for Enterprise Deployments
 
 Integrates with Ops Manager REST API for backup operations.
 Only supports Enterprise plan deployments.
+
+ProjectId Discovery:
+- Lazily discovers Ops Manager projectId by looking up projectName
+- Caches projectId in tenant/deployment documents for future use
+- Read-only: Never creates or deletes OM projects
+- Tolerates "project not found" (operator may not have created it yet)
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from app.services.mongo_repo import get_repo
 from app.services.opsmanager_backup_client import get_om_backup_client
+from app.services.opsmanager_project_client import get_om_project_client
 
 
 def _check_enterprise_plan(tenant: Dict[str, Any]) -> None:
@@ -16,6 +23,70 @@ def _check_enterprise_plan(tenant: Dict[str, Any]) -> None:
     plan = tenant.get("plan", "enterprise")
     if plan != "enterprise":
         raise ValueError("Backup via Ops Manager is only available for Enterprise deployments.")
+
+
+def _discover_and_cache_project_id(tenant: Dict[str, Any], deployment: Dict[str, Any]) -> Optional[str]:
+    """
+    Lazily discover Ops Manager projectId by name lookup (read-only).
+    
+    - Checks if already cached in deployment or tenant
+    - If not, looks up project by name in Ops Manager (does NOT create)
+    - Caches projectId in tenant and deployment documents
+    - Returns projectId or None if project not found yet
+    """
+    repo = get_repo()
+    om_project_client = get_om_project_client()
+    
+    # Check if already cached in deployment
+    if deployment.get("omProjectId"):
+        return deployment["omProjectId"]
+    
+    # Check if already cached in tenant
+    tenant_project_id = tenant.get("opsManager", {}).get("projectId")
+    if tenant_project_id:
+        # Cache in deployment too
+        repo.update_deployment(
+            tenant["tenantId"],
+            deployment["deploymentId"],
+            {"omProjectId": tenant_project_id}
+        )
+        return tenant_project_id
+    
+    # Not cached anywhere - try to discover from Ops Manager
+    project_name = tenant.get("opsManager", {}).get("projectName")
+    org_id = tenant.get("opsManager", {}).get("orgId")
+    
+    if not project_name or not org_id:
+        return None  # Can't look up without project name
+    
+    try:
+        # Read-only lookup - do NOT create
+        project = om_project_client.get_project_by_name(org_id, project_name)
+        
+        if not project:
+            # Project not found yet - operator may not have created it
+            return None
+        
+        project_id = project.get("id")
+        
+        # Cache projectId in tenant document
+        if "opsManager" not in tenant:
+            tenant["opsManager"] = {}
+        tenant["opsManager"]["projectId"] = project_id
+        repo.update_tenant(tenant["tenantId"], {"opsManager": tenant["opsManager"]})
+        
+        # Cache projectId in deployment document
+        repo.update_deployment(
+            tenant["tenantId"],
+            deployment["deploymentId"],
+            {"omProjectId": project_id}
+        )
+        
+        return project_id
+        
+    except Exception:
+        # Ops Manager not reachable or other error - return None
+        return None
 
 
 def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -46,20 +117,16 @@ def get_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
-    # Get OM project ID and cluster name
-    # Try deployment first, then fallback to tenant
-    om_project_id = deployment.get("omProjectId")
-    if not om_project_id:
-        om_project_id = tenant.get("opsManager", {}).get("projectId")
-    
+    # Lazily discover and cache projectId (read-only lookup)
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
     cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
     
     if not om_project_id:
-        # If no OM project ID, backup not configured yet
+        # OM project not found yet - operator may not have created it
         return {
             "backupEnabled": False,
             "policyName": None,
-            "status": "NEVER_RUN",
+            "status": "NOT_READY",
             "lastSnapshotTime": None,
             "pitrEnabled": False,
             "pitrWindowStart": None,
@@ -147,14 +214,15 @@ def list_backup_policies(tenant_id: str) -> List[Dict[str, Any]]:
 
     _check_enterprise_plan(tenant)
 
-    # Get any deployment to find OM project ID
+    # Get any deployment to discover OM project ID
     deployments = repo.list_tenant_deployments(tenant_id)
     if not deployments or len(deployments) == 0:
         return []
 
-    om_project_id = deployments[0].get("omProjectId")
+    # Lazily discover projectId from first deployment
+    om_project_id = _discover_and_cache_project_id(tenant, deployments[0])
     if not om_project_id:
-        return []
+        return []  # OM project not found yet
 
     try:
         configs = om_client.list_backup_policies(om_project_id)
@@ -201,11 +269,12 @@ def set_backup_policy(tenant_id: str, deployment_id: str, policy_id: str) -> Dic
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
-    om_project_id = deployment.get("omProjectId")
+    # Lazily discover projectId
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
     cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
     
     if not om_project_id:
-        raise ValueError("Ops Manager project ID not found for this deployment")
+        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
 
     try:
         # Update backup config with new policy
@@ -243,11 +312,12 @@ def trigger_backup_snapshot(tenant_id: str, deployment_id: str) -> Dict[str, Any
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
-    om_project_id = deployment.get("omProjectId")
+    # Lazily discover projectId
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
     cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
     
     if not om_project_id:
-        raise ValueError("Ops Manager project ID not found for this deployment")
+        raise ValueError("Ops Manager project not found yet. Deployment may still be initializing.")
 
     try:
         snapshot = om_client.trigger_snapshot(
@@ -293,11 +363,12 @@ def list_backup_snapshots(tenant_id: str, deployment_id: str, limit: int = 20) -
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
 
-    om_project_id = deployment.get("omProjectId")
+    # Lazily discover projectId
+    om_project_id = _discover_and_cache_project_id(tenant, deployment)
     cluster_name = deployment.get("rsName") or deployment.get("clusterName") or deployment_id
     
     if not om_project_id:
-        return []
+        return []  # OM project not found yet
 
     try:
         om_snapshots = om_client.list_snapshots(om_project_id, cluster_name, limit=limit)

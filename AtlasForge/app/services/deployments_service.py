@@ -145,8 +145,8 @@ def create_deployment(
     logger.info(f"Using enterprise deployment for {tenant_id}/{deployment_id}")
     k8s = get_k8s_client()
 
-    # Get Ops Manager projectId for enterprise deployments
-    om_project_id = tenant.get("opsManager", {}).get("projectId")
+    # Note: omProjectId will be discovered lazily by backup_service, not required at creation
+    om_project_id = None  # Will be populated later when backup is used
     
     existing_deployment = repo.get_deployment(tenant_id, deployment_id)
     if existing_deployment:
@@ -328,11 +328,10 @@ def _create_standalone_doc(tenant_id: str, deployment_id: str, namespace: str, d
         },
         "lastKnownStatus": {
             "phase": "Creating"
-        }
+        },
+        # Store cluster name for backup API lookups (omProjectId discovered lazily)
+        "rsName": deployment_id
     }
-    if om_project_id:
-        doc["omProjectId"] = om_project_id
-        doc["rsName"] = deployment_id  # For backup API
     return doc
 
 
@@ -357,11 +356,10 @@ def _create_replicaset_doc(tenant_id: str, deployment_id: str, namespace: str, d
         },
         "lastKnownStatus": {
             "phase": "Creating"
-        }
+        },
+        # Store cluster name for backup API lookups (omProjectId discovered lazily)
+        "rsName": deployment_id
     }
-    if om_project_id:
-        doc["omProjectId"] = om_project_id
-        doc["rsName"] = deployment_id  # For backup API
     return doc
 
 
@@ -389,11 +387,10 @@ def _create_sharded_doc(tenant_id: str, deployment_id: str, namespace: str, disp
         },
         "lastKnownStatus": {
             "phase": "Creating"
-        }
+        },
+        # Store cluster name for backup API lookups (omProjectId discovered lazily)
+        "clusterName": deployment_id
     }
-    if om_project_id:
-        doc["omProjectId"] = om_project_id
-        doc["clusterName"] = deployment_id  # For backup API
     return doc
 
 

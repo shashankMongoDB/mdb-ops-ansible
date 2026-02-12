@@ -1,7 +1,8 @@
 """
 Ops Manager Project REST API Client
 
-Handles project lookup and creation in Ops Manager.
+READ-ONLY: Only looks up existing projects by name.
+Does NOT create or delete projects (that's done by MongoDB operators).
 Uses Digest authentication with OM_PUBLIC_KEY and OM_PRIVATE_KEY.
 
 Reference: https://www.mongodb.com/docs/ops-manager/current/reference/api/projects/
@@ -62,32 +63,8 @@ class OpsManagerProjectClient:
                 return None
             raise
 
-    def create_project(self, org_id: str, project_name: str) -> Dict[str, Any]:
-        """
-        Create a new project in Ops Manager.
-        
-        Returns the created project dict with 'id' field (projectId).
-        """
-        path = f"/orgs/{org_id}/groups"
-        data = {
-            "name": project_name
-        }
-        return self._post(path, data)
-
-    def ensure_project(self, org_id: str, project_name: str) -> Dict[str, Any]:
-        """
-        Ensure project exists, creating it if necessary.
-        
-        Returns project dict with 'id' field (projectId).
-        """
-        # Try to find existing project
-        existing_project = self.get_project_by_name(org_id, project_name)
-        
-        if existing_project:
-            return existing_project
-        
-        # Project doesn't exist, create it
-        return self.create_project(org_id, project_name)
+    # NOTE: create_project and ensure_project removed
+    # Projects are created by MongoDB operators, not by this control plane
 
 
 _om_project_client: Optional[OpsManagerProjectClient] = None
