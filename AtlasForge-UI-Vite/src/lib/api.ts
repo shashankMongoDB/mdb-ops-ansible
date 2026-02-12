@@ -279,7 +279,7 @@ export const deploymentsApi = {
   },
 
   // DB Users
-  async createDBUser(tenantId: string, deploymentId: string, data: { username: string; db: string; rolePreset: string }): Promise<any> {
+  async createDBUser(tenantId: string, deploymentId: string, data: { username: string; db: string; roles: Array<{ db: string; name: string }> }): Promise<any> {
     try {
       const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/users`, data);
       return response.data;

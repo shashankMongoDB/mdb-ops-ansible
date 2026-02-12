@@ -16,7 +16,7 @@ import { formatTimestamp } from '@/lib/utils';
 import type { Deployment, Tenant } from '@/lib/types';
 
 type ActionType = 'shutdown' | 'restart' | 'delete' | null;
-type TabType = 'overview' | 'connection' | 'users' | 'backup' | 'monitoring';
+type TabType = 'overview' | 'users' | 'backup' | 'monitoring';
 
 export function DeploymentDetailsPage() {
   const { tenantId, deploymentId } = useParams<{ tenantId: string; deploymentId: string }>();
@@ -86,13 +86,13 @@ export function DeploymentDetailsPage() {
     }
   };
 
-  const handleCreateUser = async (data: { username: string; db: string; rolePreset: string }) => {
+  const handleCreateUser = async (data: { username: string; db: string; roles: Array<{ db: string; name: string }> }) => {
     if (!tenantId || !deploymentId) return;
     
     setCreatingUser(true);
     try {
       await deploymentsApi.createDBUser(tenantId, deploymentId, data);
-      showSuccess('User Created', `Database user ${data.username} has been created successfully`);
+      showSuccess('User Created', `Database user ${data.username} has been created successfully with ${data.roles.length} role(s)`);
       setShowCreateUserModal(false);
       await loadDBUsers();
     } catch (error: any) {
@@ -239,7 +239,7 @@ export function DeploymentDetailsPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="flex space-x-8">
-          {(['overview', 'connection', 'users', ...(tenantPlan === 'enterprise' ? ['backup' as TabType] : []), 'monitoring'] as TabType[]).map((tab) => (
+          {(['overview', 'users', ...(tenantPlan === 'enterprise' ? ['backup' as TabType] : []), 'monitoring'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -297,10 +297,6 @@ export function DeploymentDetailsPage() {
         </div>
       )}
 
-      {activeTab === 'connection' && (
-        <ConnectionInfo tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />
-      )}
-
       {activeTab === 'users' && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
@@ -353,8 +349,14 @@ export function DeploymentDetailsPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {user.db}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {user.roles.map((r: any) => `${r.role}@${r.db}`).join(', ')}
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          <div className="flex flex-wrap gap-1">
+                            {user.roles.map((r: any, idx: number) => (
+                              <span key={idx} className="badge badge-gray text-xs">
+                                {r.name}@{r.db}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(user.createdAt).toLocaleString()}

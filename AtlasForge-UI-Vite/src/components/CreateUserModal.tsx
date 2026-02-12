@@ -5,14 +5,35 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 interface CreateUserModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { username: string; db: string; rolePreset: string }) => Promise<void>;
+  onSubmit: (data: { username: string; db: string; roles: Array<{ db: string; name: string }> }) => Promise<void>;
   loading?: boolean;
 }
+
+// Common MongoDB roles
+const ADMIN_ROLES = [
+  { name: 'clusterMonitor', description: 'Monitor cluster metrics' },
+  { name: 'readAnyDatabase', description: 'Read any database' },
+  { name: 'readWriteAnyDatabase', description: 'Read/write any database' },
+  { name: 'userAdminAnyDatabase', description: 'Manage users on any database' },
+  { name: 'dbAdminAnyDatabase', description: 'Admin any database' },
+  { name: 'backup', description: 'Backup operations' },
+  { name: 'restore', description: 'Restore operations' },
+  { name: 'root', description: 'Superuser (all privileges)' },
+];
+
+const DB_ROLES = [
+  { name: 'read', description: 'Read data' },
+  { name: 'readWrite', description: 'Read and write data' },
+  { name: 'dbAdmin', description: 'Database administration' },
+  { name: 'dbOwner', description: 'Database owner (all privileges)' },
+  { name: 'userAdmin', description: 'Manage users' },
+];
 
 export function CreateUserModal({ open, onClose, onSubmit, loading = false }: CreateUserModalProps) {
   const [username, setUsername] = useState('');
   const [db, setDb] = useState('appdb');
-  const [rolePreset, setRolePreset] = useState('readWrite');
+  const [selectedDbRoles, setSelectedDbRoles] = useState<string[]>(['readWrite']);
+  const [selectedAdminRoles, setSelectedAdminRoles] = useState<string[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,21 +42,57 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
       return;
     }
 
-    await onSubmit({ username: username.trim(), db: db.trim(), rolePreset });
+    // Build roles array
+    const roles: Array<{ db: string; name: string }> = [];
+    
+    // Add database roles
+    selectedDbRoles.forEach(roleName => {
+      roles.push({ db: db.trim(), name: roleName });
+    });
+    
+    // Add admin roles
+    selectedAdminRoles.forEach(roleName => {
+      roles.push({ db: 'admin', name: roleName });
+    });
+
+    // Default to readWrite if no roles selected
+    if (roles.length === 0) {
+      roles.push({ db: db.trim(), name: 'readWrite' });
+    }
+
+    await onSubmit({ username: username.trim(), db: db.trim(), roles });
     
     // Reset form
     setUsername('');
     setDb('appdb');
-    setRolePreset('readWrite');
+    setSelectedDbRoles(['readWrite']);
+    setSelectedAdminRoles([]);
   };
 
   const handleClose = () => {
     if (!loading) {
       setUsername('');
       setDb('appdb');
-      setRolePreset('readWrite');
+      setSelectedDbRoles(['readWrite']);
+      setSelectedAdminRoles([]);
       onClose();
     }
+  };
+
+  const toggleDbRole = (roleName: string) => {
+    setSelectedDbRoles(prev => 
+      prev.includes(roleName) 
+        ? prev.filter(r => r !== roleName)
+        : [...prev, roleName]
+    );
+  };
+
+  const toggleAdminRole = (roleName: string) => {
+    setSelectedAdminRoles(prev => 
+      prev.includes(roleName) 
+        ? prev.filter(r => r !== roleName)
+        : [...prev, roleName]
+    );
   };
 
   return (
@@ -78,7 +135,7 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto">
                   <div>
                     <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
                       Username
@@ -111,27 +168,63 @@ export function CreateUserModal({ open, onClose, onSubmit, loading = false }: Cr
                     />
                   </div>
 
+                  {/* Database Roles */}
                   <div>
-                    <label htmlFor="rolePreset" className="block text-sm font-medium text-gray-700 mb-1">
-                      Role
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Database Roles ({db})
                     </label>
-                    <select
-                      id="rolePreset"
-                      value={rolePreset}
-                      onChange={(e) => setRolePreset(e.target.value)}
-                      className="input w-full"
-                      disabled={loading}
-                    >
-                      <option value="readWrite">Read/Write on this DB</option>
-                      <option value="read">Read-only on this DB</option>
-                      <option value="dbAdmin">DB Admin on this DB</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Role will be applied to the specified database only
-                    </p>
+                    <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200 max-h-48 overflow-y-auto">
+                      {DB_ROLES.map((role) => (
+                        <label key={role.name} className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedDbRoles.includes(role.name)}
+                            onChange={() => toggleDbRole(role.name)}
+                            disabled={loading}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {role.name}@{db}
+                            </div>
+                            <div className="text-xs text-gray-500">{role.description}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-4">
+                  {/* Admin Roles */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Admin Roles (admin database)
+                    </label>
+                    <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200 max-h-48 overflow-y-auto">
+                      {ADMIN_ROLES.map((role) => (
+                        <label key={role.name} className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedAdminRoles.includes(role.name)}
+                            onChange={() => toggleAdminRole(role.name)}
+                            disabled={loading}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {role.name}@admin
+                            </div>
+                            <div className="text-xs text-gray-500">{role.description}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
+                    💡 If no roles are selected, the user will be created with readWrite@{db} by default.
+                  </p>
+
+                  <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-white border-t">
                     <button
                       type="button"
                       onClick={handleClose}

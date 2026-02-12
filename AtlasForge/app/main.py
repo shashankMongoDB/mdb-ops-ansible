@@ -856,15 +856,28 @@ def create_db_user(
     """
     Create a database user for a MongoDB deployment.
     
-    Creates MongoDBUser CR and Secret, returns connection URI.
+    Creates MongoDBUser CR and Secret with specified roles, returns connection URI.
+    
+    Example request body:
+    {
+      "username": "appUser",
+      "db": "appdb",
+      "roles": [
+        {"db": "appdb", "name": "readWrite"},
+        {"db": "admin", "name": "clusterMonitor"}
+      ]
+    }
     """
     try:
+        # Convert Pydantic models to dict for the service
+        roles_dict = [{"db": r.db, "name": r.name} for r in request.roles]
+        
         result = db_users_service.create_db_user(
             tenant_id=tenantId,
             deployment_id=deploymentId,
             username=request.username,
             db=request.db,
-            role_preset=request.rolePreset
+            roles=roles_dict
         )
         return result
     except ValueError as e:

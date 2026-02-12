@@ -2,6 +2,7 @@ import secrets
 import string
 from datetime import datetime, timezone
 from typing import Dict, Any, List
+from urllib.parse import quote_plus
 from kubernetes import client
 
 from app.services.mongo_repo import MongoRepository
@@ -28,7 +29,7 @@ def create_db_user(
     deployment_id: str,
     username: str,
     db: str,
-    role_preset: str
+    roles: List[Dict[str, str]]
 ) -> Dict[str, Any]:
     """
     Create a MongoDB database user.
@@ -39,16 +40,29 @@ def create_db_user(
     - Metadata in control plane DB
     
     Returns user info with connection URI.
+    
+    Args:
+        tenant_id: Tenant identifier
+        deployment_id: Deployment identifier
+        username: Database username
+        db: Default database name
+        roles: List of roles, each with 'db' and 'name' keys
+            e.g., [{"db": "appdb", "name": "readWrite"}, {"db": "admin", "name": "clusterMonitor"}]
     """
     repo = get_repo()
     k8s = get_k8s_client()
 
     # Validate inputs
-    if not username or not db or not role_preset:
-        raise ValueError("username, db, and rolePreset are required")
-
-    if role_preset not in ["readWrite", "read", "dbAdmin"]:
-        raise ValueError("rolePreset must be one of: readWrite, read, dbAdmin")
+    if not username or not db or not roles:
+        raise ValueError("username, db, and roles are required")
+    
+    if not isinstance(roles, list) or len(roles) == 0:
+        raise ValueError("roles must be a non-empty array")
+    
+    # Validate each role
+    for role in roles:
+        if not isinstance(role, dict) or 'db' not in role or 'name' not in role:
+            raise ValueError("Each role must have 'db' and 'name' keys")
 
     # Get tenant and deployment
     tenant = repo.get_tenant(tenant_id)
@@ -93,7 +107,7 @@ def create_db_user(
             raise ValueError(f"Secret {secret_name} already exists")
         raise
 
-    # Create MongoDBUser CR
+    # Create MongoDBUser CR with all roles
     mongodb_user_name = f"{deployment_id}-{username}"
     
     mongodb_user_cr = {
@@ -112,9 +126,10 @@ def create_db_user(
             },
             "roles": [
                 {
-                    "name": role_preset,
-                    "db": db
+                    "name": role["name"],
+                    "db": role["db"]
                 }
+                for role in roles
             ],
             "mongodbResourceRef": {
                 "name": deployment_id
@@ -146,7 +161,7 @@ def create_db_user(
         "deploymentId": deployment_id,
         "username": username,
         "db": db,
-        "roles": [{"db": db, "role": role_preset}],
+        "roles": roles,
         "secretName": secret_name,
         "createdAt": created_at
     }
@@ -159,15 +174,16 @@ def create_db_user(
     replica_set = conn_info.get("replicaSet", deployment_id)
     external_host_port = conn_info.get("externalHostPort")
 
-    # Build connection URI
+    # Build connection URI with URL-encoded password (handles special characters)
     connection_uri = None
     if external_host_port:
-        connection_uri = f"mongodb://{username}:{password}@{external_host_port}/{db}?replicaSet={replica_set}"
+        encoded_password = quote_plus(password)
+        connection_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}?replicaSet={replica_set}"
 
     return {
         "username": username,
         "db": db,
-        "roles": [{"db": db, "role": role_preset}],
+        "roles": roles,
         "createdAt": created_at,
         "connectionUri": connection_uri
     }
@@ -255,14 +271,17 @@ def get_user_connection(
 
     db = user["db"]
 
-    # Build URIs with credentials
+    # URL-encode password to handle special characters
+    encoded_password = quote_plus(password)
+
+    # Build URIs with credentials and encoded password
     external_uri = None
     if external_host_port:
-        external_uri = f"mongodb://{username}:{password}@{external_host_port}/{db}?replicaSet={replica_set}"
+        external_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}?replicaSet={replica_set}"
 
     internal_uri = None
     if internal_host:
-        internal_uri = f"mongodb://{username}:{password}@{internal_host}/{db}?replicaSet={replica_set}"
+        internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}?replicaSet={replica_set}"
 
     return {
         "username": username,

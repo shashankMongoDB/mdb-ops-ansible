@@ -234,10 +234,15 @@ class BackupSnapshotResponse(BaseModel):
 
 
 # DB Users
+class DBUserRole(BaseModel):
+    db: str = Field(..., description="Database name for this role")
+    name: str = Field(..., description="Role name (e.g., readWrite, clusterMonitor)")
+
+
 class CreateDBUserRequest(BaseModel):
     username: str = Field(..., description="Database username")
-    db: str = Field(..., description="Database name")
-    rolePreset: str = Field(..., description="Role preset: readWrite, read, or dbAdmin")
+    db: str = Field(..., description="Default database name")
+    roles: list[DBUserRole] = Field(..., description="Array of roles for the user")
 
 
 class DBUserResponse(BaseModel):
