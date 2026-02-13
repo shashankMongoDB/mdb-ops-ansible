@@ -427,11 +427,24 @@ def deploy_backup_cronjob_filesystem(
             raise
 
 
-def deploy_backup_cronjob(namespace: str, deployment_id: str) -> None:
+def deploy_backup_cronjob(
+    namespace: str,
+    deployment_id: str,
+    schedule: str = "0 */4 * * *",
+    retention_days: int = 7,
+    s3_bucket: str = None,
+    s3_prefix: str = None,
+    s3_region: str = None
+) -> None:
     """
     Deploy backup CronJob and supporting resources.
     """
     k8s = get_k8s_client()
+    
+    # Use provided values or fall back to config
+    s3_bucket = s3_bucket or config.COMMUNITY_BACKUP_S3_BUCKET
+    s3_prefix = s3_prefix or config.COMMUNITY_BACKUP_S3_PREFIX
+    s3_region = s3_region or config.COMMUNITY_BACKUP_S3_REGION
     
     sa_name = f"{deployment_id}-backup"
     cronjob_name = f"{deployment_id}-backup"
@@ -462,7 +475,7 @@ def deploy_backup_cronjob(namespace: str, deployment_id: str) -> None:
             raise
     
     # Create CronJob
-    s3_path = f"s3://{config.COMMUNITY_BACKUP_S3_BUCKET}/{config.COMMUNITY_BACKUP_S3_PREFIX}/{deployment_id}/snapshots"
+    s3_path = f"s3://{s3_bucket}/{s3_prefix}/{deployment_id}/snapshots"
     
     cronjob = {
         "apiVersion": "batch/v1",
@@ -476,7 +489,7 @@ def deploy_backup_cronjob(namespace: str, deployment_id: str) -> None:
             }
         },
         "spec": {
-            "schedule": config.COMMUNITY_BACKUP_SCHEDULE,
+            "schedule": schedule,
             "successfulJobsHistoryLimit": 3,
             "failedJobsHistoryLimit": 3,
             "jobTemplate": {
@@ -527,17 +540,17 @@ def deploy_backup_cronjob(namespace: str, deployment_id: str) -> None:
                                         f"""
                                         cd /backup
                                         for file in dump-*.tar.gz; do
-                                            aws s3 cp "$file" "{s3_path}/$file" --region {config.COMMUNITY_BACKUP_S3_REGION}
+                                            aws s3 cp "$file" "{s3_path}/$file" --region {s3_region}
                                             echo "Uploaded: $file"
                                         done
                                         
                                         # Cleanup old backups
-                                        cutoff_date=$(date -d "{config.COMMUNITY_BACKUP_RETENTION_DAYS} days ago" +%Y%m%d || date -v-{config.COMMUNITY_BACKUP_RETENTION_DAYS}d +%Y%m%d)
-                                        aws s3 ls "{s3_path}/" --region {config.COMMUNITY_BACKUP_S3_REGION} | while read -r line; do
+                                        cutoff_date=$(date -d "{retention_days} days ago" +%Y%m%d || date -v-{retention_days}d +%Y%m%d)
+                                        aws s3 ls "{s3_path}/" --region {s3_region} | while read -r line; do
                                             file=$(echo "$line" | awk '{{print $4}}')
                                             file_date=$(echo "$file" | grep -oP 'dump-\\K[0-9]{{8}}' || echo "")
                                             if [[ -n "$file_date" && "$file_date" -lt "$cutoff_date" ]]; then
-                                                aws s3 rm "{s3_path}/$file" --region {config.COMMUNITY_BACKUP_S3_REGION}
+                                                aws s3 rm "{s3_path}/$file" --region {s3_region}
                                                 echo "Deleted old backup: $file"
                                             fi
                                         done
@@ -714,8 +727,16 @@ def enable_community_backup(
         if not s3_bucket:
             raise ValueError("s3_bucket is required for S3 backup")
         
-        # Deploy S3 CronJob
-        deploy_backup_cronjob(namespace, deployment_id)
+        # Deploy S3 CronJob with user-provided parameters
+        deploy_backup_cronjob(
+            namespace=namespace,
+            deployment_id=deployment_id,
+            schedule=schedule,
+            retention_days=retention_days,
+            s3_bucket=s3_bucket,
+            s3_prefix=s3_prefix,
+            s3_region=s3_region
+        )
         
         # Ensure CronJob is not suspended (in case it was previously disabled)
         k8s = get_k8s_client()
