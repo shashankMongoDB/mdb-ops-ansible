@@ -74,7 +74,7 @@ def discover_mongodb_connection(namespace: str, deployment_id: str) -> Dict[str,
     }
 
 
-def create_backup_mongodb_user(namespace: str, deployment_id: str) -> str:
+def create_backup_mongodb_user_via_cr(namespace: str, deployment_id: str) -> str:
     """
     Create a MongoDB backup user via MongoDBUser CRD.
     
@@ -183,19 +183,27 @@ def create_backup_credentials_secret(
     deployment_id: str,
     mongodb_hosts: str,
     rs_name: str,
-    password: str
+    password: str,
+    external_host: str = None,
+    external_port: int = None
 ) -> None:
     """
     Create Secret with MongoDB connection URI for backup.
     
-    Note: URI uses direct connection without replicaSet parameter for backup compatibility.
+    Note: Uses external NodePort connection for backup jobs (not internal DNS).
     """
     k8s = get_k8s_client()
     
-    # Build MongoDB URI - use first host only for direct connection
-    # Format: mongodb://user:pass@host:port/admin
-    first_host = mongodb_hosts.split(',')[0]
-    mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?tls=true&tlsInsecure=true"
+    # Use external NodePort connection if available, otherwise fall back to internal
+    if external_host and external_port:
+        # External connection via NodePort (no TLS)
+        mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin"
+        print(f"[COMMUNITY_BACKUP] Using external connection: {external_host}:{external_port}")
+    else:
+        # Fall back to internal DNS (with TLS)
+        first_host = mongodb_hosts.split(',')[0]
+        mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?tls=true&tlsInsecure=true"
+        print(f"[COMMUNITY_BACKUP] Using internal connection: {first_host}")
     
     secret_name = f"{deployment_id}-backup-credentials"
     secret = client.V1Secret(
