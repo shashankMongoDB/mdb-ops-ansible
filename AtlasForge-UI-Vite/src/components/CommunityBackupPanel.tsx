@@ -54,11 +54,12 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         ...config
       });
       showSuccess(
-        'Backup Enabled',
-        'Backup has been enabled and will run on schedule'
+        'Backup Configuration Started',
+        'Backup resources are being created in the background. The CronJob will be ready within 1-2 minutes.'
       );
       setShowEnableModal(false);
-      await loadStatus();
+      // Wait a bit before refreshing to let resources be created
+      setTimeout(() => loadStatus(), 2000);
     } catch (error: any) {
       showError('Failed to enable backup', error.detail);
     } finally {
@@ -143,10 +144,20 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold text-mongodb-forest">Backup Status</h3>
-          <button onClick={loadStatus} className="text-mongodb-green hover:text-mongodb-green-dark" disabled={loading}>
+          <button onClick={loadStatus} className="text-mongodb-green hover:text-mongodb-green-dark" disabled={loading} title="Refresh status">
             <ArrowPathIcon className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Info Message for newly enabled backups */}
+        {status.enabled && !status.lastSuccessfulTime && (
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+            <p className="text-xs text-blue-800">
+              ⏳ <strong>Backup setup in progress:</strong> The backup user and CronJob are being configured. 
+              The first backup will run according to the schedule below. You can manually trigger a backup using kubectl if needed.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* Status Badge */}

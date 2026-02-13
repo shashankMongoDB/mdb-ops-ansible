@@ -171,27 +171,9 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str) -> str:
         else:
             raise
     
-    # Wait for MongoDBUser to be reconciled
-    print(f"[COMMUNITY_BACKUP] Waiting for MongoDBUser to be reconciled...")
-    max_retries = 30
-    for retry in range(max_retries):
-        try:
-            user_obj = k8s.custom_objects.get_namespaced_custom_object(
-                group="mongodb.com",
-                version="v1",
-                namespace=namespace,
-                plural="mongodbusers",
-                name=user_name
-            )
-            phase = user_obj.get("status", {}).get("phase", "")
-            if phase == "Updated":
-                print(f"[COMMUNITY_BACKUP] MongoDBUser reconciled (phase: {phase})")
-                break
-        except client.exceptions.ApiException:
-            pass
-        
-        if retry < max_retries - 1:
-            time.sleep(5)
+    # Note: MongoDBUser will be reconciled asynchronously by the operator
+    # The CronJob will use the credentials once ready (typically within 30-60 seconds)
+    print(f"[COMMUNITY_BACKUP] MongoDBUser created. Operator will reconcile it in the background.")
     
     return backup_password
 
@@ -290,8 +272,8 @@ def validate_filesystem_reachability(
         print(f"[FILESYSTEM_BACKUP] Creating test pod to validate {backup_host}:{backup_path}")
         k8s.core_v1.create_namespaced_pod(namespace, test_pod)
         
-        # Wait for pod to complete (max 30 seconds)
-        max_wait = 30
+        # Wait for pod to complete (max 15 seconds)
+        max_wait = 15
         for i in range(max_wait):
             time.sleep(1)
             try:
@@ -693,6 +675,23 @@ def enable_community_backup(
             retention_days=retention_days
         )
         
+        # Ensure CronJob is not suspended (in case it was previously disabled)
+        k8s = get_k8s_client()
+        cronjob_name = f"{deployment_id}-backup-fs"
+        try:
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="batch",
+                version="v1",
+                namespace=namespace,
+                plural="cronjobs",
+                name=cronjob_name,
+                body={"spec": {"suspend": False}}
+            )
+            print(f"[COMMUNITY_BACKUP] Unsuspended CronJob: {cronjob_name}")
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                print(f"[COMMUNITY_BACKUP] Warning: Could not unsuspend CronJob: {e}")
+        
         target = f"{backup_host}:{backup_path}/{sub_directory}"
         
         # Store config in deployment metadata
@@ -717,6 +716,23 @@ def enable_community_backup(
         
         # Deploy S3 CronJob
         deploy_backup_cronjob(namespace, deployment_id)
+        
+        # Ensure CronJob is not suspended (in case it was previously disabled)
+        k8s = get_k8s_client()
+        cronjob_name = f"{deployment_id}-backup"
+        try:
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="batch",
+                version="v1",
+                namespace=namespace,
+                plural="cronjobs",
+                name=cronjob_name,
+                body={"spec": {"suspend": False}}
+            )
+            print(f"[COMMUNITY_BACKUP] Unsuspended CronJob: {cronjob_name}")
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                print(f"[COMMUNITY_BACKUP] Warning: Could not unsuspend CronJob: {e}")
         
         s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots/"
         
