@@ -699,21 +699,19 @@ def enable_community_backup(
     conn_info = discover_mongodb_connection(namespace, deployment_id)
     
     # Step 1.5: Get external connection (NodePort) for backup jobs
-    from app.services import k8s_client as k8s_helper
-    
     external_host = None
     external_port = None
     
     print(f"[COMMUNITY_BACKUP] ========== GETTING EXTERNAL CONNECTION ==========")
     
     try:
-        # Get worker node IP
+        # Get worker node IP using K8sClient instance
         print(f"[COMMUNITY_BACKUP] Getting worker node IP...")
-        external_host = k8s_helper.get_worker_node_ip()
+        k8s = get_k8s_client()
+        external_host = k8s.get_worker_node_ip()
         print(f"[COMMUNITY_BACKUP] Worker node IP: {external_host}")
         
         # Get NodePort from external service
-        k8s = get_k8s_client()
         service_name = f"{deployment_id}-svc-external"
         
         print(f"[COMMUNITY_BACKUP] Looking for service: {service_name} in namespace: {namespace}")
@@ -736,7 +734,7 @@ def enable_community_backup(
                 print(f"[COMMUNITY_BACKUP] Creating external service...")
                 
                 # Create external service
-                k8s_helper.ensure_external_service(namespace, deployment_id)
+                k8s.ensure_external_service(namespace, deployment_id)
                 print(f"[COMMUNITY_BACKUP] External service created, reading it back...")
                 
                 # Try reading again
