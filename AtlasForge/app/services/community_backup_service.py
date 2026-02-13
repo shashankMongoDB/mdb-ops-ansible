@@ -74,9 +74,11 @@ def discover_mongodb_connection(namespace: str, deployment_id: str) -> Dict[str,
     }
 
 
-def create_backup_mongodb_user_via_cr(namespace: str, deployment_id: str) -> str:
+def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host: str = None, external_port: int = None) -> str:
     """
-    Create a MongoDB backup user via MongoDBUser CRD.
+    Create a MongoDB backup user directly via mongosh exec.
+    
+    For Community MongoDB, we create the user directly since MongoDBUser CR doesn't exist.
     
     Returns the generated password.
     """
@@ -85,10 +87,78 @@ def create_backup_mongodb_user_via_cr(namespace: str, deployment_id: str) -> str
     # Generate password
     backup_password = generate_password(24)
     
-    secret_name = f"{deployment_id}-backupuser-password"
-    user_name = f"backupuser-{deployment_id}"
+    # Get the first pod to exec into
+    pods = k8s.core_v1.list_namespaced_pod(
+        namespace=namespace,
+        label_selector=f"app={deployment_id}-svc"
+    )
     
-    # Create password secret
+    if not pods.items:
+        raise ValueError(f"No pods found for deployment {deployment_id}")
+    
+    pod_name = pods.items[0].metadata.name
+    
+    # Create user via mongosh
+    create_user_js = f"""
+db = db.getSiblingDB('admin');
+try {{
+    db.createUser({{
+        user: 'backupuser',
+        pwd: '{backup_password}',
+        roles: [
+            {{ role: 'backup', db: 'admin' }},
+            {{ role: 'clusterMonitor', db: 'admin' }},
+            {{ role: 'readAnyDatabase', db: 'admin' }}
+        ]
+    }});
+    print('BACKUP_USER_CREATED');
+}} catch(e) {{
+    if (e.code === 51003) {{
+        db.updateUser('backupuser', {{
+            pwd: '{backup_password}',
+            roles: [
+                {{ role: 'backup', db: 'admin' }},
+                {{ role: 'clusterMonitor', db: 'admin' }},
+                {{ role: 'readAnyDatabase', db: 'admin' }}
+            ]
+        }});
+        print('BACKUP_USER_UPDATED');
+    }} else {{
+        throw e;
+    }}
+}}
+"""
+    
+    # Execute via mongosh
+    from kubernetes.stream import stream
+    command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{create_user_js}'"]
+    
+    try:
+        resp = stream(
+            k8s.core_v1.connect_get_namespaced_pod_exec,
+            pod_name,
+            namespace,
+            command=command,
+            stderr=True,
+            stdin=False,
+            stdout=True,
+            tty=False
+        )
+        
+        print(f"[COMMUNITY_BACKUP] MongoDB user creation response: {resp}")
+        
+        if 'BACKUP_USER_CREATED' in resp or 'BACKUP_USER_UPDATED' in resp:
+            print(f"[COMMUNITY_BACKUP] Successfully created/updated backup user in pod {pod_name}")
+        else:
+            print(f"[COMMUNITY_BACKUP] Warning: Unexpected response: {resp}")
+            
+    except Exception as e:
+        print(f"[COMMUNITY_BACKUP] Error executing mongosh command: {e}")
+        # Don't fail if user creation fails - password secret will still be created
+        print(f"[COMMUNITY_BACKUP] Continuing with password generation...")
+    
+    # Store password in secret for CronJob to use
+    secret_name = f"{deployment_id}-backupuser-password"
     secret = client.V1Secret(
         api_version="v1",
         kind="Secret",
@@ -111,69 +181,10 @@ def create_backup_mongodb_user_via_cr(namespace: str, deployment_id: str) -> str
         print(f"[COMMUNITY_BACKUP] Created password secret: {secret_name}")
     except client.exceptions.ApiException as e:
         if e.status == 409:
-            # Already exists, update it
             k8s.core_v1.patch_namespaced_secret(secret_name, namespace, secret)
             print(f"[COMMUNITY_BACKUP] Updated existing secret: {secret_name}")
         else:
             raise
-    
-    # Create MongoDBUser CRD
-    mongodb_user_cr = {
-        "apiVersion": "mongodb.com/v1",
-        "kind": "MongoDBUser",
-        "metadata": {
-            "name": user_name,
-            "namespace": namespace,
-            "labels": {
-                "app": "community-mongodb-backup",
-                "deployment": deployment_id
-            }
-        },
-        "spec": {
-            "username": "backupuser",
-            "db": "admin",
-            "mongodbResourceRef": {
-                "name": deployment_id
-            },
-            "passwordSecretKeyRef": {
-                "name": secret_name,
-                "key": "password"
-            },
-            "roles": [
-                {"name": "backup", "db": "admin"},
-                {"name": "clusterMonitor", "db": "admin"},
-                {"name": "readAnyDatabase", "db": "admin"}
-            ]
-        }
-    }
-    
-    try:
-        k8s.custom_objects.create_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodbusers",
-            body=mongodb_user_cr
-        )
-        print(f"[COMMUNITY_BACKUP] Created MongoDBUser: {user_name}")
-    except client.exceptions.ApiException as e:
-        if e.status == 409:
-            # Already exists, patch it
-            k8s.custom_objects.patch_namespaced_custom_object(
-                group="mongodb.com",
-                version="v1",
-                namespace=namespace,
-                plural="mongodbusers",
-                name=user_name,
-                body=mongodb_user_cr
-            )
-            print(f"[COMMUNITY_BACKUP] Updated existing MongoDBUser: {user_name}")
-        else:
-            raise
-    
-    # Note: MongoDBUser will be reconciled asynchronously by the operator
-    # The CronJob will use the credentials once ready (typically within 30-60 seconds)
-    print(f"[COMMUNITY_BACKUP] MongoDBUser created. Operator will reconcile it in the background.")
     
     return backup_password
 
@@ -655,16 +666,44 @@ def enable_community_backup(
     # Step 1: Discover connection
     conn_info = discover_mongodb_connection(namespace, deployment_id)
     
-    # Step 2: Create backup user
-    backup_password = create_backup_mongodb_user(namespace, deployment_id)
+    # Step 1.5: Get external connection (NodePort) for backup jobs
+    from app.services import lifecycle_service
+    try:
+        connection_info = lifecycle_service.get_deployment_connection(tenant_id, deployment_id)
+        external_uri = connection_info.get("externalUri", "")
+        # Parse external URI to get host and port
+        # Format: mongodb://host:port/...
+        if external_uri and "://" in external_uri:
+            uri_parts = external_uri.split("://")[1].split("/")[0]  # Get host:port part
+            if "@" in uri_parts:
+                uri_parts = uri_parts.split("@")[1]  # Remove user:pass if present
+            if ":" in uri_parts:
+                external_host, external_port = uri_parts.split(":")
+                external_port = int(external_port)
+                print(f"[COMMUNITY_BACKUP] Using external connection: {external_host}:{external_port}")
+            else:
+                external_host = uri_parts
+                external_port = 27017
+        else:
+            external_host = None
+            external_port = None
+    except Exception as e:
+        print(f"[COMMUNITY_BACKUP] Warning: Could not get external connection: {e}")
+        external_host = None
+        external_port = None
     
-    # Step 3: Create credentials secret
+    # Step 2: Create backup user
+    backup_password = create_backup_mongodb_user(namespace, deployment_id, external_host, external_port)
+    
+    # Step 3: Create credentials secret with external connection
     create_backup_credentials_secret(
         namespace,
         deployment_id,
         conn_info["hosts"],
         conn_info["rsName"],
-        backup_password
+        backup_password,
+        external_host,
+        external_port
     )
     
     # Step 4 & 5: Deploy CronJob based on type
