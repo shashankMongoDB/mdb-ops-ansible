@@ -128,27 +128,35 @@ def create_db_user(
             pod_name = pods.items[0].metadata.name
             
             # Build roles for MongoDB
-            roles_js = ",\n            ".join([
-                f"{{ role: '{role['name']}', db: '{role['db']}' }}"
-                for role in roles
-            ])
+            import json
+            roles_list = [{"role": role["name"], "db": role["db"]} for role in roles]
+            roles_json = json.dumps(roles_list)
             
-            # Create user command
-            create_user_js = f"""
+            # Create user command using here-doc to avoid escaping issues
+            # This way the password is never interpreted by shell
+            from kubernetes.stream import stream
+            
+            create_user_script = f"""mongosh --quiet <<'MONGOEOF'
 db = db.getSiblingDB('{db}');
-db.createUser({{
-    user: '{username}',
-    pwd: '{password}',
-    roles: [
-        {roles_js}
-    ]
-}});
-print('USER_CREATED');
+try {{
+    db.createUser({{
+        user: '{username}',
+        pwd: '{password}',
+        roles: {roles_json}
+    }});
+    print('USER_CREATED');
+}} catch(e) {{
+    if (e.code === 51003) {{
+        print('USER_ALREADY_EXISTS');
+    }} else {{
+        print('ERROR: ' + e.message);
+        throw e;
+    }}
+}}
+MONGOEOF
 """
             
-            # Execute via mongosh in mongod container
-            from kubernetes.stream import stream
-            command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{create_user_js}'"]
+            command = ['/bin/bash', '-c', create_user_script]
             
             resp = stream(
                 k8s.core_v1.connect_get_namespaced_pod_exec,
@@ -512,8 +520,10 @@ def delete_user(
             if pods.items:
                 pod_name = pods.items[0].metadata.name
                 
-                # Drop user command
-                drop_user_js = f"""
+                # Drop user command using here-doc
+                from kubernetes.stream import stream
+                
+                drop_user_script = f"""mongosh --quiet <<'MONGOEOF'
 db = db.getSiblingDB('{user_db}');
 try {{
     db.dropUser('{username}');
@@ -521,11 +531,10 @@ try {{
 }} catch(e) {{
     print('ERROR: ' + e.message);
 }}
+MONGOEOF
 """
                 
-                # Execute via mongosh in mongod container
-                from kubernetes.stream import stream
-                command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{drop_user_js}'"]
+                command = ['/bin/bash', '-c', drop_user_script]
                 
                 resp = stream(
                     k8s.core_v1.connect_get_namespaced_pod_exec,

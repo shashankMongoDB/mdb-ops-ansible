@@ -98,8 +98,10 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     
     pod_name = pods.items[0].metadata.name
     
-    # Create user via mongosh
-    create_user_js = f"""
+    # Create user via mongosh using here-doc to avoid escaping issues
+    from kubernetes.stream import stream
+    
+    create_user_script = f"""mongosh --quiet <<'MONGOEOF'
 db = db.getSiblingDB('admin');
 try {{
     db.createUser({{
@@ -127,11 +129,10 @@ try {{
         throw e;
     }}
 }}
+MONGOEOF
 """
     
-    # Execute via mongosh in mongod container
-    from kubernetes.stream import stream
-    command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{create_user_js}'"]
+    command = ['/bin/bash', '-c', create_user_script]
     
     try:
         resp = stream(
