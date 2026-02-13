@@ -54,6 +54,13 @@ class MongoRepository:
         patch["lastUpdatedAt"] = datetime.now(timezone.utc).isoformat()
         self.deployments.update_one({"_id": doc_id}, {"$set": patch})
 
+    def update_deployment_metadata(self, tenant_id: str, deployment_id: str, metadata: Dict[str, Any]) -> None:
+        """Update deployment metadata (e.g., backup config)"""
+        doc_id = f"{tenant_id}:{deployment_id}"
+        update_data = {"lastUpdatedAt": datetime.now(timezone.utc).isoformat()}
+        update_data.update(metadata)
+        self.deployments.update_one({"_id": doc_id}, {"$set": update_data})
+
     def list_deployments(self, tenant_id: str) -> list[Dict[str, Any]]:
         return list(self.deployments.find({"tenantId": tenant_id}))
 
