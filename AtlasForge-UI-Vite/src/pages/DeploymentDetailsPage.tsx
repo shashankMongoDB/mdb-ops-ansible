@@ -287,7 +287,7 @@ export function DeploymentDetailsPage() {
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="flex space-x-8">
-          {(['overview', 'users', ...(tenantPlan === 'enterprise' ? ['backup' as TabType] : []), 'monitoring'] as TabType[]).map((tab) => (
+          {(['overview', 'users', 'backup', 'monitoring'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
