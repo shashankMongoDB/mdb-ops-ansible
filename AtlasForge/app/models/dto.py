@@ -250,6 +250,7 @@ class DBUserResponse(BaseModel):
     db: str
     roles: list[dict]
     createdAt: str
+    updatedAt: Optional[str] = None
     connectionUri: Optional[str] = None
 
 

@@ -941,6 +941,77 @@ def get_user_connection(
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/users/{username}",
+    response_model=DBUserResponse
+)
+def update_user_roles(
+    request: CreateDBUserRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier"),
+    username: str = Path(..., description="Username")
+):
+    """
+    Update roles for an existing database user.
+    
+    Updates MongoDBUser CR and metadata with new roles.
+    
+    Example request body:
+    {
+      "roles": [
+        {"db": "appdb", "name": "readWrite"},
+        {"db": "admin", "name": "clusterMonitor"}
+      ]
+    }
+    """
+    try:
+        # Convert Pydantic models to dict
+        roles_dict = [{"db": r.db, "name": r.name} for r in request.roles]
+        
+        result = db_users_service.update_user_roles(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            username=username,
+            roles=roles_dict
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error updating user roles")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.delete(
+    "/tenants/{tenantId}/deployments/{deploymentId}/users/{username}"
+)
+def delete_user(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier"),
+    username: str = Path(..., description="Username")
+):
+    """
+    Delete a database user.
+    
+    Deletes:
+    - MongoDBUser CR
+    - Secret with password
+    - User metadata
+    """
+    try:
+        result = db_users_service.delete_user(tenantId, deploymentId, username)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error deleting user")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.exception("Unhandled exception")

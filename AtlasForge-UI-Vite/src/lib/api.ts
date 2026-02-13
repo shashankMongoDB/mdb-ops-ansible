@@ -305,4 +305,22 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  async updateDBUser(tenantId: string, deploymentId: string, username: string, data: { roles: Array<{ db: string; name: string }> }): Promise<any> {
+    try {
+      const response = await api.patch(`/tenants/${tenantId}/deployments/${deploymentId}/users/${username}`, data);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async deleteDBUser(tenantId: string, deploymentId: string, username: string): Promise<any> {
+    try {
+      const response = await api.delete(`/tenants/${tenantId}/deployments/${deploymentId}/users/${username}`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };

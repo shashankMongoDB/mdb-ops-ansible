@@ -288,3 +288,177 @@ def get_user_connection(
         "externalUri": external_uri,
         "internalUri": internal_uri
     }
+
+
+def update_user_roles(
+    tenant_id: str,
+    deployment_id: str,
+    username: str,
+    roles: List[Dict[str, str]]
+) -> Dict[str, Any]:
+    """
+    Update roles for an existing DB user.
+    
+    Updates:
+    - MongoDBUser CR spec.roles
+    - User metadata in control plane DB
+    
+    Args:
+        tenant_id: Tenant identifier
+        deployment_id: Deployment identifier
+        username: Database username
+        roles: New roles array with 'db' and 'name' keys
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    # Validate inputs
+    if not roles or not isinstance(roles, list):
+        raise ValueError("roles must be a non-empty array")
+    
+    for role in roles:
+        if not isinstance(role, dict) or 'db' not in role or 'name' not in role:
+            raise ValueError("Each role must have 'db' and 'name' keys")
+
+    # Get existing user
+    user = repo.get_db_user(tenant_id, deployment_id, username)
+    if not user:
+        raise ValueError(f"User {username} not found for deployment {deployment_id}")
+
+    # Get tenant info
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    namespace = tenant["namespace"]
+    mongodb_user_name = f"{deployment_id}-{username}"
+
+    # Update MongoDBUser CR
+    try:
+        # Get existing CR
+        existing_cr = k8s.custom_objects.get_namespaced_custom_object(
+            group="mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbusers",
+            name=mongodb_user_name
+        )
+
+        # Update roles in spec
+        existing_cr["spec"]["roles"] = [
+            {"name": role["name"], "db": role["db"]}
+            for role in roles
+        ]
+
+        # Patch the CR
+        k8s.custom_objects.patch_namespaced_custom_object(
+            group="mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbusers",
+            name=mongodb_user_name,
+            body=existing_cr
+        )
+        print(f"[DB_USER] Updated MongoDBUser CR roles: {mongodb_user_name}")
+
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            raise ValueError(f"MongoDBUser CR {mongodb_user_name} not found")
+        raise
+
+    # Update metadata
+    updated_at = datetime.now(timezone.utc).isoformat()
+    
+    from app.services.mongo_repo import MongoRepository
+    repo_instance = MongoRepository()
+    repo_instance.db_users.update_one(
+        {"_id": f"{tenant_id}:{deployment_id}:{username}"},
+        {
+            "$set": {
+                "roles": roles,
+                "updatedAt": updated_at
+            }
+        }
+    )
+    print(f"[DB_USER] Updated metadata for user: {username}")
+
+    return {
+        "username": username,
+        "db": user["db"],
+        "roles": roles,
+        "createdAt": user.get("createdAt"),
+        "updatedAt": updated_at
+    }
+
+
+def delete_user(
+    tenant_id: str,
+    deployment_id: str,
+    username: str
+) -> Dict[str, Any]:
+    """
+    Delete a DB user.
+    
+    Deletes:
+    - MongoDBUser CR
+    - Secret with password
+    - User metadata from control plane DB
+    
+    Returns:
+        Success confirmation
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    # Get existing user to get secret name
+    user = repo.get_db_user(tenant_id, deployment_id, username)
+    if not user:
+        raise ValueError(f"User {username} not found for deployment {deployment_id}")
+
+    # Get tenant info
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    namespace = tenant["namespace"]
+    mongodb_user_name = f"{deployment_id}-{username}"
+    secret_name = user["secretName"]
+
+    # Delete MongoDBUser CR
+    try:
+        k8s.custom_objects.delete_namespaced_custom_object(
+            group="mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbusers",
+            name=mongodb_user_name
+        )
+        print(f"[DB_USER] Deleted MongoDBUser CR: {mongodb_user_name}")
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            print(f"[DB_USER] MongoDBUser CR {mongodb_user_name} not found, skipping")
+        else:
+            raise
+
+    # Delete Secret
+    try:
+        k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
+        print(f"[DB_USER] Deleted secret: {secret_name}")
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            print(f"[DB_USER] Secret {secret_name} not found, skipping")
+        else:
+            raise
+
+    # Delete metadata
+    from app.services.mongo_repo import MongoRepository
+    repo_instance = MongoRepository()
+    repo_instance.db_users.delete_one(
+        {"_id": f"{tenant_id}:{deployment_id}:{username}"}
+    )
+    print(f"[DB_USER] Deleted metadata for user: {username}")
+
+    return {
+        "deleted": True,
+        "username": username
+    }

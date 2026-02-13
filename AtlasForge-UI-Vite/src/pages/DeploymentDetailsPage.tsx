@@ -11,6 +11,7 @@ import { PrometheusCard } from '@/components/PrometheusCard';
 import { BackupPanel } from '@/components/BackupPanelReadOnly';
 import { CreateUserModal } from '@/components/CreateUserModal';
 import { UserConnectionModal } from '@/components/UserConnectionModal';
+import { EditUserModal } from '@/components/EditUserModal';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment, Tenant } from '@/lib/types';
@@ -37,6 +38,10 @@ export function DeploymentDetailsPage() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [showUserConnectionModal, setShowUserConnectionModal] = useState(false);
   const [selectedUserConnection, setSelectedUserConnection] = useState<any>(null);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [updatingUser, setUpdatingUser] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
   
   const { showSuccess, showError } = useToast();
 
@@ -111,6 +116,49 @@ export function DeploymentDetailsPage() {
       setShowUserConnectionModal(true);
     } catch (error: any) {
       showError('Failed to load connection', error.detail);
+    }
+  };
+
+  const handleEditUser = (user: any) => {
+    setEditingUser(user);
+    setShowEditUserModal(true);
+  };
+
+  const handleUpdateUserRoles = async (roles: Array<{ db: string; name: string }>) => {
+    if (!tenantId || !deploymentId || !editingUser) return;
+    
+    setUpdatingUser(true);
+    try {
+      await deploymentsApi.updateDBUser(tenantId, deploymentId, editingUser.username, { roles });
+      showSuccess('Roles Updated', `Roles for ${editingUser.username} have been updated successfully`);
+      setShowEditUserModal(false);
+      setEditingUser(null);
+      await loadDBUsers();
+    } catch (error: any) {
+      showError('Failed to update roles', error.detail);
+    } finally {
+      setUpdatingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (username: string) => {
+    if (!tenantId || !deploymentId) return;
+    
+    const confirmed = window.confirm(
+      `Delete user "${username}"?\n\nThis will:\n- Remove the user from MongoDB\n- Delete the user's credentials\n- Remove all access permissions\n\nThis action cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+    
+    setDeletingUser(username);
+    try {
+      await deploymentsApi.deleteDBUser(tenantId, deploymentId, username);
+      showSuccess('User Deleted', `User ${username} has been deleted successfully`);
+      await loadDBUsers();
+    } catch (error: any) {
+      showError('Failed to delete user', error.detail);
+    } finally {
+      setDeletingUser(null);
     }
   };
 
@@ -362,12 +410,27 @@ export function DeploymentDetailsPage() {
                           {new Date(user.createdAt).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => handleViewConnection(user.username)}
-                            className="text-mongodb-green hover:text-mongodb-green-dark font-medium"
-                          >
-                            View Connection
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => handleViewConnection(user.username)}
+                              className="text-mongodb-green hover:text-mongodb-green-dark font-medium"
+                            >
+                              View Connection
+                            </button>
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              Edit Roles
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user.username)}
+                              disabled={deletingUser === user.username}
+                              className="text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+                            >
+                              {deletingUser === user.username ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -446,6 +509,19 @@ export function DeploymentDetailsPage() {
         onClose={() => setShowCreateUserModal(false)}
         onSubmit={handleCreateUser}
         loading={creatingUser}
+      />
+
+      <EditUserModal
+        open={showEditUserModal}
+        onClose={() => {
+          setShowEditUserModal(false);
+          setEditingUser(null);
+        }}
+        onSubmit={handleUpdateUserRoles}
+        loading={updatingUser}
+        username={editingUser?.username || ''}
+        db={editingUser?.db || ''}
+        currentRoles={editingUser?.roles || []}
       />
 
       <UserConnectionModal
