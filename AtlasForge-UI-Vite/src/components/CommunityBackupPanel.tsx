@@ -135,44 +135,89 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
 
   return (
     <div className="space-y-6">
-      {/* Info Banner - Always show detailed info */}
+      {/* Info Banner - Context aware based on backup state */}
       <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
         <h4 className="text-sm font-semibold text-blue-900 mb-2">
           Community MongoDB Backup {status?.enabled && status?.type && `- ${status.type.toUpperCase()} Mode`}
         </h4>
         
-        <p className="text-sm text-blue-800 mb-3">
-          Automated backups using <strong>mongodump</strong> to create compressed archives. 
-          {status?.enabled && status?.type === 's3' && ' Backups are uploaded to Amazon S3 for durable storage.'}
-          {status?.enabled && status?.type === 'filesystem' && ' Backups are written to NFS/EFS filesystem storage.'}
-          {!status?.enabled && ' Choose between S3 or Filesystem backup targets.'}
-        </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="bg-white rounded-md p-3 border border-blue-200">
-            <h5 className="font-semibold text-blue-900 text-xs mb-1">📦 S3 Backup</h5>
-            <p className="text-xs text-blue-700 mb-1">
-              Upload to Amazon S3 for durable, off-cluster storage. Ideal for production.
+        {/* When backup is NOT enabled - show both options */}
+        {(!status?.enabled || status?.status === 'SUSPENDED' || status?.status === 'NOT_CONFIGURED') ? (
+          <>
+            <p className="text-sm text-blue-800 mb-3">
+              Automated backups for Community MongoDB deployments. Choose your backup target:
             </p>
-            <p className="text-xs text-blue-600">
-              <strong>Requires:</strong> S3 bucket with IAM permissions (PutObject, ListBucket, DeleteObject)
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-white rounded-md p-3 border border-blue-200">
+                <h5 className="font-semibold text-blue-900 text-xs mb-1">📦 S3 Backup</h5>
+                <p className="text-xs text-blue-700 mb-1">
+                  Upload to Amazon S3 for durable, off-cluster storage. Ideal for production environments.
+                </p>
+                <p className="text-xs text-blue-600">
+                  <strong>Requires:</strong> S3 bucket with IAM permissions (PutObject, ListBucket, DeleteObject)
+                </p>
+              </div>
+              <div className="bg-white rounded-md p-3 border border-blue-200">
+                <h5 className="font-semibold text-blue-900 text-xs mb-1">💾 Filesystem Backup</h5>
+                <p className="text-xs text-blue-700 mb-1">
+                  Write to NFS/EFS mounted storage. Useful for on-premises or air-gapped environments.
+                </p>
+                <p className="text-xs text-blue-600">
+                  <strong>Requires:</strong> NFS/EFS accessible from K8s with write permissions
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-blue-700 mt-3">
+              <strong>How it works:</strong> A Kubernetes CronJob runs <code className="bg-blue-100 px-1 rounded">mongodump</code> on schedule, 
+              compresses the data, and stores it to your chosen target. Old backups are cleaned up per retention policy.
             </p>
-          </div>
-          <div className="bg-white rounded-md p-3 border border-blue-200">
-            <h5 className="font-semibold text-blue-900 text-xs mb-1">💾 Filesystem Backup</h5>
-            <p className="text-xs text-blue-700 mb-1">
-              Write to NFS/EFS mounted storage. Useful for on-premises or air-gapped environments.
-            </p>
-            <p className="text-xs text-blue-600">
-              <strong>Requires:</strong> NFS/EFS accessible from K8s with write permissions
-            </p>
-          </div>
-        </div>
-        
-        <p className="text-xs text-blue-700 mt-3">
-          <strong>How it works:</strong> A Kubernetes CronJob runs <code className="bg-blue-100 px-1 rounded">mongodump</code> on schedule, 
-          compresses the data, and stores it to your target. Old backups are cleaned up per retention policy.
-        </p>
+          </>
+        ) : (
+          <>
+            {/* When S3 backup is enabled - show S3 info only */}
+            {status.type === 's3' && (
+              <>
+                <p className="text-sm text-blue-800 mb-2">
+                  Backups use <strong>mongodump</strong> to create compressed archives and upload them to Amazon S3 for durable storage.
+                </p>
+                <div className="bg-white rounded-md p-3 border border-blue-200">
+                  <h5 className="font-semibold text-blue-900 text-xs mb-2">S3 Configuration</h5>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Backups are encrypted and stored off-cluster</li>
+                    <li>• Automatic retention cleanup after {status.retentionDays} days</li>
+                    <li>• Runs on schedule: <code className="bg-blue-100 px-1 rounded">{status.schedule}</code></li>
+                  </ul>
+                  <p className="text-xs text-blue-600 mt-2">
+                    <strong>Required Permissions:</strong> <code className="bg-blue-100 px-1 rounded">s3:PutObject</code>, 
+                    <code className="bg-blue-100 px-1 rounded ml-1">s3:ListBucket</code>, 
+                    <code className="bg-blue-100 px-1 rounded ml-1">s3:DeleteObject</code>
+                  </p>
+                </div>
+              </>
+            )}
+            
+            {/* When Filesystem backup is enabled - show Filesystem info only */}
+            {status.type === 'filesystem' && (
+              <>
+                <p className="text-sm text-blue-800 mb-2">
+                  Backups use <strong>mongodump</strong> to create compressed archives and write them directly to NFS/EFS storage.
+                </p>
+                <div className="bg-white rounded-md p-3 border border-blue-200">
+                  <h5 className="font-semibold text-blue-900 text-xs mb-2">Filesystem Configuration</h5>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Backups stored on mounted NFS/EFS volume</li>
+                    <li>• Automatic retention cleanup after {status.retentionDays} days</li>
+                    <li>• Runs on schedule: <code className="bg-blue-100 px-1 rounded">{status.schedule}</code></li>
+                    <li>• Target: <code className="bg-blue-100 px-1 rounded">{status.target}</code></li>
+                  </ul>
+                  <p className="text-xs text-blue-600 mt-2">
+                    <strong>Requirements:</strong> Network access to NFS/EFS and write permissions to the target path
+                  </p>
+                </div>
+              </>
+            )}
+          </>
+        )}
       </div>
 
       {/* Status Card */}
