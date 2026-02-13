@@ -38,6 +38,8 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const [updating, setUpdating] = useState(false);
   const [copiedS3, setCopiedS3] = useState(false);
   const [showEnableModal, setShowEnableModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const snapshotsPerPage = 10;
   
   const { showSuccess, showError } = useToast();
 
@@ -135,19 +137,56 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
     <div className="space-y-6">
       {/* Info Banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-        <h4 className="text-sm font-semibold text-blue-900 mb-2">Community MongoDB Backup</h4>
-        <p className="text-sm text-blue-800 mb-2">
-          Backups use <strong>mongodump</strong> to create compressed archives {status?.type === 'filesystem' ? 'and write them to a filesystem (NFS/EFS)' : 'and upload them to S3'}.
-        </p>
-        {status?.type === 's3' && (
-          <p className="text-xs text-blue-700">
-            <strong>S3 Permissions Required:</strong> The backup CronJob needs <code>s3:PutObject</code>, <code>s3:ListBucket</code>, and <code>s3:DeleteObject</code> on the S3 bucket/prefix below.
-          </p>
-        )}
-        {status?.type === 'filesystem' && (
-          <p className="text-xs text-blue-700">
-            <strong>Filesystem Access Required:</strong> The backup CronJob needs network access to the NFS/EFS mount and write permissions to the target path.
-          </p>
+        <h4 className="text-sm font-semibold text-blue-900 mb-2">
+          Community MongoDB Backup {status?.type && `- ${status.type.toUpperCase()} Mode`}
+        </h4>
+        
+        {!status?.enabled ? (
+          <>
+            <p className="text-sm text-blue-800 mb-3">
+              Automated backups for Community MongoDB deployments. Choose between two backup targets:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div className="bg-white rounded-md p-3 border border-blue-200">
+                <h5 className="font-semibold text-blue-900 text-xs mb-1">📦 S3 Backup</h5>
+                <p className="text-xs text-blue-700">
+                  Backups are uploaded to Amazon S3 for durable, off-cluster storage. Ideal for production environments.
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  <strong>Requires:</strong> S3 bucket with IAM permissions (PutObject, ListBucket, DeleteObject)
+                </p>
+              </div>
+              <div className="bg-white rounded-md p-3 border border-blue-200">
+                <h5 className="font-semibold text-blue-900 text-xs mb-1">💾 Filesystem Backup</h5>
+                <p className="text-xs text-blue-700">
+                  Backups are written to NFS/EFS storage mounted to the cluster. Useful for on-premises or air-gapped environments.
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  <strong>Requires:</strong> NFS/EFS accessible from K8s cluster with write permissions
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-blue-700">
+              <strong>How it works:</strong> A Kubernetes CronJob runs <code className="bg-blue-100 px-1 rounded">mongodump</code> on your schedule, 
+              compresses the data, and stores it to your chosen target. Old backups are automatically cleaned up based on retention policy.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-blue-800 mb-2">
+              Backups use <strong>mongodump</strong> to create compressed archives {status.type === 'filesystem' ? 'and write them to a filesystem (NFS/EFS)' : 'and upload them to Amazon S3'}.
+            </p>
+            {status.type === 's3' && (
+              <p className="text-xs text-blue-700">
+                <strong>S3 Permissions:</strong> The backup CronJob requires <code className="bg-blue-100 px-1 rounded">s3:PutObject</code>, <code className="bg-blue-100 px-1 rounded">s3:ListBucket</code>, and <code className="bg-blue-100 px-1 rounded">s3:DeleteObject</code> on the S3 bucket/prefix.
+              </p>
+            )}
+            {status.type === 'filesystem' && (
+              <p className="text-xs text-blue-700">
+                <strong>Filesystem Access:</strong> The backup CronJob requires network access to the NFS/EFS mount and write permissions to the target path.
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -259,65 +298,97 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
       )}
 
       {/* Snapshots List */}
-      {status.enabled && status.type === 's3' && status.snapshots && status.snapshots.length > 0 && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-mongodb-forest">Backup Snapshots</h3>
-            <button onClick={loadStatus} className="text-mongodb-green hover:text-mongodb-green-dark text-sm" title="Refresh snapshots">
-              <ArrowPathIcon className="h-4 w-4" />
-            </button>
-          </div>
+      {status.enabled && status.type === 's3' && status.snapshots && status.snapshots.length > 0 && (() => {
+        const totalPages = Math.ceil(status.snapshots.length / snapshotsPerPage);
+        const startIndex = (currentPage - 1) * snapshotsPerPage;
+        const endIndex = startIndex + snapshotsPerPage;
+        const currentSnapshots = status.snapshots.slice(startIndex, endIndex);
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Snapshot
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Timestamp
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Size
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {status.snapshots.map((snapshot) => (
-                  <tr key={snapshot.filename} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-mono text-gray-900">
-                      {snapshot.filename}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {snapshot.timestamp}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {snapshot.sizeFormatted}
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm">
-                      <button
-                        disabled
-                        className="text-gray-400 cursor-not-allowed"
-                        title="Restore feature coming soon"
-                      >
-                        Restore
-                      </button>
-                    </td>
+        return (
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-mongodb-forest">Backup Snapshots</h3>
+              <button onClick={loadStatus} className="text-mongodb-green hover:text-mongodb-green-dark text-sm" title="Refresh snapshots">
+                <ArrowPathIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Snapshot
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Timestamp
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Size
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {currentSnapshots.map((snapshot) => (
+                    <tr key={snapshot.filename} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-mono text-gray-900">
+                        {snapshot.filename}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {snapshot.timestamp}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {snapshot.sizeFormatted}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm">
+                        <button
+                          disabled
+                          className="text-gray-400 cursor-not-allowed text-sm"
+                          title="Restore feature coming soon"
+                        >
+                          Restore
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <p className="text-xs text-gray-500 mt-3">
-            Total snapshots: {status.snapshots.length} | Retention: {status.retentionDays} days
-          </p>
-        </div>
-      )}
+            {/* Pagination */}
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <p className="text-xs text-gray-500">
+                Showing {startIndex + 1}-{Math.min(endIndex, status.snapshots.length)} of {status.snapshots.length} snapshots | Retention: {status.retentionDays} days
+              </p>
+              
+              {totalPages > 1 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-1 text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Restore Instructions */}
       {status.enabled && (
