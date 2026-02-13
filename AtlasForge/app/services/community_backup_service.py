@@ -709,7 +709,7 @@ def enable_community_backup(
         from app.services import lifecycle_service
         
         print(f"[COMMUNITY_BACKUP] Getting connection info from lifecycle service...")
-        connection_info = lifecycle_service.get_deployment_connection(tenant_id, deployment_id)
+        connection_info = lifecycle_service.get_connection_info(tenant_id, deployment_id)
         
         external_uri = connection_info.get("externalUri", "")
         print(f"[COMMUNITY_BACKUP] External URI from lifecycle: {external_uri}")
