@@ -699,58 +699,48 @@ def enable_community_backup(
     conn_info = discover_mongodb_connection(namespace, deployment_id)
     
     # Step 1.5: Get external connection (NodePort) for backup jobs
+    # Use lifecycle service to get the connection info
     external_host = None
     external_port = None
     
     print(f"[COMMUNITY_BACKUP] ========== GETTING EXTERNAL CONNECTION ==========")
     
     try:
-        # Get worker node IP using K8sClient instance
-        print(f"[COMMUNITY_BACKUP] Getting worker node IP...")
-        k8s = get_k8s_client()
-        external_host = k8s.get_worker_node_ip()
-        print(f"[COMMUNITY_BACKUP] Worker node IP: {external_host}")
+        from app.services import lifecycle_service
         
-        # Get NodePort from external service
-        service_name = f"{deployment_id}-svc-external"
+        print(f"[COMMUNITY_BACKUP] Getting connection info from lifecycle service...")
+        connection_info = lifecycle_service.get_deployment_connection(tenant_id, deployment_id)
         
-        print(f"[COMMUNITY_BACKUP] Looking for service: {service_name} in namespace: {namespace}")
+        external_uri = connection_info.get("externalUri", "")
+        print(f"[COMMUNITY_BACKUP] External URI from lifecycle: {external_uri}")
         
-        try:
-            svc = k8s.core_v1.read_namespaced_service(
-                name=service_name,
-                namespace=namespace
-            )
-            # Get the NodePort
-            if svc.spec.ports:
-                external_port = svc.spec.ports[0].node_port
-                print(f"[COMMUNITY_BACKUP] ✅ Found external service: {external_host}:{external_port}")
+        if external_uri and "://" in external_uri:
+            # Parse: mongodb://host:port/...
+            # or mongodb://user:pass@host:port/...
+            uri_after_protocol = external_uri.split("://")[1]
+            
+            # Remove database and query params if present
+            if "/" in uri_after_protocol:
+                host_port_part = uri_after_protocol.split("/")[0]
             else:
-                print(f"[COMMUNITY_BACKUP] ❌ External service has no ports!")
-                
-        except client.exceptions.ApiException as e:
-            if e.status == 404:
-                print(f"[COMMUNITY_BACKUP] ⚠️  External service {service_name} not found (404)")
-                print(f"[COMMUNITY_BACKUP] Creating external service...")
-                
-                # Create external service
-                k8s.ensure_external_service(namespace, deployment_id)
-                print(f"[COMMUNITY_BACKUP] External service created, reading it back...")
-                
-                # Try reading again
-                svc = k8s.core_v1.read_namespaced_service(
-                    name=service_name,
-                    namespace=namespace
-                )
-                if svc.spec.ports:
-                    external_port = svc.spec.ports[0].node_port
-                    print(f"[COMMUNITY_BACKUP] ✅ Created external service: {external_host}:{external_port}")
-                else:
-                    print(f"[COMMUNITY_BACKUP] ❌ Created service has no ports!")
+                host_port_part = uri_after_protocol
+            
+            # Remove user:pass@ if present
+            if "@" in host_port_part:
+                host_port_part = host_port_part.split("@")[1]
+            
+            # Parse host:port
+            if ":" in host_port_part:
+                external_host, port_str = host_port_part.split(":")
+                external_port = int(port_str)
+                print(f"[COMMUNITY_BACKUP] ✅ Parsed external connection: {external_host}:{external_port}")
             else:
-                print(f"[COMMUNITY_BACKUP] ❌ Error reading service: {e.status} - {e.reason}")
-                raise
-                
+                print(f"[COMMUNITY_BACKUP] ⚠️  No port in external URI, using default 27017")
+                external_host = host_port_part
+                external_port = 27017
+        else:
+            print(f"[COMMUNITY_BACKUP] ⚠️  External URI not available")
+            
     except Exception as e:
         print(f"[COMMUNITY_BACKUP] ❌ ERROR getting external connection: {e}")
         import traceback
