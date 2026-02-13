@@ -2,8 +2,16 @@ import secrets
 import string
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from kubernetes import client
+
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    print("[COMMUNITY_BACKUP] Warning: boto3 not installed, S3 snapshot listing will not work")
 
 from app import config
 from app.services.mongo_repo import MongoRepository

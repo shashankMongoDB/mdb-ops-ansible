@@ -265,6 +265,11 @@ class DBUserConnectionResponse(BaseModel):
 # Community Backup
 class CommunityBackupUpdateRequest(BaseModel):
     enabled: bool = Field(..., description="Enable or disable backup")
+    s3Bucket: Optional[str] = Field(None, description="S3 bucket name")
+    s3Prefix: Optional[str] = Field(None, description="S3 prefix/folder path")
+    s3Region: Optional[str] = Field(None, description="S3 region")
+    schedule: Optional[str] = Field(None, description="Cron schedule")
+    retentionDays: Optional[int] = Field(None, description="Retention in days")
 
 
 class CommunityBackupStatusResponse(BaseModel):
@@ -272,6 +277,10 @@ class CommunityBackupStatusResponse(BaseModel):
     status: str
     schedule: Optional[str] = None
     lastSuccessfulTime: Optional[str] = None
+    s3Bucket: Optional[str] = None
+    s3Prefix: Optional[str] = None
+    s3Region: Optional[str] = None
     s3Path: Optional[str] = None
     retentionDays: Optional[int] = None
+    snapshots: Optional[list] = None
     message: Optional[str] = None
