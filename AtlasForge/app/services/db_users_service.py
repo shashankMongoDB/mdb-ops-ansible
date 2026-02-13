@@ -146,7 +146,7 @@ db.createUser({{
 print('USER_CREATED');
 """
             
-            # Execute via mongosh
+            # Execute via mongosh in mongod container
             from kubernetes.stream import stream
             command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{create_user_js}'"]
             
@@ -154,6 +154,7 @@ print('USER_CREATED');
                 k8s.core_v1.connect_get_namespaced_pod_exec,
                 pod_name,
                 namespace,
+                container='mongod',  # Specify the mongod container
                 command=command,
                 stderr=True,
                 stdin=False,
@@ -522,7 +523,7 @@ try {{
 }}
 """
                 
-                # Execute via mongosh
+                # Execute via mongosh in mongod container
                 from kubernetes.stream import stream
                 command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{drop_user_js}'"]
                 
@@ -530,6 +531,7 @@ try {{
                     k8s.core_v1.connect_get_namespaced_pod_exec,
                     pod_name,
                     namespace,
+                    container='mongod',  # Specify the mongod container
                     command=command,
                     stderr=True,
                     stdin=False,

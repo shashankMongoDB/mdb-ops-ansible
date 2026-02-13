@@ -129,7 +129,7 @@ try {{
 }}
 """
     
-    # Execute via mongosh
+    # Execute via mongosh in mongod container
     from kubernetes.stream import stream
     command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{create_user_js}'"]
     
@@ -138,6 +138,7 @@ try {{
             k8s.core_v1.connect_get_namespaced_pod_exec,
             pod_name,
             namespace,
+            container='mongod',  # Specify the mongod container for Community MongoDB
             command=command,
             stderr=True,
             stdin=False,
