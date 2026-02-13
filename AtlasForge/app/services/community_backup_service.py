@@ -699,49 +699,73 @@ def enable_community_backup(
     conn_info = discover_mongodb_connection(namespace, deployment_id)
     
     # Step 1.5: Get external connection (NodePort) for backup jobs
-    from app.services import lifecycle_service
     from app.services import k8s_client as k8s_helper
     
     external_host = None
     external_port = None
     
+    print(f"[COMMUNITY_BACKUP] ========== GETTING EXTERNAL CONNECTION ==========")
+    
     try:
         # Get worker node IP
+        print(f"[COMMUNITY_BACKUP] Getting worker node IP...")
         external_host = k8s_helper.get_worker_node_ip()
+        print(f"[COMMUNITY_BACKUP] Worker node IP: {external_host}")
         
         # Get NodePort from external service
         k8s = get_k8s_client()
+        service_name = f"{deployment_id}-svc-external"
+        
+        print(f"[COMMUNITY_BACKUP] Looking for service: {service_name} in namespace: {namespace}")
+        
         try:
             svc = k8s.core_v1.read_namespaced_service(
-                name=f"{deployment_id}-svc-external",
+                name=service_name,
                 namespace=namespace
             )
             # Get the NodePort
             if svc.spec.ports:
                 external_port = svc.spec.ports[0].node_port
-                print(f"[COMMUNITY_BACKUP] Found external service: {external_host}:{external_port}")
+                print(f"[COMMUNITY_BACKUP] ✅ Found external service: {external_host}:{external_port}")
+            else:
+                print(f"[COMMUNITY_BACKUP] ❌ External service has no ports!")
+                
         except client.exceptions.ApiException as e:
             if e.status == 404:
-                print(f"[COMMUNITY_BACKUP] External service not found, creating it...")
+                print(f"[COMMUNITY_BACKUP] ⚠️  External service {service_name} not found (404)")
+                print(f"[COMMUNITY_BACKUP] Creating external service...")
+                
                 # Create external service
                 k8s_helper.ensure_external_service(namespace, deployment_id)
+                print(f"[COMMUNITY_BACKUP] External service created, reading it back...")
+                
                 # Try reading again
                 svc = k8s.core_v1.read_namespaced_service(
-                    name=f"{deployment_id}-svc-external",
+                    name=service_name,
                     namespace=namespace
                 )
                 if svc.spec.ports:
                     external_port = svc.spec.ports[0].node_port
-                    print(f"[COMMUNITY_BACKUP] Created external service: {external_host}:{external_port}")
+                    print(f"[COMMUNITY_BACKUP] ✅ Created external service: {external_host}:{external_port}")
+                else:
+                    print(f"[COMMUNITY_BACKUP] ❌ Created service has no ports!")
             else:
+                print(f"[COMMUNITY_BACKUP] ❌ Error reading service: {e.status} - {e.reason}")
                 raise
                 
     except Exception as e:
-        print(f"[COMMUNITY_BACKUP] Warning: Could not get external connection: {e}")
+        print(f"[COMMUNITY_BACKUP] ❌ ERROR getting external connection: {e}")
         import traceback
         traceback.print_exc()
         external_host = None
         external_port = None
+    
+    print(f"[COMMUNITY_BACKUP] Final external connection: {external_host}:{external_port}")
+    print(f"[COMMUNITY_BACKUP] ========== END EXTERNAL CONNECTION ==========")
+    
+    if not external_host or not external_port:
+        print(f"[COMMUNITY_BACKUP] ⚠️  ⚠️  ⚠️  WARNING: External connection not available!")
+        print(f"[COMMUNITY_BACKUP] ⚠️  ⚠️  ⚠️  Will fall back to internal DNS (may not work!)")
     
     # Step 2: Create backup user
     backup_password = create_backup_mongodb_user(namespace, deployment_id, external_host, external_port)
