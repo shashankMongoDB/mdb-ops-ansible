@@ -98,10 +98,39 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     
     pod_name = pods.items[0].metadata.name
     
+    # Get admin credentials from MongoDB Community secret
+    admin_secret_name = f"{deployment_id}-admin-admin"
+    try:
+        admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+        admin_password = admin_secret.data.get("password")
+        if admin_password:
+            import base64
+            admin_password = base64.b64decode(admin_password).decode('utf-8')
+        else:
+            raise ValueError("Admin password not found")
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            # Try alternative name
+            admin_secret_name = f"{deployment_id}-admin"
+            try:
+                admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+                admin_password = admin_secret.data.get("password")
+                if admin_password:
+                    import base64
+                    admin_password = base64.b64decode(admin_password).decode('utf-8')
+                else:
+                    raise ValueError("Admin password not found")
+            except:
+                raise ValueError(f"Could not find admin credentials. Tried: {deployment_id}-admin-admin, {deployment_id}-admin")
+        else:
+            raise
+    
+    print(f"[COMMUNITY_BACKUP] Found admin credentials in secret: {admin_secret_name}")
+    
     # Create user via mongosh using here-doc to avoid escaping issues
     from kubernetes.stream import stream
     
-    create_user_script = f"""mongosh --quiet <<'MONGOEOF'
+    create_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
 db = db.getSiblingDB('admin');
 try {{
     db.createUser({{

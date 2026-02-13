@@ -127,16 +127,46 @@ def create_db_user(
             
             pod_name = pods.items[0].metadata.name
             
+            # Get admin credentials from MongoDB Community secret
+            # Community operator stores admin credentials in a secret
+            admin_secret_name = f"{deployment_id}-admin-admin"  # Common pattern
+            try:
+                admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+                admin_password = admin_secret.data.get("password")
+                if admin_password:
+                    import base64
+                    admin_password = base64.b64decode(admin_password).decode('utf-8')
+                else:
+                    raise ValueError("Admin password not found in secret")
+            except client.exceptions.ApiException as e:
+                if e.status == 404:
+                    # Try alternative secret name
+                    admin_secret_name = f"{deployment_id}-admin"
+                    try:
+                        admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+                        admin_password = admin_secret.data.get("password")
+                        if admin_password:
+                            import base64
+                            admin_password = base64.b64decode(admin_password).decode('utf-8')
+                        else:
+                            raise ValueError("Admin password not found in secret")
+                    except:
+                        raise ValueError(f"Could not find admin credentials secret. Tried: {deployment_id}-admin-admin, {deployment_id}-admin")
+                else:
+                    raise
+            
+            print(f"[DB_USER] Found admin credentials in secret: {admin_secret_name}")
+            
             # Build roles for MongoDB
             import json
             roles_list = [{"role": role["name"], "db": role["db"]} for role in roles]
             roles_json = json.dumps(roles_list)
             
             # Create user command using here-doc to avoid escaping issues
-            # This way the password is never interpreted by shell
+            # Connect as admin to create the user
             from kubernetes.stream import stream
             
-            create_user_script = f"""mongosh --quiet <<'MONGOEOF'
+            create_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
 db = db.getSiblingDB('{db}');
 try {{
     db.createUser({{
@@ -520,10 +550,33 @@ def delete_user(
             if pods.items:
                 pod_name = pods.items[0].metadata.name
                 
+                # Get admin credentials
+                admin_secret_name = f"{deployment_id}-admin-admin"
+                try:
+                    admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+                    admin_password = admin_secret.data.get("password")
+                    if admin_password:
+                        import base64
+                        admin_password = base64.b64decode(admin_password).decode('utf-8')
+                    else:
+                        raise ValueError("Admin password not found")
+                except client.exceptions.ApiException as e:
+                    if e.status == 404:
+                        admin_secret_name = f"{deployment_id}-admin"
+                        admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+                        admin_password = admin_secret.data.get("password")
+                        if admin_password:
+                            import base64
+                            admin_password = base64.b64decode(admin_password).decode('utf-8')
+                        else:
+                            raise ValueError("Admin password not found")
+                    else:
+                        raise
+                
                 # Drop user command using here-doc
                 from kubernetes.stream import stream
                 
-                drop_user_script = f"""mongosh --quiet <<'MONGOEOF'
+                drop_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
 db = db.getSiblingDB('{user_db}');
 try {{
     db.dropUser('{username}');
