@@ -205,11 +205,15 @@ def create_backup_credentials_secret(
 ) -> None:
     """
     Create Secret with MongoDB connection URI for backup.
+    
+    Note: URI uses direct connection without replicaSet parameter for backup compatibility.
     """
     k8s = get_k8s_client()
     
-    # Build MongoDB URI
-    mongodb_uri = f"mongodb://backupuser:{password}@{mongodb_hosts}/?replicaSet={rs_name}&authSource=admin&tls=true&tlsInsecure=true"
+    # Build MongoDB URI - use first host only for direct connection
+    # Format: mongodb://user:pass@host:port/admin
+    first_host = mongodb_hosts.split(',')[0]
+    mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?tls=true&tlsInsecure=true"
     
     secret_name = f"{deployment_id}-backup-credentials"
     secret = client.V1Secret(
@@ -236,6 +240,207 @@ def create_backup_credentials_secret(
         if e.status == 409:
             k8s.core_v1.patch_namespaced_secret(secret_name, namespace, secret)
             print(f"[COMMUNITY_BACKUP] Updated credentials secret: {secret_name}")
+        else:
+            raise
+
+
+def validate_filesystem_reachability(
+    namespace: str,
+    backup_host: str,
+    backup_path: str
+) -> tuple[bool, str]:
+    """
+    Validate that filesystem backup target is reachable from cluster.
+    
+    Creates a test pod to verify:
+    1. Network connectivity to backup host
+    2. Write access to backup path
+    
+    Returns: (success: bool, message: str)
+    """
+    k8s = get_k8s_client()
+    
+    test_pod_name = f"backup-test-{int(time.time())}"
+    
+    # Create test pod that tries to write to the path
+    test_pod = {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": test_pod_name,
+            "namespace": namespace
+        },
+        "spec": {
+            "containers": [{
+                "name": "test",
+                "image": "busybox",
+                "command": [
+                    "sh", "-c",
+                    f"mkdir -p {backup_path} && "
+                    f"echo 'test' > {backup_path}/test-{int(time.time())}.txt && "
+                    f"echo 'Backup path is writable' || "
+                    f"echo 'Backup path is not writable'"
+                ]
+            }],
+            "restartPolicy": "Never"
+        }
+    }
+    
+    try:
+        print(f"[FILESYSTEM_BACKUP] Creating test pod to validate {backup_host}:{backup_path}")
+        k8s.core_v1.create_namespaced_pod(namespace, test_pod)
+        
+        # Wait for pod to complete (max 30 seconds)
+        max_wait = 30
+        for i in range(max_wait):
+            time.sleep(1)
+            try:
+                pod = k8s.core_v1.read_namespaced_pod(test_pod_name, namespace)
+                if pod.status.phase in ["Succeeded", "Failed"]:
+                    break
+            except:
+                pass
+        
+        # Check final status
+        pod = k8s.core_v1.read_namespaced_pod(test_pod_name, namespace)
+        success = pod.status.phase == "Succeeded"
+        
+        # Get logs
+        try:
+            logs = k8s.core_v1.read_namespaced_pod_log(test_pod_name, namespace)
+            print(f"[FILESYSTEM_BACKUP] Test pod logs: {logs}")
+        except:
+            logs = ""
+        
+        # Cleanup
+        k8s.core_v1.delete_namespaced_pod(test_pod_name, namespace)
+        
+        if success:
+            return True, "Filesystem backup path is reachable and writable"
+        else:
+            return False, f"Filesystem backup path test failed. Pod status: {pod.status.phase}"
+            
+    except Exception as e:
+        # Cleanup on error
+        try:
+            k8s.core_v1.delete_namespaced_pod(test_pod_name, namespace)
+        except:
+            pass
+        
+        return False, f"Failed to validate filesystem backup path: {str(e)}"
+
+
+def deploy_backup_cronjob_filesystem(
+    namespace: str,
+    deployment_id: str,
+    backup_host: str,
+    backup_path: str,
+    sub_directory: str,
+    schedule: str,
+    retention_days: int
+) -> None:
+    """
+    Deploy filesystem backup CronJob.
+    
+    Mounts NFS/EFS and runs mongodump to write directly to mounted path.
+    """
+    k8s = get_k8s_client()
+    
+    sa_name = f"{deployment_id}-backup"
+    cronjob_name = f"{deployment_id}-backup-fs"
+    
+    # Build full backup path
+    full_path = f"{backup_path}/{sub_directory}" if sub_directory else backup_path
+    
+    cronjob = {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "metadata": {
+            "name": cronjob_name,
+            "namespace": namespace,
+            "labels": {
+                "app": "community-mongodb-backup",
+                "deployment": deployment_id,
+                "type": "filesystem"
+            }
+        },
+        "spec": {
+            "schedule": schedule,
+            "successfulJobsHistoryLimit": 3,
+            "failedJobsHistoryLimit": 3,
+            "jobTemplate": {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "serviceAccountName": sa_name,
+                            "restartPolicy": "OnFailure",
+                            "containers": [{
+                                "name": "mongodump-filesystem",
+                                "image": config.COMMUNITY_BACKUP_MONGODUMP_IMAGE,
+                                "command": ["/bin/bash", "-c"],
+                                "args": [
+                                    f"""
+                                    timestamp=$(date +%Y%m%d-%H%M%S)
+                                    backup_file="{full_path}/dump-$timestamp.gz"
+                                    
+                                    mkdir -p {full_path}
+                                    
+                                    echo "Starting backup to $backup_file"
+                                    mongodump --uri="$MONGODB_URI" --archive="$backup_file" --gzip
+                                    
+                                    if [ $? -eq 0 ]; then
+                                        echo "Backup completed successfully: $backup_file"
+                                        
+                                        # Cleanup old backups
+                                        echo "Cleaning up backups older than {retention_days} days"
+                                        find {full_path} -name "dump-*.gz" -type f -mtime +{retention_days} -delete
+                                    else
+                                        echo "Backup failed"
+                                        exit 1
+                                    fi
+                                    """
+                                ],
+                                "envFrom": [
+                                    {"secretRef": {"name": f"{deployment_id}-backup-credentials"}}
+                                ],
+                                "resources": {
+                                    "requests": {
+                                        "cpu": config.COMMUNITY_BACKUP_CPU_REQUEST,
+                                        "memory": config.COMMUNITY_BACKUP_MEMORY_REQUEST
+                                    },
+                                    "limits": {
+                                        "cpu": config.COMMUNITY_BACKUP_CPU_LIMIT,
+                                        "memory": config.COMMUNITY_BACKUP_MEMORY_LIMIT
+                                    }
+                                }
+                            }]
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    try:
+        k8s.custom_objects.create_namespaced_custom_object(
+            group="batch",
+            version="v1",
+            namespace=namespace,
+            plural="cronjobs",
+            body=cronjob
+        )
+        print(f"[FILESYSTEM_BACKUP] Created CronJob: {cronjob_name}")
+    except client.exceptions.ApiException as e:
+        if e.status == 409:
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="batch",
+                version="v1",
+                namespace=namespace,
+                plural="cronjobs",
+                name=cronjob_name,
+                body=cronjob
+            )
+            print(f"[FILESYSTEM_BACKUP] Updated CronJob: {cronjob_name}")
         else:
             raise
 
@@ -402,20 +607,27 @@ def deploy_backup_cronjob(namespace: str, deployment_id: str) -> None:
 def enable_community_backup(
     tenant_id: str,
     deployment_id: str,
-    s3_bucket: str,
-    s3_prefix: str,
-    s3_region: str,
-    schedule: str,
-    retention_days: int
+    backup_type: str = "s3",
+    s3_bucket: Optional[str] = None,
+    s3_prefix: Optional[str] = None,
+    s3_region: Optional[str] = None,
+    filesystem_config: Optional[Dict[str, str]] = None,
+    schedule: str = "0 */4 * * *",
+    retention_days: int = 7
 ) -> Dict[str, Any]:
     """
     Enable Community MongoDB backup for a deployment.
+    
+    Supports two backup types:
+    - s3: Backup to S3 bucket (requires s3_bucket, s3_prefix, s3_region)
+    - filesystem: Backup to NFS/EFS (requires filesystem_config with backupHost, backupPath, subDirectory)
     
     Orchestrates:
     1. Discover connection
     2. Create backup user
     3. Create credentials secret
-    4. Deploy CronJob
+    4. Validate filesystem (if type=filesystem)
+    5. Deploy CronJob (S3 or Filesystem)
     
     Returns backup configuration.
     """
@@ -435,7 +647,7 @@ def enable_community_backup(
     
     namespace = tenant["namespace"]
     
-    print(f"[COMMUNITY_BACKUP] Enabling backup for {deployment_id} in {namespace}")
+    print(f"[COMMUNITY_BACKUP] Enabling {backup_type} backup for {deployment_id} in {namespace}")
     
     # Step 1: Discover connection
     conn_info = discover_mongodb_connection(namespace, deployment_id)
@@ -452,17 +664,82 @@ def enable_community_backup(
         backup_password
     )
     
-    # Step 4: Deploy CronJob
-    deploy_backup_cronjob(namespace, deployment_id)
+    # Step 4 & 5: Deploy CronJob based on type
+    if backup_type == "filesystem":
+        if not filesystem_config:
+            raise ValueError("filesystem_config is required for filesystem backup")
+        
+        backup_host = filesystem_config.get("backupHost")
+        backup_path = filesystem_config.get("backupPath")
+        sub_directory = filesystem_config.get("subDirectory", deployment_id)
+        
+        if not backup_host or not backup_path:
+            raise ValueError("backupHost and backupPath are required for filesystem backup")
+        
+        # Validate filesystem reachability
+        print(f"[COMMUNITY_BACKUP] Validating filesystem {backup_host}:{backup_path}")
+        success, message = validate_filesystem_reachability(namespace, backup_host, backup_path)
+        if not success:
+            raise ValueError(f"Backup path not reachable from cluster: {message}. Please verify NFS/EFS mount configuration.")
+        
+        # Deploy filesystem CronJob
+        deploy_backup_cronjob_filesystem(
+            namespace=namespace,
+            deployment_id=deployment_id,
+            backup_host=backup_host,
+            backup_path=backup_path,
+            sub_directory=sub_directory,
+            schedule=schedule,
+            retention_days=retention_days
+        )
+        
+        target = f"{backup_host}:{backup_path}/{sub_directory}"
+        
+        # Store config in deployment metadata
+        repo.update_deployment_metadata(tenant_id, deployment_id, {
+            "backupType": backup_type,
+            "backupTarget": target,
+            "backupSchedule": schedule,
+            "backupRetentionDays": retention_days
+        })
+        
+        return {
+            "enabled": True,
+            "type": backup_type,
+            "schedule": schedule,
+            "target": target,
+            "retentionDays": retention_days
+        }
     
-    s3_path = f"s3://{config.COMMUNITY_BACKUP_S3_BUCKET}/{config.COMMUNITY_BACKUP_S3_PREFIX}/{deployment_id}/snapshots/"
-    
-    return {
-        "enabled": True,
-        "schedule": config.COMMUNITY_BACKUP_SCHEDULE,
-        "s3Path": s3_path,
-        "retentionDays": config.COMMUNITY_BACKUP_RETENTION_DAYS
-    }
+    else:  # S3 backup
+        if not s3_bucket:
+            raise ValueError("s3_bucket is required for S3 backup")
+        
+        # Deploy S3 CronJob
+        deploy_backup_cronjob(namespace, deployment_id)
+        
+        s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots/"
+        
+        # Store config in deployment metadata
+        repo.update_deployment_metadata(tenant_id, deployment_id, {
+            "backupType": backup_type,
+            "s3Bucket": s3_bucket,
+            "s3Prefix": s3_prefix,
+            "s3Region": s3_region,
+            "backupSchedule": schedule,
+            "backupRetentionDays": retention_days
+        })
+        
+        return {
+            "enabled": True,
+            "type": backup_type,
+            "schedule": schedule,
+            "s3Path": s3_path,
+            "s3Bucket": s3_bucket,
+            "s3Prefix": s3_prefix,
+            "s3Region": s3_region,
+            "retentionDays": retention_days
+        }
 
 
 def disable_community_backup(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -477,7 +754,12 @@ def disable_community_backup(tenant_id: str, deployment_id: str) -> Dict[str, An
         raise ValueError(f"Tenant {tenant_id} not found")
     
     namespace = tenant["namespace"]
-    cronjob_name = f"{deployment_id}-backup"
+    
+    # Get deployment metadata to determine backup type
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    backup_type = deployment.get("backupType", "s3")
+    
+    cronjob_name = f"{deployment_id}-backup-fs" if backup_type == "filesystem" else f"{deployment_id}-backup"
     
     # Patch CronJob to suspend it
     try:
@@ -502,7 +784,7 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
     """
     Get Community MongoDB backup status.
     
-    Returns status including schedule, last backup time, S3 path.
+    Returns status including schedule, last backup time, and location (S3 or filesystem).
     """
     repo = get_repo()
     k8s = get_k8s_client()
@@ -519,7 +801,13 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
         }
     
     namespace = tenant["namespace"]
-    cronjob_name = f"{deployment_id}-backup"
+    
+    # Get deployment metadata to determine backup type
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    backup_type = deployment.get("backupType", "s3")
+    
+    # Try both CronJob names (S3 and filesystem)
+    cronjob_name = f"{deployment_id}-backup-fs" if backup_type == "filesystem" else f"{deployment_id}-backup"
     
     # Check if CronJob exists
     try:
@@ -534,10 +822,10 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
         if e.status == 404:
             return {
                 "enabled": False,
+                "type": backup_type,
                 "status": "NOT_CONFIGURED",
                 "schedule": None,
-                "lastSuccessfulTime": None,
-                "s3Path": None
+                "lastSuccessfulTime": None
             }
         raise
     
@@ -549,13 +837,22 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
     schedule = spec.get("schedule", "")
     last_successful_time = status.get("lastSuccessfulTime")
     
-    s3_path = f"s3://{config.COMMUNITY_BACKUP_S3_BUCKET}/{config.COMMUNITY_BACKUP_S3_PREFIX}/{deployment_id}/snapshots/"
-    
-    return {
+    result = {
         "enabled": enabled,
+        "type": backup_type,
         "status": "ACTIVE" if enabled else "SUSPENDED",
         "schedule": schedule,
         "lastSuccessfulTime": last_successful_time,
-        "s3Path": s3_path,
-        "retentionDays": config.COMMUNITY_BACKUP_RETENTION_DAYS
+        "retentionDays": deployment.get("backupRetentionDays", 7)
     }
+    
+    # Add type-specific fields
+    if backup_type == "filesystem":
+        result["target"] = deployment.get("backupTarget")
+    else:
+        result["s3Bucket"] = deployment.get("s3Bucket")
+        result["s3Prefix"] = deployment.get("s3Prefix")
+        result["s3Region"] = deployment.get("s3Region")
+        result["s3Path"] = f"s3://{deployment.get('s3Bucket')}/{deployment.get('s3Prefix')}/snapshots/"
+    
+    return result

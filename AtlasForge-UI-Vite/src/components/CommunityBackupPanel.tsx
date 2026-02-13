@@ -11,10 +11,12 @@ interface CommunityBackupPanelProps {
 
 interface BackupStatus {
   enabled: boolean;
+  type?: string | null;  // "s3" or "filesystem"
   status: string;
   schedule?: string | null;
   lastSuccessfulTime?: string | null;
   s3Path?: string | null;
+  target?: string | null;  // For filesystem: "host:/path"
   retentionDays?: number | null;
   message?: string | null;
 }
@@ -123,11 +125,18 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
       <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
         <h4 className="text-sm font-semibold text-blue-900 mb-2">Community MongoDB Backup</h4>
         <p className="text-sm text-blue-800 mb-2">
-          Backups use <strong>mongodump</strong> to create compressed archives and upload them to S3.
+          Backups use <strong>mongodump</strong> to create compressed archives {status?.type === 'filesystem' ? 'and write them to a filesystem (NFS/EFS)' : 'and upload them to S3'}.
         </p>
-        <p className="text-xs text-blue-700">
-          <strong>S3 Permissions Required:</strong> The backup CronJob needs <code>s3:PutObject</code>, <code>s3:ListBucket</code>, and <code>s3:DeleteObject</code> on the S3 bucket/prefix below.
-        </p>
+        {status?.type === 's3' && (
+          <p className="text-xs text-blue-700">
+            <strong>S3 Permissions Required:</strong> The backup CronJob needs <code>s3:PutObject</code>, <code>s3:ListBucket</code>, and <code>s3:DeleteObject</code> on the S3 bucket/prefix below.
+          </p>
+        )}
+        {status?.type === 'filesystem' && (
+          <p className="text-xs text-blue-700">
+            <strong>Filesystem Access Required:</strong> The backup CronJob needs network access to the NFS/EFS mount and write permissions to the target path.
+          </p>
+        )}
       </div>
 
       {/* Status Card */}
@@ -172,18 +181,20 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
             </div>
           )}
 
-          {/* S3 Path */}
-          {status.s3Path && (
+          {/* Backup Location */}
+          {(status.s3Path || status.target) && (
             <div>
-              <label className="text-xs text-gray-500 block mb-1">S3 Backup Location</label>
+              <label className="text-xs text-gray-500 block mb-1">
+                {status.type === 'filesystem' ? 'Filesystem Backup Location' : 'S3 Backup Location'}
+              </label>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200 font-mono text-xs break-all">
-                  {status.s3Path}
+                  {status.type === 'filesystem' ? status.target : status.s3Path}
                 </div>
                 <button
                   onClick={handleCopyS3Path}
                   className="flex-shrink-0 text-mongodb-green hover:text-mongodb-green-dark"
-                  title="Copy S3 path"
+                  title="Copy path"
                 >
                   {copiedS3 ? (
                     <CheckIcon className="h-5 w-5" />
@@ -232,11 +243,18 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
           <p className="text-xs text-gray-600 mb-2">
             To restore from a backup:
           </p>
-          <ol className="list-decimal list-inside text-xs text-gray-600 space-y-1">
-            <li>Download the backup archive from S3: <code className="bg-gray-200 px-1 py-0.5 rounded">aws s3 cp s3://... ./dump.tar.gz</code></li>
-            <li>Extract: <code className="bg-gray-200 px-1 py-0.5 rounded">tar -xzf dump.tar.gz</code></li>
-            <li>Restore with mongorestore: <code className="bg-gray-200 px-1 py-0.5 rounded">mongorestore --uri="..." ./dump-YYYYMMDD-HHMMSS/</code></li>
-          </ol>
+          {status.type === 's3' ? (
+            <ol className="list-decimal list-inside text-xs text-gray-600 space-y-1">
+              <li>Download the backup archive from S3: <code className="bg-gray-200 px-1 py-0.5 rounded">aws s3 cp s3://... ./dump.gz</code></li>
+              <li>Restore with mongorestore: <code className="bg-gray-200 px-1 py-0.5 rounded">mongorestore --uri="..." --archive=./dump.gz --gzip</code></li>
+            </ol>
+          ) : (
+            <ol className="list-decimal list-inside text-xs text-gray-600 space-y-1">
+              <li>Access the filesystem backup location: <code className="bg-gray-200 px-1 py-0.5 rounded">{status.target}</code></li>
+              <li>Copy the backup file to your local machine</li>
+              <li>Restore with mongorestore: <code className="bg-gray-200 px-1 py-0.5 rounded">mongorestore --uri="..." --archive=./dump-YYYYMMDD-HHMMSS.gz --gzip</code></li>
+            </ol>
+          )}
         </div>
       )}
 

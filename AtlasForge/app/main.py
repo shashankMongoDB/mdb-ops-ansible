@@ -1042,16 +1042,35 @@ def update_community_backup(
     """
     try:
         if request.enabled:
-            # Validate required fields for enable
-            if not request.s3Bucket:
-                raise HTTPException(status_code=400, detail="s3Bucket is required when enabling backup")
+            backup_type = request.type or "s3"
+            
+            # Validate required fields based on type
+            if backup_type == "s3":
+                if not request.s3Bucket:
+                    raise HTTPException(status_code=400, detail="s3Bucket is required for S3 backup")
+            elif backup_type == "filesystem":
+                if not request.filesystem:
+                    raise HTTPException(status_code=400, detail="filesystem config is required for filesystem backup")
+            else:
+                raise HTTPException(status_code=400, detail="type must be 's3' or 'filesystem'")
+            
+            # Prepare filesystem config if provided
+            filesystem_config = None
+            if request.filesystem:
+                filesystem_config = {
+                    "backupHost": request.filesystem.backupHost,
+                    "backupPath": request.filesystem.backupPath,
+                    "subDirectory": request.filesystem.subDirectory or deploymentId
+                }
             
             result = community_backup_service.enable_community_backup(
                 tenant_id=tenantId,
                 deployment_id=deploymentId,
+                backup_type=backup_type,
                 s3_bucket=request.s3Bucket,
                 s3_prefix=request.s3Prefix or f"community-mongodb-backup/{deploymentId}/snapshots",
                 s3_region=request.s3Region or "us-east-1",
+                filesystem_config=filesystem_config,
                 schedule=request.schedule or "0 */4 * * *",
                 retention_days=request.retentionDays or 7
             )

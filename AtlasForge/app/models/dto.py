@@ -263,17 +263,26 @@ class DBUserConnectionResponse(BaseModel):
 
 
 # Community Backup
+class FilesystemBackupConfig(BaseModel):
+    backupHost: str = Field(..., description="NFS/EFS hostname or IP")
+    backupPath: str = Field(..., description="Directory path on remote storage")
+    subDirectory: Optional[str] = Field(None, description="Optional subdirectory")
+
+
 class CommunityBackupUpdateRequest(BaseModel):
     enabled: bool = Field(..., description="Enable or disable backup")
+    type: Optional[str] = Field(None, description="Backup type: s3 or filesystem")
     s3Bucket: Optional[str] = Field(None, description="S3 bucket name")
     s3Prefix: Optional[str] = Field(None, description="S3 prefix/folder path")
     s3Region: Optional[str] = Field(None, description="S3 region")
+    filesystem: Optional[FilesystemBackupConfig] = Field(None, description="Filesystem backup config")
     schedule: Optional[str] = Field(None, description="Cron schedule")
     retentionDays: Optional[int] = Field(None, description="Retention in days")
 
 
 class CommunityBackupStatusResponse(BaseModel):
     enabled: bool
+    type: Optional[str] = None  # "s3" or "filesystem"
     status: str
     schedule: Optional[str] = None
     lastSuccessfulTime: Optional[str] = None
@@ -281,6 +290,7 @@ class CommunityBackupStatusResponse(BaseModel):
     s3Prefix: Optional[str] = None
     s3Region: Optional[str] = None
     s3Path: Optional[str] = None
+    target: Optional[str] = None  # For filesystem: "host:/path"
     retentionDays: Optional[int] = None
     snapshots: Optional[list] = None
     message: Optional[str] = None
