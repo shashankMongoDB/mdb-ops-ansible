@@ -138,10 +138,10 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
       {/* Info Banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
         <h4 className="text-sm font-semibold text-blue-900 mb-2">
-          Community MongoDB Backup {status?.enabled && status?.type && `- ${status.type.toUpperCase()} Mode`}
+          Community MongoDB Backup {status?.enabled && status?.status !== 'SUSPENDED' && status?.type && `- ${status.type.toUpperCase()} Mode`}
         </h4>
         
-        {!status?.enabled || status?.status === 'NOT_CONFIGURED' ? (
+        {(!status?.enabled || status?.status === 'NOT_CONFIGURED' || status?.status === 'SUSPENDED') ? (
           <>
             <p className="text-sm text-blue-800 mb-3">
               Automated backups for Community MongoDB deployments. Choose between two backup targets:
