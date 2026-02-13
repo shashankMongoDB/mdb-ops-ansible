@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowPathIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { deploymentsApi } from '@/lib/api';
 import { useToast } from './Toast';
+import { EnableCommunityBackupModal } from './EnableCommunityBackupModal';
 
 interface CommunityBackupPanelProps {
   tenantId: string;
@@ -23,6 +24,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [copiedS3, setCopiedS3] = useState(false);
+  const [showEnableModal, setShowEnableModal] = useState(false);
   
   const { showSuccess, showError } = useToast();
 
@@ -42,30 +44,40 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
     }
   };
 
-  const handleToggleBackup = async () => {
-    if (!status) return;
-    
-    const action = status.enabled ? 'disable' : 'enable';
+  const handleEnableBackup = async (config: any) => {
+    setUpdating(true);
+    try {
+      await deploymentsApi.updateCommunityBackup(tenantId, deploymentId, {
+        enabled: true,
+        ...config
+      });
+      showSuccess(
+        'Backup Enabled',
+        'Backup has been enabled and will run on schedule'
+      );
+      setShowEnableModal(false);
+      await loadStatus();
+    } catch (error: any) {
+      showError('Failed to enable backup', error.detail);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDisableBackup = async () => {
     const confirmed = window.confirm(
-      status.enabled
-        ? 'Disable backup? The CronJob will be suspended but existing backups will remain in S3.'
-        : 'Enable backup? This will create a backup user and schedule automatic backups to S3.'
+      'Disable backup? The CronJob will be suspended but existing backups will remain in S3.'
     );
     
     if (!confirmed) return;
     
     setUpdating(true);
     try {
-      await deploymentsApi.updateCommunityBackup(tenantId, deploymentId, { enabled: !status.enabled });
-      showSuccess(
-        `Backup ${action}d`,
-        status.enabled
-          ? 'Backup has been disabled'
-          : 'Backup has been enabled and will run on schedule'
-      );
+      await deploymentsApi.updateCommunityBackup(tenantId, deploymentId, { enabled: false });
+      showSuccess('Backup Disabled', 'Backup has been disabled');
       await loadStatus();
     } catch (error: any) {
-      showError(`Failed to ${action} backup`, error.detail);
+      showError('Failed to disable backup', error.detail);
     } finally {
       setUpdating(false);
     }
@@ -185,13 +197,23 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
 
           {/* Toggle Button */}
           <div className="pt-4 border-t">
-            <button
-              onClick={handleToggleBackup}
-              disabled={updating}
-              className={`btn ${status.enabled ? 'btn-secondary' : 'btn-primary'}`}
-            >
-              {updating ? 'Updating...' : status.enabled ? 'Disable Backup' : 'Enable Backup'}
-            </button>
+            {status.enabled ? (
+              <button
+                onClick={handleDisableBackup}
+                disabled={updating}
+                className="btn btn-secondary"
+              >
+                {updating ? 'Disabling...' : 'Disable Backup'}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowEnableModal(true)}
+                disabled={updating}
+                className="btn btn-primary"
+              >
+                Enable Backup
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -217,6 +239,15 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
           </ol>
         </div>
       )}
+
+      {/* Enable Backup Modal */}
+      <EnableCommunityBackupModal
+        open={showEnableModal}
+        onClose={() => setShowEnableModal(false)}
+        onSubmit={handleEnableBackup}
+        loading={updating}
+        deploymentId={deploymentId}
+      />
     </div>
   );
 }

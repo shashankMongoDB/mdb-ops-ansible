@@ -399,7 +399,15 @@ def deploy_backup_cronjob(namespace: str, deployment_id: str) -> None:
             raise
 
 
-def enable_community_backup(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+def enable_community_backup(
+    tenant_id: str,
+    deployment_id: str,
+    s3_bucket: str,
+    s3_prefix: str,
+    s3_region: str,
+    schedule: str,
+    retention_days: int
+) -> Dict[str, Any]:
     """
     Enable Community MongoDB backup for a deployment.
     

@@ -1032,10 +1032,29 @@ def update_community_backup(
     
     Creates backup user, credentials, and CronJob for mongodump → S3.
     Only available for Community plan deployments.
+    
+    When enabling, you must provide:
+    - s3Bucket: S3 bucket name (required)
+    - s3Prefix: S3 folder path (optional)
+    - s3Region: S3 region (optional, default: us-east-1)
+    - schedule: Cron schedule (optional, default: 0 */4 * * *)
+    - retentionDays: Retention in days (optional, default: 7)
     """
     try:
         if request.enabled:
-            result = community_backup_service.enable_community_backup(tenantId, deploymentId)
+            # Validate required fields for enable
+            if not request.s3Bucket:
+                raise HTTPException(status_code=400, detail="s3Bucket is required when enabling backup")
+            
+            result = community_backup_service.enable_community_backup(
+                tenant_id=tenantId,
+                deployment_id=deploymentId,
+                s3_bucket=request.s3Bucket,
+                s3_prefix=request.s3Prefix or f"community-mongodb-backup/{deploymentId}/snapshots",
+                s3_region=request.s3Region or "us-east-1",
+                schedule=request.schedule or "0 */4 * * *",
+                retention_days=request.retentionDays or 7
+            )
         else:
             result = community_backup_service.disable_community_backup(tenantId, deploymentId)
         return result
