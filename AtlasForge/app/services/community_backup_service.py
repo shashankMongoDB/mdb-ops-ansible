@@ -500,6 +500,36 @@ def deploy_backup_cronjob(
     sa_name = f"{deployment_id}-backup"
     cronjob_name = f"{deployment_id}-backup"
     
+    # Create AWS credentials secret in this namespace (if credentials are configured)
+    if config.AWS_ACCESS_KEY_ID and config.AWS_SECRET_ACCESS_KEY:
+        aws_secret_name = "aws-backup-credentials"
+        aws_secret = client.V1Secret(
+            api_version="v1",
+            kind="Secret",
+            metadata=client.V1ObjectMeta(
+                name=aws_secret_name,
+                namespace=namespace
+            ),
+            type="Opaque",
+            string_data={
+                "AWS_ACCESS_KEY_ID": config.AWS_ACCESS_KEY_ID,
+                "AWS_SECRET_ACCESS_KEY": config.AWS_SECRET_ACCESS_KEY,
+                "AWS_DEFAULT_REGION": config.AWS_DEFAULT_REGION
+            }
+        )
+        
+        try:
+            k8s.core_v1.create_namespaced_secret(namespace, aws_secret)
+            print(f"[COMMUNITY_BACKUP] Created AWS credentials secret in namespace: {namespace}")
+        except client.exceptions.ApiException as e:
+            if e.status == 409:
+                k8s.core_v1.patch_namespaced_secret(aws_secret_name, namespace, aws_secret)
+                print(f"[COMMUNITY_BACKUP] Updated AWS credentials secret in namespace: {namespace}")
+            else:
+                raise
+    else:
+        print(f"[COMMUNITY_BACKUP] No AWS credentials configured in environment, will rely on IRSA or existing secrets")
+    
     # Create ServiceAccount
     sa = client.V1ServiceAccount(
         api_version="v1",
@@ -586,6 +616,38 @@ def deploy_backup_cronjob(
                                 {
                                     "name": "s3-upload",
                                     "image": config.COMMUNITY_BACKUP_AWS_CLI_IMAGE,
+                                    "env": [
+                                        {
+                                            "name": "AWS_ACCESS_KEY_ID",
+                                            "valueFrom": {
+                                                "secretKeyRef": {
+                                                    "name": "aws-backup-credentials",
+                                                    "key": "AWS_ACCESS_KEY_ID",
+                                                    "optional": True
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "AWS_SECRET_ACCESS_KEY",
+                                            "valueFrom": {
+                                                "secretKeyRef": {
+                                                    "name": "aws-backup-credentials",
+                                                    "key": "AWS_SECRET_ACCESS_KEY",
+                                                    "optional": True
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "name": "AWS_DEFAULT_REGION",
+                                            "valueFrom": {
+                                                "secretKeyRef": {
+                                                    "name": "aws-backup-credentials",
+                                                    "key": "AWS_DEFAULT_REGION",
+                                                    "optional": True
+                                                }
+                                            }
+                                        }
+                                    ],
                                     "command": ["/bin/bash", "-c"],
                                     "args": [
                                         f"""
