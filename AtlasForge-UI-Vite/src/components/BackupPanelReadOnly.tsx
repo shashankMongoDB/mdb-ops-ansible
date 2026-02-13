@@ -3,6 +3,7 @@ import { ClockIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/re
 import { deploymentsApi } from '@/lib/api';
 import { useToast } from './Toast';
 import { ConfirmModal } from './ConfirmModal';
+import { CommunityBackupPanel } from './CommunityBackupPanel';
 import type { BackupStatus, BackupSnapshot } from '@/lib/types';
 
 interface BackupPanelProps {
@@ -29,6 +30,7 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
 
   const loadData = async () => {
     if (tenantPlan === 'community') {
+      // Community backup is handled by CommunityBackupPanel
       setLoading(false);
       return;
     }
@@ -79,18 +81,9 @@ export function BackupPanel({ tenantId, deploymentId, tenantPlan }: BackupPanelP
     return new Date(isoString).toLocaleString();
   };
 
-  // Community plan - show not available message
+  // Community plan - use Community backup panel
   if (tenantPlan === 'community') {
-    return (
-      <div className="card">
-        <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Backup Configuration</h3>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-          <p className="text-sm text-yellow-800">
-            <span className="font-medium">Enterprise Feature:</span> Backup via Ops Manager is only available for Enterprise deployments.
-          </p>
-        </div>
-      </div>
-    );
+    return <CommunityBackupPanel tenantId={tenantId} deploymentId={deploymentId} />;
   }
 
   if (loading) {

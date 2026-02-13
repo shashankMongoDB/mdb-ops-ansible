@@ -260,3 +260,18 @@ class DBUserConnectionResponse(BaseModel):
     roles: list[dict]
     externalUri: Optional[str] = None
     internalUri: Optional[str] = None
+
+
+# Community Backup
+class CommunityBackupUpdateRequest(BaseModel):
+    enabled: bool = Field(..., description="Enable or disable backup")
+
+
+class CommunityBackupStatusResponse(BaseModel):
+    enabled: bool
+    status: str
+    schedule: Optional[str] = None
+    lastSuccessfulTime: Optional[str] = None
+    s3Path: Optional[str] = None
+    retentionDays: Optional[int] = None
+    message: Optional[str] = None

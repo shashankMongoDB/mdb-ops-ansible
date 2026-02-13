@@ -65,7 +65,9 @@ from app.models.dto import (
     VersionUpgradeResponse,
     CreateDBUserRequest,
     DBUserResponse,
-    DBUserConnectionResponse
+    DBUserConnectionResponse,
+    CommunityBackupUpdateRequest,
+    CommunityBackupStatusResponse
 )
 from app.services import tenants_service
 from app.services import deployments_service
@@ -74,6 +76,7 @@ from app.services import lifecycle_service
 from app.services import scaling_service
 from app.services import backup_service
 from app.services import db_users_service
+from app.services import community_backup_service
 
 logging.basicConfig(
     level=getattr(logging, config.MCP_LOG_LEVEL),
@@ -1009,6 +1012,65 @@ def delete_user(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error deleting user")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+# ============================================================
+# Community MongoDB Backup
+# ============================================================
+
+@app.patch(
+    "/tenants/{tenantId}/deployments/{deploymentId}/community-backup"
+)
+def update_community_backup(
+    request: CommunityBackupUpdateRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Enable or disable Community MongoDB backup.
+    
+    Creates backup user, credentials, and CronJob for mongodump → S3.
+    Only available for Community plan deployments.
+    """
+    try:
+        if request.enabled:
+            result = community_backup_service.enable_community_backup(tenantId, deploymentId)
+        else:
+            result = community_backup_service.disable_community_backup(tenantId, deploymentId)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error updating Community backup")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/community-backup/status",
+    response_model=CommunityBackupStatusResponse
+)
+def get_community_backup_status(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Get Community MongoDB backup status.
+    
+    Returns schedule, last backup time, S3 path, and whether backup is enabled.
+    Only available for Community plan deployments.
+    """
+    try:
+        result = community_backup_service.get_community_backup_status(tenantId, deploymentId)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting Community backup status")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

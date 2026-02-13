@@ -323,4 +323,23 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  // Community Backup
+  async getCommunityBackupStatus(tenantId: string, deploymentId: string): Promise<any> {
+    try {
+      const response = await api.get(`/tenants/${tenantId}/deployments/${deploymentId}/community-backup/status`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async updateCommunityBackup(tenantId: string, deploymentId: string, data: { enabled: boolean }): Promise<any> {
+    try {
+      const response = await api.patch(`/tenants/${tenantId}/deployments/${deploymentId}/community-backup`, data);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };
