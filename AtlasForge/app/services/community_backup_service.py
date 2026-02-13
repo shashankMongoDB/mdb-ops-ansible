@@ -556,7 +556,9 @@ def deploy_backup_cronjob(
             raise
     
     # Create CronJob
-    s3_path = f"s3://{s3_bucket}/{s3_prefix}/{deployment_id}/snapshots"
+    # S3 path format: s3://bucket/prefix/snapshots/
+    # Files will be named: dump-YYYYMMDD-HHMMSS.tar.gz
+    s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots"
     
     cronjob = {
         "apiVersion": "batch/v1",
@@ -927,7 +929,7 @@ def enable_community_backup(
             if e.status != 404:
                 print(f"[COMMUNITY_BACKUP] Warning: Could not unsuspend CronJob: {e}")
         
-        s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots/"
+        s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots"
         
         # Store config in deployment metadata
         repo.update_deployment_metadata(tenant_id, deployment_id, {
@@ -987,6 +989,95 @@ def disable_community_backup(tenant_id: str, deployment_id: str) -> Dict[str, An
         raise
     
     return {"enabled": False}
+
+
+def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[Dict[str, Any]]:
+    """
+    List backup snapshots from S3.
+    
+    Returns list of snapshots with metadata.
+    """
+    repo = get_repo()
+    
+    # Get deployment metadata to get S3 config
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found")
+    
+    backup_type = deployment.get("backupType", "s3")
+    
+    if backup_type != "s3":
+        return []  # Only S3 backups have snapshot listing
+    
+    s3_bucket = deployment.get("s3Bucket")
+    s3_prefix = deployment.get("s3Prefix")
+    s3_region = deployment.get("s3Region", "us-east-1")
+    
+    if not s3_bucket or not s3_prefix:
+        return []
+    
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+        
+        s3_client = boto3.client('s3', region_name=s3_region)
+        
+        # List objects in the snapshots directory
+        prefix = f"{s3_prefix}/snapshots/"
+        
+        response = s3_client.list_objects_v2(
+            Bucket=s3_bucket,
+            Prefix=prefix
+        )
+        
+        snapshots = []
+        
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                key = obj['Key']
+                
+                # Only include .tar.gz files
+                if key.endswith('.tar.gz'):
+                    filename = key.split('/')[-1]
+                    
+                    # Parse timestamp from filename: dump-YYYYMMDD-HHMMSS.tar.gz
+                    try:
+                        timestamp_str = filename.replace('dump-', '').replace('.tar.gz', '')
+                        date_part = timestamp_str.split('-')[0]  # YYYYMMDD
+                        time_part = timestamp_str.split('-')[1] if '-' in timestamp_str else '000000'  # HHMMSS
+                        
+                        # Format: YYYY-MM-DD HH:MM:SS
+                        formatted_time = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} {time_part[:2]}:{time_part[2:4]}:{time_part[4:6]}"
+                    except:
+                        formatted_time = "Unknown"
+                    
+                    snapshots.append({
+                        'filename': filename,
+                        'size': obj['Size'],
+                        'sizeFormatted': format_bytes(obj['Size']),
+                        'lastModified': obj['LastModified'].isoformat(),
+                        'timestamp': formatted_time,
+                        's3Key': key,
+                        's3Uri': f"s3://{s3_bucket}/{key}"
+                    })
+        
+        # Sort by lastModified descending (newest first)
+        snapshots.sort(key=lambda x: x['lastModified'], reverse=True)
+        
+        return snapshots
+        
+    except Exception as e:
+        print(f"[COMMUNITY_BACKUP] Error listing snapshots: {e}")
+        return []
+
+
+def format_bytes(size_bytes: int) -> str:
+    """Format bytes to human readable format"""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} PB"
 
 
 def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -1058,10 +1149,18 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
     # Add type-specific fields
     if backup_type == "filesystem":
         result["target"] = deployment.get("backupTarget")
+        result["snapshots"] = []  # Filesystem snapshots not listed via S3
     else:
         result["s3Bucket"] = deployment.get("s3Bucket")
         result["s3Prefix"] = deployment.get("s3Prefix")
         result["s3Region"] = deployment.get("s3Region")
-        result["s3Path"] = f"s3://{deployment.get('s3Bucket')}/{deployment.get('s3Prefix')}/snapshots/"
+        result["s3Path"] = f"s3://{deployment.get('s3Bucket')}/{deployment.get('s3Prefix')}/snapshots"
+        
+        # List snapshots from S3
+        try:
+            result["snapshots"] = list_community_backup_snapshots(tenant_id, deployment_id)
+        except Exception as e:
+            print(f"[COMMUNITY_BACKUP] Warning: Could not list snapshots: {e}")
+            result["snapshots"] = []
     
     return result

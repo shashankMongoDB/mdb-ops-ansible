@@ -9,6 +9,16 @@ interface CommunityBackupPanelProps {
   deploymentId: string;
 }
 
+interface BackupSnapshot {
+  filename: string;
+  size: number;
+  sizeFormatted: string;
+  lastModified: string;
+  timestamp: string;
+  s3Key: string;
+  s3Uri: string;
+}
+
 interface BackupStatus {
   enabled: boolean;
   type?: string | null;  // "s3" or "filesystem"
@@ -18,6 +28,7 @@ interface BackupStatus {
   s3Path?: string | null;
   target?: string | null;  // For filesystem: "host:/path"
   retentionDays?: number | null;
+  snapshots?: BackupSnapshot[];
   message?: string | null;
 }
 
@@ -244,6 +255,67 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
       {status.message && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
           <p className="text-sm text-yellow-800">{status.message}</p>
+        </div>
+      )}
+
+      {/* Snapshots List */}
+      {status.enabled && status.type === 's3' && status.snapshots && status.snapshots.length > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-mongodb-forest">Backup Snapshots</h3>
+            <button onClick={loadStatus} className="text-mongodb-green hover:text-mongodb-green-dark text-sm" title="Refresh snapshots">
+              <ArrowPathIcon className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Snapshot
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Timestamp
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Size
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {status.snapshots.map((snapshot) => (
+                  <tr key={snapshot.filename} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900">
+                      {snapshot.filename}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">
+                      {snapshot.timestamp}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">
+                      {snapshot.sizeFormatted}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      <button
+                        disabled
+                        className="text-gray-400 cursor-not-allowed"
+                        title="Restore feature coming soon"
+                      >
+                        Restore
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-3">
+            Total snapshots: {status.snapshots.length} | Retention: {status.retentionDays} days
+          </p>
         </div>
       )}
 
