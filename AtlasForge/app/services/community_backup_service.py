@@ -207,14 +207,15 @@ def create_backup_credentials_secret(
     
     # Use external NodePort connection if available, otherwise fall back to internal
     if external_host and external_port:
-        # External connection via NodePort (no TLS)
+        # External connection via NodePort (no TLS for Community)
         mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin"
-        print(f"[COMMUNITY_BACKUP] Using external connection: {external_host}:{external_port}")
+        print(f"[COMMUNITY_BACKUP] ✅ Using EXTERNAL connection: {external_host}:{external_port}")
     else:
         # Fall back to internal DNS (with TLS)
         first_host = mongodb_hosts.split(',')[0]
         mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?tls=true&tlsInsecure=true"
-        print(f"[COMMUNITY_BACKUP] Using internal connection: {first_host}")
+        print(f"[COMMUNITY_BACKUP] ⚠️  WARNING: Using INTERNAL connection: {first_host}")
+        print(f"[COMMUNITY_BACKUP] ⚠️  This may not work from backup pods. Please check external service.")
     
     secret_name = f"{deployment_id}-backup-credentials"
     secret = client.V1Secret(
@@ -668,27 +669,46 @@ def enable_community_backup(
     
     # Step 1.5: Get external connection (NodePort) for backup jobs
     from app.services import lifecycle_service
+    from app.services import k8s_client as k8s_helper
+    
+    external_host = None
+    external_port = None
+    
     try:
-        connection_info = lifecycle_service.get_deployment_connection(tenant_id, deployment_id)
-        external_uri = connection_info.get("externalUri", "")
-        # Parse external URI to get host and port
-        # Format: mongodb://host:port/...
-        if external_uri and "://" in external_uri:
-            uri_parts = external_uri.split("://")[1].split("/")[0]  # Get host:port part
-            if "@" in uri_parts:
-                uri_parts = uri_parts.split("@")[1]  # Remove user:pass if present
-            if ":" in uri_parts:
-                external_host, external_port = uri_parts.split(":")
-                external_port = int(external_port)
-                print(f"[COMMUNITY_BACKUP] Using external connection: {external_host}:{external_port}")
+        # Get worker node IP
+        external_host = k8s_helper.get_worker_node_ip()
+        
+        # Get NodePort from external service
+        k8s = get_k8s_client()
+        try:
+            svc = k8s.core_v1.read_namespaced_service(
+                name=f"{deployment_id}-svc-external",
+                namespace=namespace
+            )
+            # Get the NodePort
+            if svc.spec.ports:
+                external_port = svc.spec.ports[0].node_port
+                print(f"[COMMUNITY_BACKUP] Found external service: {external_host}:{external_port}")
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                print(f"[COMMUNITY_BACKUP] External service not found, creating it...")
+                # Create external service
+                k8s_helper.ensure_external_service(namespace, deployment_id)
+                # Try reading again
+                svc = k8s.core_v1.read_namespaced_service(
+                    name=f"{deployment_id}-svc-external",
+                    namespace=namespace
+                )
+                if svc.spec.ports:
+                    external_port = svc.spec.ports[0].node_port
+                    print(f"[COMMUNITY_BACKUP] Created external service: {external_host}:{external_port}")
             else:
-                external_host = uri_parts
-                external_port = 27017
-        else:
-            external_host = None
-            external_port = None
+                raise
+                
     except Exception as e:
         print(f"[COMMUNITY_BACKUP] Warning: Could not get external connection: {e}")
+        import traceback
+        traceback.print_exc()
         external_host = None
         external_port = None
     

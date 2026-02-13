@@ -107,51 +107,121 @@ def create_db_user(
             raise ValueError(f"Secret {secret_name} already exists")
         raise
 
-    # Create MongoDBUser CR with all roles
+    # Create MongoDB user (different approach for Community vs Enterprise)
     mongodb_user_name = f"{deployment_id}-{username}"
     
-    mongodb_user_cr = {
-        "apiVersion": "mongodb.com/v1",
-        "kind": "MongoDBUser",
-        "metadata": {
-            "name": mongodb_user_name,
-            "namespace": namespace
-        },
-        "spec": {
-            "db": db,
-            "username": username,
-            "passwordSecretKeyRef": {
-                "name": secret_name,
-                "key": "password"
-            },
-            "roles": [
-                {
-                    "name": role["name"],
-                    "db": role["db"]
-                }
+    if plan == "community":
+        # For Community: Create user directly via mongosh exec
+        print(f"[DB_USER] Creating Community MongoDB user via mongosh...")
+        
+        try:
+            # Get first pod
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={deployment_id}-svc"
+            )
+            
+            if not pods.items:
+                k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
+                raise ValueError(f"No pods found for deployment {deployment_id}")
+            
+            pod_name = pods.items[0].metadata.name
+            
+            # Build roles for MongoDB
+            roles_js = ",\n            ".join([
+                f"{{ role: '{role['name']}', db: '{role['db']}' }}"
                 for role in roles
-            ],
-            "mongodbResourceRef": {
-                "name": deployment_id
+            ])
+            
+            # Create user command
+            create_user_js = f"""
+db = db.getSiblingDB('{db}');
+db.createUser({{
+    user: '{username}',
+    pwd: '{password}',
+    roles: [
+        {roles_js}
+    ]
+}});
+print('USER_CREATED');
+"""
+            
+            # Execute via mongosh
+            from kubernetes.stream import stream
+            command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{create_user_js}'"]
+            
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                command=command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+            
+            print(f"[DB_USER] MongoDB user creation response: {resp}")
+            
+            if 'USER_CREATED' not in resp:
+                # Rollback
+                k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
+                raise ValueError(f"Failed to create MongoDB user. Output: {resp}")
+                
+            print(f"[DB_USER] Successfully created user in MongoDB: {username}")
+            
+        except Exception as e:
+            # Rollback: delete the secret
+            try:
+                k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
+            except:
+                pass
+            raise ValueError(f"Failed to create Community MongoDB user: {str(e)}")
+    
+    else:
+        # For Enterprise: Use MongoDBUser CR
+        mongodb_user_cr = {
+            "apiVersion": "mongodb.com/v1",
+            "kind": "MongoDBUser",
+            "metadata": {
+                "name": mongodb_user_name,
+                "namespace": namespace
+            },
+            "spec": {
+                "db": db,
+                "username": username,
+                "passwordSecretKeyRef": {
+                    "name": secret_name,
+                    "key": "password"
+                },
+                "roles": [
+                    {
+                        "name": role["name"],
+                        "db": role["db"]
+                    }
+                    for role in roles
+                ],
+                "mongodbResourceRef": {
+                    "name": deployment_id
+                }
             }
         }
-    }
 
-    try:
-        k8s.custom_objects.create_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodbusers",
-            body=mongodb_user_cr
-        )
-        print(f"[DB_USER] Created MongoDBUser CR: {mongodb_user_name}")
-    except client.exceptions.ApiException as e:
-        # Rollback: delete the secret
-        k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
-        if e.status == 409:
-            raise ValueError(f"MongoDBUser {mongodb_user_name} already exists")
-        raise
+        try:
+            k8s.custom_objects.create_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbusers",
+                body=mongodb_user_cr
+            )
+            print(f"[DB_USER] Created MongoDBUser CR: {mongodb_user_name}")
+        except client.exceptions.ApiException as e:
+            # Rollback: delete the secret
+            k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
+            if e.status == 409:
+                raise ValueError(f"MongoDBUser {mongodb_user_name} already exists")
+            raise
 
     # Store metadata
     created_at = datetime.now(timezone.utc).isoformat()
@@ -421,24 +491,76 @@ def delete_user(
         raise ValueError(f"Tenant {tenant_id} not found")
 
     namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
     mongodb_user_name = f"{deployment_id}-{username}"
     secret_name = user["secretName"]
+    user_db = user.get("db", "admin")
 
-    # Delete MongoDBUser CR
-    try:
-        k8s.custom_objects.delete_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodbusers",
-            name=mongodb_user_name
-        )
-        print(f"[DB_USER] Deleted MongoDBUser CR: {mongodb_user_name}")
-    except client.exceptions.ApiException as e:
-        if e.status == 404:
-            print(f"[DB_USER] MongoDBUser CR {mongodb_user_name} not found, skipping")
-        else:
-            raise
+    # Delete MongoDB user (different approach for Community vs Enterprise)
+    if plan == "community":
+        # For Community: Drop user directly via mongosh exec
+        print(f"[DB_USER] Deleting Community MongoDB user via mongosh...")
+        
+        try:
+            # Get first pod
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={deployment_id}-svc"
+            )
+            
+            if pods.items:
+                pod_name = pods.items[0].metadata.name
+                
+                # Drop user command
+                drop_user_js = f"""
+db = db.getSiblingDB('{user_db}');
+try {{
+    db.dropUser('{username}');
+    print('USER_DROPPED');
+}} catch(e) {{
+    print('ERROR: ' + e.message);
+}}
+"""
+                
+                # Execute via mongosh
+                from kubernetes.stream import stream
+                command = ['/bin/bash', '-c', f"mongosh --quiet --eval '{drop_user_js}'"]
+                
+                resp = stream(
+                    k8s.core_v1.connect_get_namespaced_pod_exec,
+                    pod_name,
+                    namespace,
+                    command=command,
+                    stderr=True,
+                    stdin=False,
+                    stdout=True,
+                    tty=False
+                )
+                
+                print(f"[DB_USER] Drop user response: {resp}")
+            else:
+                print(f"[DB_USER] No pods found, skipping user deletion from MongoDB")
+                
+        except Exception as e:
+            print(f"[DB_USER] Warning: Could not drop user from MongoDB: {e}")
+            # Continue anyway to clean up K8s resources
+    
+    else:
+        # For Enterprise: Delete MongoDBUser CR
+        try:
+            k8s.custom_objects.delete_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbusers",
+                name=mongodb_user_name
+            )
+            print(f"[DB_USER] Deleted MongoDBUser CR: {mongodb_user_name}")
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                print(f"[DB_USER] MongoDBUser CR {mongodb_user_name} not found, skipping")
+            else:
+                raise
 
     # Delete Secret
     try:
