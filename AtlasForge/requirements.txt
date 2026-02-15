@@ -1,9 +1,22 @@
+# Web Framework
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
-pydantic==2.9.0
-pymongo==4.10.1
-kubernetes==31.0.0
-boto3==1.35.0
 
-app~=0.0.1
-packaging~=25.0
+# Data Validation
+pydantic==2.9.0
+
+# MongoDB Client
+pymongo==4.10.1
+
+# Kubernetes Client
+kubernetes==31.0.0
+
+# AWS SDK (for S3 backup/restore)
+boto3==1.35.0
+botocore==1.35.0
+
+# HTTP Client
+requests==2.31.0
+
+# Utilities
+python-dateutil==2.8.2
