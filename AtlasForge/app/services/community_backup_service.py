@@ -1209,17 +1209,59 @@ def restore_community_backup(
     
     backup_type = deployment.get("backupType", "s3")
     
-    # Get MongoDB connection details
-    connection_info = discover_mongodb_connection(namespace, deployment_id)
-    mongodb_hosts = connection_info["hosts"]
+    # Get external connection info (same as backup uses)
+    from app.services import lifecycle_service
     
-    # Get backup user credentials
+    try:
+        connection_info = lifecycle_service.get_connection_info(tenant_id, deployment_id)
+        external_uri = connection_info.get("externalUri", "")
+        
+        if not external_uri:
+            raise ValueError("External connection URI not available")
+        
+        # Remove replicaSet parameter if present (we connect to single node for restore)
+        if "?" in external_uri:
+            base_uri = external_uri.split("?")[0]
+        else:
+            base_uri = external_uri
+        
+        # Get first host only for direct connection
+        if "," in base_uri:
+            # Extract just the first host
+            parts = base_uri.replace("mongodb://", "").split(",")
+            first_host = parts[0]
+            base_uri = f"mongodb://{first_host}"
+    except Exception as e:
+        raise ValueError(f"Could not get external connection info: {e}")
+    
+    # Get backup user credentials from secret
     backup_creds_secret_name = f"{deployment_id}-backup-credentials"
     try:
-        backup_secret = k8s.core_v1.read_namespaced_secret(backup_creds_secret_name, namespace)
-        backup_uri = k8s.decode_secret_data(backup_secret.data.get("mongodbUri", ""))
+        backup_user = k8s.get_secret_data(namespace, backup_creds_secret_name, "username")
+        backup_password = k8s.get_secret_data(namespace, backup_creds_secret_name, "password")
+        
+        if not backup_user or not backup_password:
+            raise ValueError("Backup credentials not found in secret")
     except client.exceptions.ApiException:
         raise ValueError(f"Backup credentials secret not found. Is backup enabled?")
+    
+    # Build MongoDB URI with backup user credentials
+    # Format: mongodb://user:password@host:port/admin
+    if "@" in base_uri:
+        # Remove any existing credentials
+        base_uri = "mongodb://" + base_uri.split("@")[1]
+    
+    # URL encode password
+    import urllib.parse
+    encoded_password = urllib.parse.quote_plus(backup_password)
+    
+    mongodb_uri = base_uri.replace("mongodb://", f"mongodb://{backup_user}:{encoded_password}@")
+    
+    # Ensure /admin database
+    if "/" not in mongodb_uri.split("@")[1]:
+        mongodb_uri = f"{mongodb_uri}/admin"
+    elif not mongodb_uri.endswith("/admin"):
+        mongodb_uri = mongodb_uri.split("/")[0] + "//admin"
     
     # Generate unique job name
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -1259,7 +1301,7 @@ def restore_community_backup(
             # Restore to MongoDB
             echo "[RESTORE] Running mongorestore..."
             mongorestore \\
-                --uri="{backup_uri}" \\
+                --uri="{mongodb_uri}" \\
                 {'--drop' if drop_existing else ''} \\
                 --dir="$DUMP_DIR"
             
@@ -1313,7 +1355,7 @@ def restore_community_backup(
             echo "[RESTORE] Running mongorestore..."
             
             mongorestore \\
-                --uri="{backup_uri}" \\
+                --uri="{mongodb_uri}" \\
                 {'--drop' if drop_existing else ''} \\
                 --gzip \\
                 --archive="$BACKUP_FILE"
