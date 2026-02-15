@@ -3,6 +3,7 @@ import { ArrowPathIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/reac
 import { deploymentsApi } from '@/lib/api';
 import { useToast } from './Toast';
 import { EnableCommunityBackupModal } from './EnableCommunityBackupModal';
+import { RestoreBackupModal } from './RestoreBackupModal';
 
 interface CommunityBackupPanelProps {
   tenantId: string;
@@ -38,6 +39,8 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const [updating, setUpdating] = useState(false);
   const [copiedS3, setCopiedS3] = useState(false);
   const [showEnableModal, setShowEnableModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<BackupSnapshot | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const snapshotsPerPage = 10;
   
@@ -375,9 +378,12 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
                       </td>
                       <td className="px-4 py-3 text-right text-sm">
                         <button
-                          disabled
-                          className="text-gray-400 cursor-not-allowed text-sm"
-                          title="Restore feature coming soon"
+                          onClick={() => {
+                            setSelectedSnapshot(snapshot);
+                            setShowRestoreModal(true);
+                          }}
+                          className="text-mongodb-green hover:text-mongodb-green-dark text-sm font-medium"
+                          title="Restore from this snapshot"
                         >
                           Restore
                         </button>
@@ -450,6 +456,23 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         loading={updating}
         deploymentId={deploymentId}
       />
+
+      {/* Restore Backup Modal */}
+      {selectedSnapshot && (
+        <RestoreBackupModal
+          isOpen={showRestoreModal}
+          onClose={() => {
+            setShowRestoreModal(false);
+            setSelectedSnapshot(null);
+          }}
+          tenantId={tenantId}
+          deploymentId={deploymentId}
+          snapshot={selectedSnapshot}
+          onRestoreStarted={() => {
+            loadStatus();
+          }}
+        />
+      )}
     </div>
   );
 }

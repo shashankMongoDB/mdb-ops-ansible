@@ -67,7 +67,10 @@ from app.models.dto import (
     DBUserResponse,
     DBUserConnectionResponse,
     CommunityBackupUpdateRequest,
-    CommunityBackupStatusResponse
+    CommunityBackupStatusResponse,
+    RestoreBackupRequest,
+    RestoreBackupResponse,
+    RestoreJobStatusResponse
 )
 from app.services import tenants_service
 from app.services import deployments_service
@@ -1109,6 +1112,66 @@ def get_community_backup_status(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error getting Community backup status")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/community-backup/restore",
+    response_model=RestoreBackupResponse
+)
+def restore_community_backup(
+    request: RestoreBackupRequest,
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Restore Community MongoDB backup from snapshot.
+    
+    Creates a Kubernetes Job that downloads the snapshot and restores to MongoDB.
+    Optionally drops existing collections before restore (default: true).
+    
+    Only available for Community plan deployments with backup enabled.
+    """
+    try:
+        result = community_backup_service.restore_community_backup(
+            tenant_id=tenantId,
+            deployment_id=deploymentId,
+            snapshot_filename=request.snapshotFilename,
+            drop_existing=request.dropExisting
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error restoring Community backup")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/community-backup/restore/{jobName}",
+    response_model=RestoreJobStatusResponse
+)
+def get_restore_job_status(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier"),
+    jobName: str = Path(..., description="Restore job name")
+):
+    """
+    Get status of a restore job.
+    
+    Returns job status, completion info, and logs.
+    """
+    try:
+        result = community_backup_service.get_restore_job_status(tenantId, deploymentId, jobName)
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error getting restore job status")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: mdbaas-control-plane
+data:
+  MCP_DB_NAME: "mdb_control_plane"
+  MCP_KUBECONFIG_PATH: "/root/.kube/config"
+  MCP_NAMESPACE_PREFIX: "mdb-"
+  MCP_LOG_LEVEL: "INFO"
+  MCP_SERVICE_PORT: "8001"
+  COMMUNITY_BACKUP_S3_BUCKET: "mdbaas-community-mongodb-backups"
+  COMMUNITY_BACKUP_S3_PREFIX: "community-mongodb-backup"
+  COMMUNITY_BACKUP_S3_REGION: "us-east-1"
+  COMMUNITY_BACKUP_SCHEDULE: "0 */4 * * *"
+  COMMUNITY_BACKUP_RETENTION_DAYS: "7"
+  COMMUNITY_BACKUP_MONGODUMP_IMAGE: "mongo:8.0"
+  COMMUNITY_BACKUP_AWS_CLI_IMAGE: "amazon/aws-cli:2.27.28"
+  COMMUNITY_BACKUP_CA_CONFIGMAP: "mongodb-ca"
+  COMMUNITY_BACKUP_CPU_REQUEST: "200m"
+  COMMUNITY_BACKUP_MEMORY_REQUEST: "256Mi"
+  COMMUNITY_BACKUP_CPU_LIMIT: "1"
+  COMMUNITY_BACKUP_MEMORY_LIMIT: "1Gi"
+  AWS_DEFAULT_REGION: "us-east-1"

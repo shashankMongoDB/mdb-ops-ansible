@@ -294,3 +294,31 @@ class CommunityBackupStatusResponse(BaseModel):
     retentionDays: Optional[int] = None
     snapshots: Optional[list] = None
     message: Optional[str] = None
+
+
+# Community Backup Restore
+class RestoreBackupRequest(BaseModel):
+    snapshotFilename: str = Field(..., description="Snapshot filename to restore")
+    dropExisting: bool = Field(True, description="Drop existing collections before restore")
+
+
+class RestoreBackupResponse(BaseModel):
+    message: str
+    jobName: str
+    namespace: str
+    snapshot: str
+    dropExisting: bool
+    status: str
+    checkStatusCommand: str
+
+
+class RestoreJobStatusResponse(BaseModel):
+    jobName: str
+    namespace: str
+    status: str
+    succeeded: int
+    failed: int
+    active: int
+    startTime: Optional[str] = None
+    completionTime: Optional[str] = None
+    logs: str

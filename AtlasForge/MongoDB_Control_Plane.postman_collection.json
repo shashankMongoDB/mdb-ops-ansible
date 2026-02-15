@@ -1340,6 +1340,321 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Create DB User - appUser (Enterprise)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"appUser\",\n  \"db\": \"appdb\",\n  \"roles\": [\n    {\"db\": \"appdb\", \"name\": \"readWrite\"},\n    {\"db\": \"admin\", \"name\": \"clusterMonitor\"}\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/users",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "users"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create DB User - readOnlyUser (Community)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"readOnlyUser\",\n  \"db\": \"testdb\",\n  \"roles\": [\n    {\"db\": \"testdb\", \"name\": \"read\"}\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/users",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "users"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create DB User - adminUser with Multiple Roles",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"adminUser\",\n  \"db\": \"admin\",\n  \"roles\": [\n    {\"db\": \"admin\", \"name\": \"dbAdminAnyDatabase\"},\n    {\"db\": \"admin\", \"name\": \"readWriteAnyDatabase\"},\n    {\"db\": \"admin\", \"name\": \"clusterMonitor\"},\n    {\"db\": \"admin\", \"name\": \"backup\"}\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/users",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "users"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List DB Users",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/users",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "users"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List DB Users (Community)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/users",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "users"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get User Connection Info",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/users/appUser/connection",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "users", "appUser", "connection"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get User Connection Info (Community)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/users/readOnlyUser/connection",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "users", "readOnlyUser", "connection"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update User Roles",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roles\": [\n    {\"db\": \"appdb\", \"name\": \"readWrite\"},\n    {\"db\": \"appdb\", \"name\": \"dbAdmin\"},\n    {\"db\": \"admin\", \"name\": \"clusterMonitor\"}\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/users/appUser",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "users", "appUser"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete DB User",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-acme/deployments/rs-orders/users/appUser",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-acme", "deployments", "rs-orders", "users", "appUser"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete DB User (Community)",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/users/readOnlyUser",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "users", "readOnlyUser"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Community Backup - S3",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": true,\n  \"type\": \"s3\",\n  \"s3Bucket\": \"mdbaas-community-mongodb-backups\",\n  \"s3Prefix\": \"community-mongodb-backup\",\n  \"s3Region\": \"us-east-1\",\n  \"schedule\": \"0 */4 * * *\",\n  \"retentionDays\": 7\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/community-backup",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "community-backup"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Enable Community Backup - Filesystem",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": true,\n  \"type\": \"filesystem\",\n  \"filesystem\": {\n    \"backupHost\": \"10.0.0.10\",\n    \"backupPath\": \"/mnt/backups\",\n    \"subDirectory\": \"rs-test\"\n  },\n  \"schedule\": \"0 2 * * *\",\n  \"retentionDays\": 14\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-umbrella/deployments/rs-prod/community-backup",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-umbrella", "deployments", "rs-prod", "community-backup"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Disable Community Backup",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/community-backup",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "community-backup"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Community Backup Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/community-backup/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "community-backup", "status"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Community Backup Status (Filesystem)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-umbrella/deployments/rs-prod/community-backup/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-umbrella", "deployments", "rs-prod", "community-backup", "status"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Restore Community Backup - S3",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"snapshotFilename\": \"dump-20260215-120000.tar.gz\",\n  \"dropExisting\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/community-backup/restore",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "community-backup", "restore"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Restore Community Backup - Filesystem (No Drop)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"snapshotFilename\": \"dump-20260215-020000.gz\",\n  \"dropExisting\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-umbrella/deployments/rs-prod/community-backup/restore",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-umbrella", "deployments", "rs-prod", "community-backup", "restore"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Restore Job Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/tenants/t-initech/deployments/rs-test/community-backup/restore/rs-test-restore-20260215120000",
+          "host": ["{{baseUrl}}"],
+          "path": ["tenants", "t-initech", "deployments", "rs-test", "community-backup", "restore", "rs-test-restore-20260215120000"]
+        }
+      },
+      "response": []
     }
   ]
 }

@@ -1164,3 +1164,318 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
             result["snapshots"] = []
     
     return result
+
+
+def restore_community_backup(
+    tenant_id: str,
+    deployment_id: str,
+    snapshot_filename: str,
+    drop_existing: bool = True
+) -> Dict[str, Any]:
+    """
+    Restore a Community MongoDB backup from snapshot.
+    
+    Creates a Kubernetes Job that:
+    1. Downloads backup from S3/Filesystem
+    2. Runs mongorestore to target deployment
+    3. Optionally drops existing collections (--drop flag)
+    
+    Args:
+        tenant_id: Tenant identifier
+        deployment_id: Deployment identifier
+        snapshot_filename: Snapshot file to restore (e.g., dump-20260215-120000.tar.gz)
+        drop_existing: If True, drop existing collections before restore
+    
+    Returns:
+        Dict with job name and status
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+    
+    # Get tenant
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+    
+    if tenant.get("plan") != "community":
+        raise ValueError("Restore is only available for Community plan deployments")
+    
+    namespace = tenant["namespace"]
+    
+    # Get deployment metadata
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found")
+    
+    backup_type = deployment.get("backupType", "s3")
+    
+    # Get MongoDB connection details
+    connection_info = discover_mongodb_connection(namespace, deployment_id)
+    mongodb_hosts = connection_info["hosts"]
+    
+    # Get backup user credentials
+    backup_creds_secret_name = f"{deployment_id}-backup-credentials"
+    try:
+        backup_secret = k8s.core_v1.read_namespaced_secret(backup_creds_secret_name, namespace)
+        backup_uri = k8s.decode_secret_data(backup_secret.data.get("mongodbUri", ""))
+    except client.exceptions.ApiException:
+        raise ValueError(f"Backup credentials secret not found. Is backup enabled?")
+    
+    # Generate unique job name
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    job_name = f"{deployment_id}-restore-{timestamp}"
+    
+    # Build restore command based on backup type
+    if backup_type == "s3":
+        s3_bucket = deployment.get("s3Bucket")
+        s3_prefix = deployment.get("s3Prefix")
+        s3_region = deployment.get("s3Region", "us-east-1")
+        s3_key = f"{s3_prefix}/snapshots/{snapshot_filename}"
+        
+        restore_command = [
+            "/bin/sh",
+            "-c",
+            f"""
+            set -e
+            echo "[RESTORE] Starting restore from S3: s3://{s3_bucket}/{s3_key}"
+            
+            # Download from S3
+            echo "[RESTORE] Downloading backup..."
+            aws s3 cp s3://{s3_bucket}/{s3_key} /tmp/{snapshot_filename} --region {s3_region}
+            
+            # Extract
+            echo "[RESTORE] Extracting backup..."
+            cd /tmp
+            tar -xzf {snapshot_filename}
+            
+            # Find dump directory
+            DUMP_DIR=$(find /tmp -type d -name "dump-*" | head -n 1)
+            if [ -z "$DUMP_DIR" ]; then
+                DUMP_DIR="/tmp/dump"
+            fi
+            
+            echo "[RESTORE] Found dump directory: $DUMP_DIR"
+            
+            # Restore to MongoDB
+            echo "[RESTORE] Running mongorestore..."
+            mongorestore \\
+                --uri="{backup_uri}" \\
+                {'--drop' if drop_existing else ''} \\
+                --dir="$DUMP_DIR"
+            
+            echo "[RESTORE] Restore completed successfully!"
+            """
+        ]
+        
+        # Container for S3 restore (uses AWS CLI + mongodump image)
+        container = client.V1Container(
+            name="restore",
+            image=config.COMMUNITY_BACKUP_MONGODUMP_IMAGE,
+            command=restore_command,
+            env=[
+                client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_ACCESS_KEY_ID", optional=True)
+                )),
+                client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_SECRET_ACCESS_KEY", optional=True)
+                )),
+                client.V1EnvVar(name="AWS_DEFAULT_REGION", value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_DEFAULT_REGION", optional=True)
+                ))
+            ],
+            resources=client.V1ResourceRequirements(
+                requests={"cpu": "500m", "memory": "512Mi"},
+                limits={"cpu": "2", "memory": "2Gi"}
+            )
+        )
+    else:
+        # Filesystem restore
+        backup_host = deployment.get("backupHost")
+        backup_path = deployment.get("backupPath")
+        sub_directory = deployment.get("backupSubDirectory", deployment_id)
+        
+        restore_command = [
+            "/bin/sh",
+            "-c",
+            f"""
+            set -e
+            echo "[RESTORE] Starting restore from filesystem: {backup_host}:{backup_path}/{sub_directory}"
+            
+            # Restore directly from mounted filesystem
+            BACKUP_FILE="/backup/{snapshot_filename}"
+            
+            if [ ! -f "$BACKUP_FILE" ]; then
+                echo "[RESTORE] ERROR: Backup file not found: $BACKUP_FILE"
+                exit 1
+            fi
+            
+            echo "[RESTORE] Found backup file: $BACKUP_FILE"
+            echo "[RESTORE] Running mongorestore..."
+            
+            mongorestore \\
+                --uri="{backup_uri}" \\
+                {'--drop' if drop_existing else ''} \\
+                --gzip \\
+                --archive="$BACKUP_FILE"
+            
+            echo "[RESTORE] Restore completed successfully!"
+            """
+        ]
+        
+        container = client.V1Container(
+            name="restore",
+            image=config.COMMUNITY_BACKUP_MONGODUMP_IMAGE,
+            command=restore_command,
+            volume_mounts=[
+                client.V1VolumeMount(
+                    name="backup-volume",
+                    mount_path="/backup"
+                )
+            ],
+            resources=client.V1ResourceRequirements(
+                requests={"cpu": "500m", "memory": "512Mi"},
+                limits={"cpu": "2", "memory": "2Gi"}
+            )
+        )
+    
+    # Create Job
+    job = client.V1Job(
+        api_version="batch/v1",
+        kind="Job",
+        metadata=client.V1ObjectMeta(
+            name=job_name,
+            namespace=namespace,
+            labels={
+                "app": deployment_id,
+                "component": "restore",
+                "managed-by": "mdbaas-control-plane"
+            }
+        ),
+        spec=client.V1JobSpec(
+            template=client.V1PodTemplateSpec(
+                metadata=client.V1ObjectMeta(
+                    labels={
+                        "app": deployment_id,
+                        "component": "restore"
+                    }
+                ),
+                spec=client.V1PodSpec(
+                    restart_policy="Never",
+                    service_account_name=f"{deployment_id}-backup",
+                    containers=[container],
+                    volumes=[
+                        client.V1Volume(
+                            name="backup-volume",
+                            nfs=client.V1NFSVolumeSource(
+                                server=backup_host,
+                                path=f"{backup_path}/{sub_directory}"
+                            )
+                        )
+                    ] if backup_type == "filesystem" else []
+                )
+            ),
+            backoff_limit=2,
+            ttl_seconds_after_finished=86400  # Clean up after 24 hours
+        )
+    )
+    
+    # Create the Job
+    try:
+        k8s.batch_v1.create_namespaced_job(namespace, job)
+        print(f"[RESTORE] Created restore job: {job_name}")
+    except client.exceptions.ApiException as e:
+        raise ValueError(f"Failed to create restore job: {e}")
+    
+    # Store restore metadata
+    repo.update_deployment_metadata(
+        tenant_id=tenant_id,
+        deployment_id=deployment_id,
+        updates={
+            "lastRestoreJob": job_name,
+            "lastRestoreSnapshot": snapshot_filename,
+            "lastRestoreTime": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreDropExisting": drop_existing
+        }
+    )
+    
+    return {
+        "message": "Restore job created successfully",
+        "jobName": job_name,
+        "namespace": namespace,
+        "snapshot": snapshot_filename,
+        "dropExisting": drop_existing,
+        "status": "RUNNING",
+        "checkStatusCommand": f"kubectl logs -f job/{job_name} -n {namespace}"
+    }
+
+
+def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) -> Dict[str, Any]:
+    """
+    Get status of a restore job.
+    
+    Returns job status, logs, and completion info.
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+    
+    # Get tenant
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+    
+    namespace = tenant["namespace"]
+    
+    # Get job status
+    try:
+        job = k8s.batch_v1.read_namespaced_job(job_name, namespace)
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            raise ValueError(f"Restore job {job_name} not found")
+        raise
+    
+    # Parse job status
+    status = job.status
+    
+    succeeded = status.succeeded or 0
+    failed = status.failed or 0
+    active = status.active or 0
+    
+    if succeeded > 0:
+        job_status = "COMPLETED"
+    elif failed > 0:
+        job_status = "FAILED"
+    elif active > 0:
+        job_status = "RUNNING"
+    else:
+        job_status = "PENDING"
+    
+    # Get pod logs
+    try:
+        pods = k8s.core_v1.list_namespaced_pod(
+            namespace=namespace,
+            label_selector=f"job-name={job_name}"
+        )
+        
+        logs = ""
+        if pods.items:
+            pod_name = pods.items[0].metadata.name
+            try:
+                logs = k8s.core_v1.read_namespaced_pod_log(pod_name, namespace, tail_lines=100)
+            except:
+                logs = "Logs not available yet"
+        else:
+            logs = "No pods found for job"
+    except:
+        logs = "Could not retrieve logs"
+    
+    return {
+        "jobName": job_name,
+        "namespace": namespace,
+        "status": job_status,
+        "succeeded": succeeded,
+        "failed": failed,
+        "active": active,
+        "startTime": status.start_time.isoformat() if status.start_time else None,
+        "completionTime": status.completion_time.isoformat() if status.completion_time else None,
+        "logs": logs
+    }

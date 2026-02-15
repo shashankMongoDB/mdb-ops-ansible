@@ -342,4 +342,22 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  async restoreCommunityBackup(tenantId: string, deploymentId: string, data: { snapshotFilename: string; dropExisting: boolean }): Promise<any> {
+    try {
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/community-backup/restore`, data);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async getRestoreJobStatus(tenantId: string, deploymentId: string, jobName: string): Promise<any> {
+    try {
+      const response = await api.get(`/tenants/${tenantId}/deployments/${deploymentId}/community-backup/restore/${jobName}`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };
