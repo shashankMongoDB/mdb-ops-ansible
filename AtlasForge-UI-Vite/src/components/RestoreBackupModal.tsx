@@ -1,8 +1,8 @@
 import { Fragment, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { atlasForgeApi } from '../lib/api';
-import { useToast } from '../lib/hooks';
+import { deploymentsApi } from '@/lib/api';
+import { useToast } from './Toast';
 
 interface RestoreBackupModalProps {
   isOpen: boolean;
@@ -34,7 +34,7 @@ export function RestoreBackupModal({
 
     setLoading(true);
     try {
-      const result = await atlasForgeApi.restoreCommunityBackup(tenantId, deploymentId, {
+      const result = await deploymentsApi.restoreCommunityBackup(tenantId, deploymentId, {
         snapshotFilename: snapshot.filename,
         dropExisting: dropExisting
       });
