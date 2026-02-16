@@ -212,117 +212,135 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     # Handle different deployment types
     if deployment_type == "ShardedCluster":
-        # For ShardedCluster, we cannot set replica counts to 0 via CR
-        # The admission webhook rejects it. Instead, we scale StatefulSets directly
-        # and add an annotation to prevent operator reconciliation
+        # For ShardedCluster, the safest way to shutdown is to:
+        # 1. Save the MongoDB CR spec
+        # 2. Delete the MongoDB CR (this stops operator reconciliation)
+        # 3. Scale down all StatefulSets
+        # 4. Delete all pods
         
         # Get current CR spec
         spec = cr.get("spec", {})
+        metadata = cr.get("metadata", {})
         
-        # Store original configuration
+        # Store FULL CR for recreation on start
         shard_count = deployment.get("shardCount", len(spec.get("shardPodSpec", [])))
-        original_config = {
-            "shardCount": shard_count,
-            "mongodsPerShardCount": spec.get("mongodsPerShardCount", 3),
-            "mongosCount": spec.get("mongosCount", 2),
-            "configServerCount": spec.get("configSrvCount", 3)
+        shutdown_info = {
+            "cr_spec": spec,  # Full CR spec
+            "cr_metadata_labels": metadata.get("labels", {}),
+            "cr_metadata_annotations": metadata.get("annotations", {}),
+            "shard_count": shard_count
         }
         
-        shutdown_info = {}
+        print(f"[LIFECYCLE] Starting shutdown for ShardedCluster {deployment_id}")
+        print(f"[LIFECYCLE] Shard count: {shard_count}")
         
-        # Add annotation to CR to prevent reconciliation
+        # Step 1: Delete the MongoDB CR
+        # This stops the operator from reconciling
         try:
-            annotations_patch = {
-                "metadata": {
-                    "annotations": {
-                        "mongodb.com/pause-reconciliation": "true"
-                    }
-                }
-            }
-            k8s.custom_objects.patch_namespaced_custom_object(
+            k8s.custom_objects.delete_namespaced_custom_object(
                 group="mongodb.com",
                 version="v1",
                 namespace=namespace,
                 plural="mongodb",
-                name=deployment_id,
-                body=annotations_patch
+                name=deployment_id
             )
-            print(f"[LIFECYCLE] Paused reconciliation for {deployment_id}")
+            print(f"[LIFECYCLE] Deleted MongoDB CR {deployment_id}")
         except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not pause reconciliation: {e}")
+            print(f"[LIFECYCLE] Error deleting MongoDB CR: {e}")
+            raise ValueError(f"Failed to delete MongoDB CR: {e}")
         
-        # Shutdown all shards by scaling StatefulSets to 0 AND deleting pods
+        # Step 2: Scale all StatefulSets to 0 and delete pods
+        # Now that CR is gone, operator won't recreate pods
+        import time
+        time.sleep(2)  # Give operator time to process CR deletion
+        
         for i in range(shard_count):
             shard_name = f"{deployment_id}-shard-{i}"
             try:
-                sts = k8s.get_statefulset(namespace, shard_name)
-                if sts:
-                    previous_replicas = sts.spec.replicas
-                    shutdown_info[f"shard-{i}"] = previous_replicas
-                    
-                    # Scale to 0
-                    k8s.patch_statefulset_replicas(namespace, shard_name, 0)
-                    print(f"[LIFECYCLE] Scaled {shard_name} to 0 (was {previous_replicas})")
-                    
-                    # Force delete all pods in this shard
-                    pods = k8s.list_pods_for_statefulset(namespace, shard_name)
-                    for pod in pods:
+                # Get all pods first
+                pods = k8s.core_v1.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"app={shard_name}-svc"
+                )
+                
+                print(f"[LIFECYCLE] Found {len(pods.items)} pods for {shard_name}")
+                
+                # Force delete all pods
+                for pod in pods.items:
+                    try:
                         k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
                         print(f"[LIFECYCLE] Force deleted pod {pod.metadata.name}")
+                    except Exception as pod_e:
+                        print(f"[LIFECYCLE] Could not delete pod {pod.metadata.name}: {pod_e}")
+                
+                # Scale StatefulSet to 0
+                k8s.patch_statefulset_replicas(namespace, shard_name, 0)
+                print(f"[LIFECYCLE] Scaled {shard_name} to 0")
             except Exception as e:
                 print(f"[LIFECYCLE] Warning: Could not shutdown shard {shard_name}: {e}")
         
         # Shutdown config servers
         configsvr_name = f"{deployment_id}-configsvr"
         try:
-            sts = k8s.get_statefulset(namespace, configsvr_name)
-            if sts:
-                previous_replicas = sts.spec.replicas
-                shutdown_info["configsvr"] = previous_replicas
-                
-                # Scale to 0
-                k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
-                print(f"[LIFECYCLE] Scaled {configsvr_name} to 0 (was {previous_replicas})")
-                
-                # Force delete all config server pods
-                pods = k8s.list_pods_for_statefulset(namespace, configsvr_name)
-                for pod in pods:
+            # Get all config server pods
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={configsvr_name}-svc"
+            )
+            
+            print(f"[LIFECYCLE] Found {len(pods.items)} pods for {configsvr_name}")
+            
+            # Force delete all pods
+            for pod in pods.items:
+                try:
                     k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
                     print(f"[LIFECYCLE] Force deleted pod {pod.metadata.name}")
+                except Exception as pod_e:
+                    print(f"[LIFECYCLE] Could not delete pod {pod.metadata.name}: {pod_e}")
+            
+            # Scale StatefulSet to 0
+            k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
+            print(f"[LIFECYCLE] Scaled {configsvr_name} to 0")
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not shutdown config servers: {e}")
         
-        # Shutdown mongos pods by deleting them
+        # Shutdown mongos pods
         try:
+            # Try multiple label selectors for mongos
             pods = k8s.core_v1.list_namespaced_pod(
                 namespace=namespace,
-                label_selector=f"app.kubernetes.io/component=mongos,app.kubernetes.io/instance={deployment_id}"
+                label_selector=f"app.kubernetes.io/instance={deployment_id}"
             )
-            mongos_count = len(pods.items)
-            shutdown_info["mongos"] = mongos_count
+            
+            # Filter to only mongos pods
+            mongos_pods = [p for p in pods.items if 'mongos' in p.metadata.name]
+            
+            print(f"[LIFECYCLE] Found {len(mongos_pods)} mongos pods")
             
             # Force delete all mongos pods
-            for pod in pods.items:
-                k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
-                print(f"[LIFECYCLE] Force deleted mongos pod {pod.metadata.name}")
+            for pod in mongos_pods:
+                try:
+                    k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
+                    print(f"[LIFECYCLE] Force deleted mongos pod {pod.metadata.name}")
+                except Exception as pod_e:
+                    print(f"[LIFECYCLE] Could not delete pod {pod.metadata.name}: {pod_e}")
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not shutdown mongos: {e}")
-            shutdown_info["mongos"] = original_config["mongosCount"]
         
         # Store shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": shutdown_info
         })
         
-        total_previous = sum(shutdown_info.values())
+        print(f"[LIFECYCLE] Shutdown complete for {deployment_id}")
         
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "shutdown",
-            "previousReplicas": total_previous,
+            "previousReplicas": "N/A",
             "currentReplicas": 0,
-            "message": f"Shutdown {len(shutdown_info)} components (reconciliation paused)"
+            "message": f"Shutdown complete - CR deleted, all pods terminated"
         }
     
     elif deployment_type == "Standalone":
@@ -440,69 +458,56 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     deployment_type = deployment.get("type", "ReplicaSet")
     
     if deployment_type == "ShardedCluster":
-        # Get stored shutdown info
+        # Get stored shutdown info with CR spec
         shutdown_info = deployment.get("lastRequestedSpec", {}).get("shutdownInfo", {})
         
-        if not shutdown_info:
+        if not shutdown_info or "cr_spec" not in shutdown_info:
             raise ValueError("No shutdown info found. Deployment may not have been properly shutdown.")
         
-        # Remove the pause annotation to resume reconciliation
+        cr_spec = shutdown_info.get("cr_spec")
+        cr_labels = shutdown_info.get("cr_metadata_labels", {})
+        cr_annotations = shutdown_info.get("cr_metadata_annotations", {})
+        
+        print(f"[LIFECYCLE] Starting ShardedCluster {deployment_id}")
+        
+        # Recreate the MongoDB CR
+        # This will cause the operator to reconcile and create all resources
+        mongodb_cr = {
+            "apiVersion": "mongodb.com/v1",
+            "kind": "MongoDB",
+            "metadata": {
+                "name": deployment_id,
+                "namespace": namespace,
+                "labels": cr_labels,
+                "annotations": cr_annotations
+            },
+            "spec": cr_spec
+        }
+        
         try:
-            annotations_patch = {
-                "metadata": {
-                    "annotations": {
-                        "mongodb.com/pause-reconciliation": None
-                    }
-                }
-            }
-            k8s.custom_objects.patch_namespaced_custom_object(
+            k8s.custom_objects.create_namespaced_custom_object(
                 group="mongodb.com",
                 version="v1",
                 namespace=namespace,
                 plural="mongodb",
-                name=deployment_id,
-                body=annotations_patch
+                body=mongodb_cr
             )
-            print(f"[LIFECYCLE] Resumed reconciliation for {deployment_id}")
+            print(f"[LIFECYCLE] Recreated MongoDB CR {deployment_id}")
         except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not resume reconciliation: {e}")
-        
-        # The operator will now reconcile and bring back all components
-        # But we can also manually scale StatefulSets to speed it up
-        shard_count = deployment.get("shardCount", 2)
-        for i in range(shard_count):
-            shard_name = f"{deployment_id}-shard-{i}"
-            desired_replicas = shutdown_info.get(f"shard-{i}", 3)
-            try:
-                k8s.patch_statefulset_replicas(namespace, shard_name, desired_replicas)
-                print(f"[LIFECYCLE] Scaled {shard_name} to {desired_replicas}")
-            except Exception as e:
-                print(f"[LIFECYCLE] Warning: Could not start shard {shard_name}: {e}")
-        
-        # Start config servers
-        configsvr_name = f"{deployment_id}-configsvr"
-        desired_replicas = shutdown_info.get("configsvr", 3)
-        try:
-            k8s.patch_statefulset_replicas(namespace, configsvr_name, desired_replicas)
-            print(f"[LIFECYCLE] Scaled {configsvr_name} to {desired_replicas}")
-        except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not start config servers: {e}")
-        
-        # Mongos pods will be recreated by the operator automatically
+            print(f"[LIFECYCLE] Error recreating MongoDB CR: {e}")
+            raise ValueError(f"Failed to recreate MongoDB CR: {e}")
         
         # Clear shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None
         })
         
-        total_replicas = sum(shutdown_info.values())
-        
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "start",
-            "replicas": total_replicas,
-            "message": "Started ShardedCluster (reconciliation resumed)"
+            "replicas": "N/A",
+            "message": "Started ShardedCluster - CR recreated, operator reconciling"
         }
     
     elif deployment_type == "Standalone":
