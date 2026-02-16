@@ -117,16 +117,49 @@ def get_mongodb_versions():
     Get list of supported MongoDB versions.
     
     Returns a JSON structure with all available versions grouped by major version,
-    plus recommended versions.
+    plus recommended versions, transformed for frontend dropdown.
     """
     try:
         versions_file = os.path.join(os.path.dirname(__file__), "data", "mongodb_versions.json")
         with open(versions_file, 'r') as f:
             versions_data = json.load(f)
-        return versions_data
+        
+        # Transform data for frontend dropdown
+        transformed = []
+        recommended = versions_data.get("recommended", {})
+        
+        for version_group in versions_data.get("versions", []):
+            major = version_group["major"]
+            releases = version_group["releases"]
+            
+            # Create versions array with labels
+            versions_list = []
+            for version in releases:
+                label = None
+                # Add label for recommended versions
+                if version == recommended.get("latest") or version == recommended.get("latestEnterprise"):
+                    label = "Latest"
+                elif version == recommended.get("lts") or version == recommended.get("ltsEnterprise"):
+                    label = "LTS"
+                
+                versions_list.append({
+                    "version": version,
+                    "label": label
+                })
+            
+            transformed.append({
+                "major": major,
+                "label": f"MongoDB {major}",
+                "versions": versions_list
+            })
+        
+        return transformed
     except FileNotFoundError:
         logger.error("MongoDB versions file not found")
         raise HTTPException(status_code=500, detail="MongoDB versions configuration not found")
+    except Exception as e:
+        logger.error(f"Error processing MongoDB versions: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing versions: {str(e)}")
     except Exception as e:
         logger.exception("Error loading MongoDB versions")
         raise HTTPException(status_code=500, detail=f"Error loading versions: {str(e)}")
