@@ -498,12 +498,21 @@ class K8sClient:
         except ApiException:
             return []
 
-    def delete_pod(self, namespace: str, name: str) -> bool:
+    def delete_pod(self, namespace: str, name: str, grace_period: int = None) -> bool:
         """
         Delete a pod. Returns True if deleted, False if not found.
+        
+        Args:
+            namespace: K8s namespace
+            name: Pod name
+            grace_period: Grace period in seconds. 0 for immediate deletion.
         """
         try:
-            self.core_v1.delete_namespaced_pod(name=name, namespace=namespace)
+            if grace_period is not None:
+                body = client.V1DeleteOptions(grace_period_seconds=grace_period)
+                self.core_v1.delete_namespaced_pod(name=name, namespace=namespace, body=body)
+            else:
+                self.core_v1.delete_namespaced_pod(name=name, namespace=namespace)
             return True
         except ApiException as e:
             if e.status == 404:

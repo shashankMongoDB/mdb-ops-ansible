@@ -251,16 +251,24 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not pause reconciliation: {e}")
         
-        # Shutdown all shards by scaling StatefulSets directly
+        # Shutdown all shards by scaling StatefulSets to 0 AND deleting pods
         for i in range(shard_count):
             shard_name = f"{deployment_id}-shard-{i}"
             try:
                 sts = k8s.get_statefulset(namespace, shard_name)
                 if sts:
                     previous_replicas = sts.spec.replicas
-                    k8s.patch_statefulset_replicas(namespace, shard_name, 0)
                     shutdown_info[f"shard-{i}"] = previous_replicas
+                    
+                    # Scale to 0
+                    k8s.patch_statefulset_replicas(namespace, shard_name, 0)
                     print(f"[LIFECYCLE] Scaled {shard_name} to 0 (was {previous_replicas})")
+                    
+                    # Force delete all pods in this shard
+                    pods = k8s.list_pods_for_statefulset(namespace, shard_name)
+                    for pod in pods:
+                        k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
+                        print(f"[LIFECYCLE] Force deleted pod {pod.metadata.name}")
             except Exception as e:
                 print(f"[LIFECYCLE] Warning: Could not shutdown shard {shard_name}: {e}")
         
@@ -270,13 +278,21 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             sts = k8s.get_statefulset(namespace, configsvr_name)
             if sts:
                 previous_replicas = sts.spec.replicas
-                k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
                 shutdown_info["configsvr"] = previous_replicas
+                
+                # Scale to 0
+                k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
                 print(f"[LIFECYCLE] Scaled {configsvr_name} to 0 (was {previous_replicas})")
+                
+                # Force delete all config server pods
+                pods = k8s.list_pods_for_statefulset(namespace, configsvr_name)
+                for pod in pods:
+                    k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
+                    print(f"[LIFECYCLE] Force deleted pod {pod.metadata.name}")
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not shutdown config servers: {e}")
         
-        # Shutdown mongos pods by scaling down
+        # Shutdown mongos pods by deleting them
         try:
             pods = k8s.core_v1.list_namespaced_pod(
                 namespace=namespace,
@@ -285,10 +301,10 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             mongos_count = len(pods.items)
             shutdown_info["mongos"] = mongos_count
             
-            # Delete mongos pods
+            # Force delete all mongos pods
             for pod in pods.items:
-                k8s.delete_pod(namespace, pod.metadata.name)
-                print(f"[LIFECYCLE] Deleted mongos pod {pod.metadata.name}")
+                k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
+                print(f"[LIFECYCLE] Force deleted mongos pod {pod.metadata.name}")
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not shutdown mongos: {e}")
             shutdown_info["mongos"] = original_config["mongosCount"]
