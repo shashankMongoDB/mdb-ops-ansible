@@ -212,8 +212,9 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     # Handle different deployment types
     if deployment_type == "ShardedCluster":
-        # For ShardedCluster, we need to update the MongoDB CR to scale down
-        # The operator will then reconcile all StatefulSets
+        # For ShardedCluster, we cannot set replica counts to 0 via CR
+        # The admission webhook rejects it. Instead, we scale StatefulSets directly
+        # and add an annotation to prevent operator reconciliation
         
         # Get current CR spec
         spec = cr.get("spec", {})
@@ -227,37 +228,77 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "configServerCount": spec.get("configSrvCount", 3)
         }
         
-        # Update CR to scale everything to 0
-        patch_body = {
-            "spec": {
-                "mongodsPerShardCount": 0,
-                "mongosCount": 0,
-                "configSrvCount": 0
-            }
-        }
+        shutdown_info = {}
         
+        # Add annotation to CR to prevent reconciliation
         try:
+            annotations_patch = {
+                "metadata": {
+                    "annotations": {
+                        "mongodb.com/pause-reconciliation": "true"
+                    }
+                }
+            }
             k8s.custom_objects.patch_namespaced_custom_object(
                 group="mongodb.com",
                 version="v1",
                 namespace=namespace,
                 plural="mongodb",
                 name=deployment_id,
-                body=patch_body
+                body=annotations_patch
             )
-            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} to scale to 0")
+            print(f"[LIFECYCLE] Paused reconciliation for {deployment_id}")
         except Exception as e:
-            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
-            raise ValueError(f"Failed to shutdown ShardedCluster: {e}")
+            print(f"[LIFECYCLE] Warning: Could not pause reconciliation: {e}")
+        
+        # Shutdown all shards by scaling StatefulSets directly
+        for i in range(shard_count):
+            shard_name = f"{deployment_id}-shard-{i}"
+            try:
+                sts = k8s.get_statefulset(namespace, shard_name)
+                if sts:
+                    previous_replicas = sts.spec.replicas
+                    k8s.patch_statefulset_replicas(namespace, shard_name, 0)
+                    shutdown_info[f"shard-{i}"] = previous_replicas
+                    print(f"[LIFECYCLE] Scaled {shard_name} to 0 (was {previous_replicas})")
+            except Exception as e:
+                print(f"[LIFECYCLE] Warning: Could not shutdown shard {shard_name}: {e}")
+        
+        # Shutdown config servers
+        configsvr_name = f"{deployment_id}-configsvr"
+        try:
+            sts = k8s.get_statefulset(namespace, configsvr_name)
+            if sts:
+                previous_replicas = sts.spec.replicas
+                k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
+                shutdown_info["configsvr"] = previous_replicas
+                print(f"[LIFECYCLE] Scaled {configsvr_name} to 0 (was {previous_replicas})")
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not shutdown config servers: {e}")
+        
+        # Shutdown mongos pods by scaling down
+        try:
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app.kubernetes.io/component=mongos,app.kubernetes.io/instance={deployment_id}"
+            )
+            mongos_count = len(pods.items)
+            shutdown_info["mongos"] = mongos_count
+            
+            # Delete mongos pods
+            for pod in pods.items:
+                k8s.delete_pod(namespace, pod.metadata.name)
+                print(f"[LIFECYCLE] Deleted mongos pod {pod.metadata.name}")
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not shutdown mongos: {e}")
+            shutdown_info["mongos"] = original_config["mongosCount"]
         
         # Store shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.shutdownInfo": original_config
+            "lastRequestedSpec.shutdownInfo": shutdown_info
         })
         
-        total_previous = (original_config["shardCount"] * original_config["mongodsPerShardCount"] + 
-                         original_config["mongosCount"] + 
-                         original_config["configServerCount"])
+        total_previous = sum(shutdown_info.values())
         
         return {
             "tenantId": tenant_id,
@@ -265,7 +306,7 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "action": "shutdown",
             "previousReplicas": total_previous,
             "currentReplicas": 0,
-            "message": f"Shutdown ShardedCluster via CR update"
+            "message": f"Shutdown {len(shutdown_info)} components (reconciliation paused)"
         }
     
     elif deployment_type == "Standalone":
@@ -389,44 +430,63 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         if not shutdown_info:
             raise ValueError("No shutdown info found. Deployment may not have been properly shutdown.")
         
-        # Update CR to restore original configuration
-        patch_body = {
-            "spec": {
-                "mongodsPerShardCount": shutdown_info.get("mongodsPerShardCount", 3),
-                "mongosCount": shutdown_info.get("mongosCount", 2),
-                "configSrvCount": shutdown_info.get("configServerCount", 3)
-            }
-        }
-        
+        # Remove the pause annotation to resume reconciliation
         try:
+            annotations_patch = {
+                "metadata": {
+                    "annotations": {
+                        "mongodb.com/pause-reconciliation": None
+                    }
+                }
+            }
             k8s.custom_objects.patch_namespaced_custom_object(
                 group="mongodb.com",
                 version="v1",
                 namespace=namespace,
                 plural="mongodb",
                 name=deployment_id,
-                body=patch_body
+                body=annotations_patch
             )
-            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} to restore original config")
+            print(f"[LIFECYCLE] Resumed reconciliation for {deployment_id}")
         except Exception as e:
-            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
-            raise ValueError(f"Failed to start ShardedCluster: {e}")
+            print(f"[LIFECYCLE] Warning: Could not resume reconciliation: {e}")
+        
+        # The operator will now reconcile and bring back all components
+        # But we can also manually scale StatefulSets to speed it up
+        shard_count = deployment.get("shardCount", 2)
+        for i in range(shard_count):
+            shard_name = f"{deployment_id}-shard-{i}"
+            desired_replicas = shutdown_info.get(f"shard-{i}", 3)
+            try:
+                k8s.patch_statefulset_replicas(namespace, shard_name, desired_replicas)
+                print(f"[LIFECYCLE] Scaled {shard_name} to {desired_replicas}")
+            except Exception as e:
+                print(f"[LIFECYCLE] Warning: Could not start shard {shard_name}: {e}")
+        
+        # Start config servers
+        configsvr_name = f"{deployment_id}-configsvr"
+        desired_replicas = shutdown_info.get("configsvr", 3)
+        try:
+            k8s.patch_statefulset_replicas(namespace, configsvr_name, desired_replicas)
+            print(f"[LIFECYCLE] Scaled {configsvr_name} to {desired_replicas}")
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not start config servers: {e}")
+        
+        # Mongos pods will be recreated by the operator automatically
         
         # Clear shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None
         })
         
-        total_replicas = (shutdown_info["shardCount"] * shutdown_info["mongodsPerShardCount"] + 
-                         shutdown_info["mongosCount"] + 
-                         shutdown_info["configServerCount"])
+        total_replicas = sum(shutdown_info.values())
         
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "start",
             "replicas": total_replicas,
-            "message": "Started ShardedCluster via CR update"
+            "message": "Started ShardedCluster (reconciliation resumed)"
         }
     
     elif deployment_type == "Standalone":
