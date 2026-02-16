@@ -241,32 +241,27 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not shutdown config servers: {e}")
         
-        # Shutdown mongos
-        mongos_name = f"{deployment_id}-mongos"
-        try:
-            deployment_obj = k8s.apps_v1.read_namespaced_deployment(mongos_name, namespace)
-            if deployment_obj:
-                previous_replicas = deployment_obj.spec.replicas
-                k8s.apps_v1.patch_namespaced_deployment(
-                    name=mongos_name,
-                    namespace=namespace,
-                    body={"spec": {"replicas": 0}}
-                )
-                shutdown_info["mongos"] = previous_replicas
-        except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not shutdown mongos: {e}")
+        # Note: mongos is managed by the MongoDB CR, not a separate Deployment
+        # The operator will handle scaling mongos when we scale the shards
+        # We just store the expected mongos count from deployment metadata
+        mongos_count = deployment.get("mongosCount", 2)
+        shutdown_info["mongos"] = mongos_count
         
         # Store shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": shutdown_info
         })
         
+        # Calculate total pods shutdown
+        total_previous = sum(shutdown_info.values())
+        
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "shutdown",
-            "type": "ShardedCluster",
-            "shutdownInfo": shutdown_info
+            "previousReplicas": total_previous,
+            "currentReplicas": 0,
+            "message": f"Shutdown {len(shutdown_info)} components: {list(shutdown_info.keys())}"
         }
     
     elif deployment_type == "Standalone":
@@ -390,29 +385,21 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not start config servers: {e}")
         
-        # Start mongos
-        mongos_name = f"{deployment_id}-mongos"
-        desired_replicas = shutdown_info.get("mongos", 2)
-        try:
-            k8s.apps_v1.patch_namespaced_deployment(
-                name=mongos_name,
-                namespace=namespace,
-                body={"spec": {"replicas": desired_replicas}}
-            )
-        except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not start mongos: {e}")
+        # Note: mongos is managed by the MongoDB CR, operator handles it automatically
         
         # Clear shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None
         })
         
+        total_replicas = sum(shutdown_info.values())
+        
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "start",
-            "type": "ShardedCluster",
-            "shutdownInfo": shutdown_info
+            "replicas": total_replicas,
+            "message": f"Started {len(shutdown_info)} components"
         }
     
     elif deployment_type == "Standalone":
@@ -536,16 +523,16 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not restart config servers: {e}")
         
-        # Restart mongos (Deployment, not StatefulSet)
-        mongos_name = f"{deployment_id}-mongos"
+        # Restart mongos pods (managed by operator, but we can delete pods)
         try:
             pods = k8s.core_v1.list_namespaced_pod(
                 namespace=namespace,
-                label_selector=f"app={mongos_name}"
+                label_selector=f"app.kubernetes.io/component=mongos,app.kubernetes.io/instance={deployment_id}"
             )
             for pod in pods.items:
                 k8s.delete_pod(namespace, pod.metadata.name)
-            restarted.append("mongos")
+            if pods.items:
+                restarted.append("mongos")
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not restart mongos: {e}")
         
@@ -553,8 +540,7 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "restart",
-            "type": "ShardedCluster",
-            "restarted": restarted
+            "message": f"Restarted {len(restarted)} components: {', '.join(restarted)}"
         }
     
     elif deployment_type == "Standalone":
@@ -580,7 +566,7 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "restart",
-            "type": "Standalone"
+            "message": "Standalone deployment restarted"
         }
     
     else:
@@ -601,6 +587,5 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "restart",
-            "type": "ReplicaSet",
-            "status": "rolling"
+            "message": "Rolling restart initiated"
         }
