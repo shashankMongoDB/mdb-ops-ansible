@@ -329,36 +329,70 @@ export function DeploymentDetailsPage() {
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-semibold text-mongodb-forest mb-4">Lifecycle Controls</h2>
-            <div className="flex gap-3 flex-wrap">
-              {deployment.type === 'ReplicaSet' && deployment.members && (
-                <button onClick={() => setShowScaleModal(true)} className="btn-primary">
-                  Scale Members
+          {/* Lifecycle Controls - Only show if NOT shutdown */}
+          {deployment.status !== 'shutdown' && (
+            <div>
+              <h2 className="text-2xl font-semibold text-mongodb-forest mb-4">Lifecycle Controls</h2>
+              <div className="flex gap-3 flex-wrap">
+                {deployment.type === 'ReplicaSet' && deployment.members && (
+                  <button onClick={() => setShowScaleModal(true)} className="btn-primary">
+                    Scale Members
+                  </button>
+                )}
+                <button onClick={() => setShowUpgradeModal(true)} className="btn-primary">
+                  Upgrade Version
                 </button>
-              )}
-              <button onClick={() => setShowUpgradeModal(true)} className="btn-primary">
-                Upgrade Version
-              </button>
-              <button onClick={() => setConfirmAction('restart')} className="btn-secondary">
-                Restart
-              </button>
-              <button onClick={() => setConfirmAction('shutdown')} className="btn-danger">
-                Shutdown
-              </button>
-            </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Deployment Type: <span className="font-semibold">{deployment.type || '(not set in API response)'}</span>
-              {deployment.members && ` | Current Members: ${deployment.members}`}
-            </p>
-            {!deployment.type && (
-              <p className="text-xs text-red-600 mt-1">
-                ⚠️ API is not returning 'type' field. Please restart the FastAPI service after deploying the fix.
+                <button onClick={() => setConfirmAction('restart')} className="btn-secondary">
+                  Restart
+                </button>
+                <button onClick={() => setConfirmAction('shutdown')} className="btn-danger">
+                  Shutdown
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">
+                Deployment Type: <span className="font-semibold">{deployment.type || '(not set in API response)'}</span>
+                {deployment.members && ` | Current Members: ${deployment.members}`}
               </p>
-            )}
-          </div>
+              {!deployment.type && (
+                <p className="text-xs text-red-600 mt-1">
+                  ⚠️ API is not returning 'type' field. Please restart the FastAPI service after deploying the fix.
+                </p>
+              )}
+            </div>
+          )}
 
-          <ConnectionInfo tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />
+          {/* Show Start button if shutdown */}
+          {deployment.status === 'shutdown' && (
+            <div>
+              <h2 className="text-2xl font-semibold text-mongodb-forest mb-4">Deployment Actions</h2>
+              <button 
+                onClick={async () => {
+                  try {
+                    setActionLoading(true);
+                    await deploymentsApi.start(deployment.tenantId, deployment.deploymentId);
+                    showSuccess('Deployment starting', 'Deployment is starting up');
+                    await loadData();
+                  } catch (error: any) {
+                    showError('Failed to start deployment', error.detail || 'An error occurred');
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                disabled={actionLoading}
+                className="btn-primary"
+              >
+                {actionLoading ? 'Starting...' : 'Start Deployment'}
+              </button>
+              <p className="text-sm text-gray-500 mt-2">
+                Start the deployment to restore all MongoDB processes.
+              </p>
+            </div>
+          )}
+
+          {/* Connection Info - Only show if NOT shutdown */}
+          {deployment.status !== 'shutdown' && (
+            <ConnectionInfo tenantId={deployment.tenantId} deploymentId={deployment.deploymentId} />
+          )}
         </div>
       )}
 

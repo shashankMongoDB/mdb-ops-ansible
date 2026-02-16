@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { deploymentStatusApi } from '@/lib/api';
+import { deploymentStatusApi, deploymentsApi } from '@/lib/api';
+import { useToast } from './Toast';
 import type { Deployment } from '@/lib/types';
 
 interface DeploymentStatus {
@@ -26,7 +27,9 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
   const [expandedDeployments, setExpandedDeployments] = useState<Set<string>>(new Set());
   const [deploymentStatuses, setDeploymentStatuses] = useState<Map<string, DeploymentStatus>>(new Map());
   const [loading, setLoading] = useState(false);
+  const [startingDeployment, setStartingDeployment] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
 
   // Poll for status updates every 10 seconds
   useEffect(() => {
@@ -65,6 +68,20 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
       newExpanded.add(deploymentId);
     }
     setExpandedDeployments(newExpanded);
+  };
+
+  const handleStartDeployment = async (deploymentId: string) => {
+    setStartingDeployment(deploymentId);
+    try {
+      await deploymentsApi.start(tenantId, deploymentId);
+      showSuccess('Deployment starting', `Deployment ${deploymentId} is starting up`);
+      // Immediately refresh statuses
+      await loadAllStatuses();
+    } catch (error: any) {
+      showError('Failed to start deployment', error.detail || 'An error occurred');
+    } finally {
+      setStartingDeployment(null);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -192,8 +209,20 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                   </div>
                 </div>
 
-                {/* Actions dropdown (placeholder for now) */}
-                <div>
+                {/* Actions - Show Start button if shutdown, otherwise Details */}
+                <div className="flex gap-2">
+                  {status?.status === 'shutdown' ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartDeployment(deployment.deploymentId);
+                      }}
+                      disabled={startingDeployment === deployment.deploymentId}
+                      className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {startingDeployment === deployment.deploymentId ? 'Starting...' : 'Start'}
+                    </button>
+                  ) : null}
                   <button
                     onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
                     className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
