@@ -393,4 +393,13 @@ export const deploymentsApi = {
       return handleError(error);
     }
   },
+
+  async getMongoDBVersions(): Promise<any> {
+    try {
+      const response = await api.get('/mongodb-versions');
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
 };

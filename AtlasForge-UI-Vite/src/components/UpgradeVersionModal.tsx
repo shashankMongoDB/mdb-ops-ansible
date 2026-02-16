@@ -35,12 +35,14 @@ export function UpgradeVersionModal({
   // Load available versions
   useEffect(() => {
     const loadVersions = async () => {
+      console.log('[UpgradeVersionModal] Loading versions...');
       setLoadingVersions(true);
       try {
         const data = await deploymentsApi.getMongoDBVersions();
+        console.log('[UpgradeVersionModal] Versions loaded:', data);
         setVersions(data);
       } catch (error) {
-        console.error('Failed to load MongoDB versions:', error);
+        console.error('[UpgradeVersionModal] Failed to load MongoDB versions:', error);
       } finally {
         setLoadingVersions(false);
       }
@@ -143,24 +145,28 @@ export function UpgradeVersionModal({
                     disabled={loadingVersions}
                   >
                     <option value="">Select a version to upgrade to...</option>
-                    {versions.map((versionGroup) => (
-                      <optgroup key={versionGroup.major} label={versionGroup.label}>
-                        {versionGroup.versions
-                          .filter((v: any) => {
-                            // Filter based on tenant plan
-                            if (tenantPlan === 'community') {
-                              return !v.version.includes('-ent');
-                            } else {
-                              return v.version.includes('-ent');
-                            }
-                          })
-                          .map((v: any) => (
-                            <option key={v.version} value={v.version}>
-                              {v.version} {v.label ? `(${v.label})` : ''}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
+                    {versions.length > 0 ? (
+                      versions.map((versionGroup) => (
+                        <optgroup key={versionGroup.major} label={versionGroup.label}>
+                          {versionGroup.versions
+                            .filter((v: any) => {
+                              // Filter based on tenant plan
+                              if (tenantPlan === 'community') {
+                                return !v.version.includes('-ent');
+                              } else {
+                                return v.version.includes('-ent');
+                              }
+                            })
+                            .map((v: any) => (
+                              <option key={v.version} value={v.version}>
+                                {v.version} {v.label ? `(${v.label})` : ''}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))
+                    ) : !loadingVersions ? (
+                      <option disabled>No versions available</option>
+                    ) : null}
                   </select>
                   <p className="mt-1 text-sm text-gray-500">
                     {loadingVersions ? 'Loading versions...' : 'Select a version higher than current'}
