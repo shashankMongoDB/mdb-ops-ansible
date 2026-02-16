@@ -256,7 +256,7 @@ export function DeploymentDetailsPage() {
 
       {/* Show initializing/stabilizing banner when not all replicas are ready */}
       {deployment.status !== 'shutdown' && deployment.members && connectionInfo && 
-       connectionInfo.status && connectionInfo.status !== 'running' && (
+       connectionInfo.readyReplicas < connectionInfo.totalReplicas && (
         <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
           <div className="flex items-center gap-3">
             <div className="animate-spin">
@@ -374,18 +374,18 @@ export function DeploymentDetailsPage() {
                 {deployment.type === 'ReplicaSet' && deployment.members && (
                   <button 
                     onClick={() => setShowScaleModal(true)} 
-                    disabled={connectionInfo?.status !== 'running'}
-                    className={connectionInfo?.status !== 'running' ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
-                    title={connectionInfo?.status !== 'running' ? 'Available when all replicas are running' : ''}
+                    disabled={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas}
+                    className={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
+                    title={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'Available when all replicas are running' : ''}
                   >
                     Scale Members
                   </button>
                 )}
                 <button 
                   onClick={() => setShowUpgradeModal(true)} 
-                  disabled={connectionInfo?.status !== 'running'}
-                  className={connectionInfo?.status !== 'running' ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
-                  title={connectionInfo?.status !== 'running' ? 'Available when all replicas are running' : ''}
+                  disabled={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas}
+                  className={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
+                  title={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'Available when all replicas are running' : ''}
                 >
                   Upgrade Version
                 </button>

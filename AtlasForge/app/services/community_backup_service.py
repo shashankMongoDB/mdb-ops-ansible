@@ -883,6 +883,7 @@ def enable_community_backup(
         
         # Store config in deployment metadata
         repo.update_deployment_metadata(tenant_id, deployment_id, {
+            "backupEnabled": True,  # Mark backup as enabled
             "backupType": backup_type,
             "backupTarget": target,
             "backupSchedule": schedule,
@@ -933,6 +934,7 @@ def enable_community_backup(
         
         # Store config in deployment metadata
         repo.update_deployment_metadata(tenant_id, deployment_id, {
+            "backupEnabled": True,  # Mark backup as enabled
             "backupType": backup_type,
             "s3Bucket": s3_bucket,
             "s3Prefix": s3_prefix,
@@ -987,6 +989,11 @@ def disable_community_backup(tenant_id: str, deployment_id: str) -> Dict[str, An
         if e.status == 404:
             raise ValueError(f"CronJob {cronjob_name} not found")
         raise
+    
+    # Update deployment metadata to mark backup as disabled
+    repo.update_deployment_metadata(tenant_id, deployment_id, {
+        "backupEnabled": False
+    })
     
     return {"enabled": False}
 
