@@ -103,14 +103,38 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   };
 
   const handleCopyS3Path = async () => {
-    if (!status?.s3Path) return;
+    const textToCopy = status?.type === 'filesystem' ? status?.target : status?.s3Path;
+    if (!textToCopy) return;
     
     try {
-      await navigator.clipboard.writeText(status.s3Path);
-      setCopiedS3(true);
-      setTimeout(() => setCopiedS3(false), 2000);
+      // Modern clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopiedS3(true);
+        setTimeout(() => setCopiedS3(false), 2000);
+      } else {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (successful) {
+          setCopiedS3(true);
+          setTimeout(() => setCopiedS3(false), 2000);
+        } else {
+          throw new Error('Copy command failed');
+        }
+      }
     } catch (err) {
-      showError('Failed to copy', 'Could not copy S3 path to clipboard');
+      console.error('Copy failed:', err);
+      showError('Failed to copy', 'Could not copy path to clipboard. Please copy manually.');
     }
   };
 

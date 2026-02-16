@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { deploymentsApi } from '@/lib/api';
@@ -12,6 +12,7 @@ interface UpgradeVersionModalProps {
   tenantId: string;
   deploymentId: string;
   currentVersion: string;
+  tenantPlan?: string;
 }
 
 export function UpgradeVersionModal({
@@ -21,12 +22,34 @@ export function UpgradeVersionModal({
   tenantId,
   deploymentId,
   currentVersion,
+  tenantPlan = 'enterprise',
 }: UpgradeVersionModalProps) {
   const [mongoVersion, setMongoVersion] = useState('');
+  const [versions, setVersions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingVersions, setLoadingVersions] = useState(false);
   const { showSuccess, showError } = useToast();
 
   const isDowngradeAttempt = mongoVersion.trim() && isDowngrade(currentVersion, mongoVersion.trim());
+
+  // Load available versions
+  useEffect(() => {
+    const loadVersions = async () => {
+      setLoadingVersions(true);
+      try {
+        const data = await deploymentsApi.getMongoDBVersions();
+        setVersions(data);
+      } catch (error) {
+        console.error('Failed to load MongoDB versions:', error);
+      } finally {
+        setLoadingVersions(false);
+      }
+    };
+
+    if (open) {
+      loadVersions();
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,15 +136,36 @@ export function UpgradeVersionModal({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     New MongoDB Version
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={mongoVersion}
                     onChange={(e) => setMongoVersion(e.target.value)}
                     className={`input ${isDowngradeAttempt ? 'border-red-500' : ''}`}
-                    placeholder="8.0.17-ent, 7.0.14"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">Must be higher than current version</p>
-                  {isDowngradeAttempt && <p className="mt-1 text-sm text-red-600">Downgrade not allowed</p>}
+                    disabled={loadingVersions}
+                  >
+                    <option value="">Select a version to upgrade to...</option>
+                    {versions.map((versionGroup) => (
+                      <optgroup key={versionGroup.major} label={versionGroup.label}>
+                        {versionGroup.versions
+                          .filter((v: any) => {
+                            // Filter based on tenant plan
+                            if (tenantPlan === 'community') {
+                              return !v.version.includes('-ent');
+                            } else {
+                              return v.version.includes('-ent');
+                            }
+                          })
+                          .map((v: any) => (
+                            <option key={v.version} value={v.version}>
+                              {v.version} {v.label ? `(${v.label})` : ''}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {loadingVersions ? 'Loading versions...' : 'Select a version higher than current'}
+                  </p>
+                  {isDowngradeAttempt && <p className="mt-1 text-sm text-red-600">⚠️ Downgrade not allowed</p>}
                 </div>
 
                 <div className="flex gap-3 justify-end pt-4">

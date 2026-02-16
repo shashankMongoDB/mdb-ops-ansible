@@ -573,6 +573,7 @@ export function DeploymentDetailsPage() {
         tenantId={deployment.tenantId}
         deploymentId={deployment.deploymentId}
         currentVersion={deployment.mongoVersion}
+        tenantPlan={tenantPlan}
       />
 
       <ConfirmModal
