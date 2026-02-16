@@ -22,6 +22,11 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
     members: '3',
     displayName: '',
     environment: '',
+    // ShardedCluster fields
+    shardCount: '2',
+    mongodsPerShardCount: '3',
+    mongosCount: '2',
+    configServerCount: '3',
   });
   const [loading, setLoading] = useState(false);
   const { showSuccess, showError, showWarning } = useToast();
@@ -58,6 +63,13 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
 
       if (formData.type === 'ReplicaSet') {
         request.members = parseInt(formData.members);
+      }
+
+      if (formData.type === 'ShardedCluster') {
+        request.shardCount = parseInt(formData.shardCount);
+        request.mongodsPerShardCount = parseInt(formData.mongodsPerShardCount);
+        request.mongosCount = parseInt(formData.mongosCount);
+        request.configServerCount = parseInt(formData.configServerCount);
       }
 
       await deploymentsApi.create(tenantId, request);
@@ -159,23 +171,49 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                     Deployment Type
                   </label>
                   <div className="space-y-2">
-                    {(['Standalone', 'ReplicaSet'] as const).map((type) => (
-                      <label key={type} className="flex items-center">
-                        <input
-                          type="radio"
-                          name="type"
-                          value={type}
-                          checked={formData.type === type}
-                          onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                          className="mr-2"
-                        />
-                        <span>{type}</span>
-                      </label>
-                    ))}
-                    <label className="flex items-center opacity-50">
-                      <input type="radio" disabled className="mr-2" />
-                      <span>Sharded Cluster (Coming Soon)</span>
-                    </label>
+                    {/* Enterprise: All types available */}
+                    {tenantPlan === 'enterprise' && (
+                      <>
+                        {(['Standalone', 'ReplicaSet', 'ShardedCluster'] as const).map((type) => (
+                          <label key={type} className="flex items-center">
+                            <input
+                              type="radio"
+                              name="type"
+                              value={type}
+                              checked={formData.type === type}
+                              onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                              className="mr-2"
+                            />
+                            <span>{type}</span>
+                          </label>
+                        ))}
+                      </>
+                    )}
+                    
+                    {/* Community: Only ReplicaSet */}
+                    {tenantPlan === 'community' && (
+                      <>
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="type"
+                            value="ReplicaSet"
+                            checked={formData.type === 'ReplicaSet'}
+                            onChange={(e) => setFormData({ ...formData, type: 'ReplicaSet' })}
+                            className="mr-2"
+                          />
+                          <span>ReplicaSet</span>
+                        </label>
+                        <label className="flex items-center opacity-50">
+                          <input type="radio" disabled className="mr-2" />
+                          <span>Standalone (Not supported for Community)</span>
+                        </label>
+                        <label className="flex items-center opacity-50">
+                          <input type="radio" disabled className="mr-2" />
+                          <span>Sharded Cluster (Not supported for Community)</span>
+                        </label>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -214,6 +252,81 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                         <p className="text-sm text-yellow-800">{membersValidation.warning}</p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {formData.type === 'ShardedCluster' && (
+                  <div className="space-y-4 p-4 bg-gray-50 rounded-md">
+                    <h4 className="text-sm font-medium text-gray-900">Sharded Cluster Configuration</h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Number of Shards <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.shardCount}
+                          onChange={(e) => setFormData({ ...formData, shardCount: e.target.value })}
+                          className="input"
+                          min="1"
+                          required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Typically 2-10</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Members per Shard <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.mongodsPerShardCount}
+                          onChange={(e) => setFormData({ ...formData, mongodsPerShardCount: e.target.value })}
+                          className="input"
+                          min="3"
+                          required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Odd numbers: 3, 5, 7</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Number of Mongos <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.mongosCount}
+                          onChange={(e) => setFormData({ ...formData, mongosCount: e.target.value })}
+                          className="input"
+                          min="2"
+                          required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Query routers: 2+</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Config Server Count <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.configServerCount}
+                          onChange={(e) => setFormData({ ...formData, configServerCount: e.target.value })}
+                          className="input"
+                          min="3"
+                          required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Must be 3 (replica set)</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-800">
+                        <strong>Total pods:</strong> {parseInt(formData.shardCount || '0') * parseInt(formData.mongodsPerShardCount || '0') + parseInt(formData.mongosCount || '0') + parseInt(formData.configServerCount || '0')}
+                        ({formData.shardCount} shards × {formData.mongodsPerShardCount} members + {formData.mongosCount} mongos + {formData.configServerCount} config servers)
+                      </p>
+                    </div>
                   </div>
                 )}
 
