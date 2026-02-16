@@ -94,11 +94,13 @@ class PrometheusConfigResponse(BaseModel):
 class ConnectionInfoResponse(BaseModel):
     namespace: str
     deploymentId: str
-    replicaSet: str
-    internalUri: str
+    replicaSet: Optional[str] = None
+    internalUri: Optional[str] = None
     externalHostPort: Optional[str] = None
     externalUri: Optional[str] = None
     error: Optional[str] = None
+    status: Optional[str] = None  # "shutdown" or "running"
+    message: Optional[str] = None  # Human-readable message
 
 
 class BackupUpdateRequest(BaseModel):

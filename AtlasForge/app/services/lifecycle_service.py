@@ -35,9 +35,10 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         return {
             "namespace": namespace,
             "deploymentId": deployment_id,
+            "replicaSet": deployment_id,  # Use deployment_id as default
             "status": "shutdown",
             "message": "Deployment is currently shutdown. Start the deployment to get connection info.",
-            "internalUri": None,
+            "internalUri": "",  # Empty string instead of None
             "externalHostPort": None,
             "externalUri": None
         }
@@ -54,9 +55,10 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             return {
                 "namespace": namespace,
                 "deploymentId": deployment_id,
+                "replicaSet": deployment_id,  # Use deployment_id as default
                 "status": "shutdown",
                 "message": "Deployment is currently shutdown. Start the deployment to restore connection.",
-                "internalUri": None,
+                "internalUri": "",  # Empty string instead of None
                 "externalHostPort": None,
                 "externalUri": None
             }
