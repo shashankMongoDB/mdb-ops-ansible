@@ -82,6 +82,17 @@ export function DeploymentDetailsPage() {
     loadData();
   }, [tenantId, deploymentId]); // Removed auto-refresh to prevent flickering
 
+  // Redirect back if deployment is not running (still starting up)
+  useEffect(() => {
+    if (deployment && (deployment.status === 'pending' || deployment.status === 'partial')) {
+      showError(
+        'Deployment not ready',
+        'This deployment is still starting up. Please wait for all pods to be running.'
+      );
+      navigate(`/tenants/${tenantId}`);
+    }
+  }, [deployment?.status]);
+
   // DB Users handlers (must be before conditional returns)
   const loadDBUsers = async () => {
     if (!tenantId || !deploymentId) return;

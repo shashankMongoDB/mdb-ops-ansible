@@ -149,8 +149,21 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                 {/* Deployment name and info */}
                 <div className="flex-1 min-w-0">
                   <button
-                    onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
-                    className="font-medium text-mongodb-forest hover:text-mongodb-green transition-colors text-left"
+                    onClick={() => {
+                      // Only allow navigation if deployment is running
+                      if (status?.status === 'running') {
+                        navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`);
+                      } else {
+                        // Just toggle expand to show status
+                        toggleExpand(deployment.deploymentId);
+                      }
+                    }}
+                    className={`font-medium transition-colors text-left ${
+                      status?.status === 'running' 
+                        ? 'text-mongodb-forest hover:text-mongodb-green cursor-pointer'
+                        : 'text-gray-600 cursor-default'
+                    }`}
+                    title={status?.status !== 'running' ? 'Details available when deployment is fully running' : ''}
                   >
                     {deployment.displayName || deployment.deploymentId}
                   </button>
@@ -209,7 +222,7 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                   </div>
                 </div>
 
-                {/* Actions - Show Start button if shutdown, otherwise Details */}
+                {/* Actions - Conditional based on status */}
                 <div className="flex gap-2">
                   {status?.status === 'shutdown' ? (
                     <button
@@ -222,13 +235,33 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                     >
                       {startingDeployment === deployment.deploymentId ? 'Starting...' : 'Start'}
                     </button>
-                  ) : null}
-                  <button
-                    onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-                  >
-                    Details
-                  </button>
+                  ) : status?.status === 'pending' || status?.status === 'partial' ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          loadAllStatuses();
+                        }}
+                        className="px-3 py-1 text-sm border border-blue-500 text-blue-600 rounded hover:bg-blue-50"
+                      >
+                        🔄 Refresh
+                      </button>
+                      <button
+                        disabled
+                        className="px-3 py-1 text-sm border border-gray-300 text-gray-400 rounded cursor-not-allowed"
+                        title="Details available when deployment is fully running"
+                      >
+                        Details (Starting...)
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+                    >
+                      Details
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -248,10 +281,88 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
 
 // Topology component for expanded view
 function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: Deployment; status: DeploymentStatus; tenantPlan: string }) {
+  // Calculate progress percentage
+  const progressPercent = status.totalReplicas > 0 
+    ? Math.round((status.readyReplicas / status.totalReplicas) * 100)
+    : 0;
+
   if (status.status === 'shutdown') {
     return (
       <div className="text-gray-500 text-sm">
         Deployment is currently shutdown. No topology information available.
+      </div>
+    );
+  }
+
+  // Show progress view for pending/partial deployments
+  if (status.status === 'pending' || status.status === 'partial') {
+    return (
+      <div className="space-y-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="animate-spin">
+              <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-blue-900">Starting Up...</h3>
+              <p className="text-sm text-blue-700">Pods: {status.readyReplicas}/{status.totalReplicas} ready</p>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mb-3">
+            <div className="flex justify-between text-xs text-blue-700 mb-1">
+              <span>Progress</span>
+              <span>{progressPercent}%</span>
+            </div>
+            <div className="w-full bg-blue-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              ></div>
+            </div>
+          </div>
+
+          <p className="text-xs text-blue-600">
+            This may take 2-3 minutes. The detail page will be available once all pods are running.
+          </p>
+        </div>
+
+        {/* Pod Status List */}
+        <div>
+          <h4 className="font-medium text-gray-700 mb-2">Pod Status</h4>
+          <div className="space-y-2">
+            {status.pods && status.pods.length > 0 ? (
+              status.pods.map((pod: any) => (
+                <div key={pod.name} className="flex items-center justify-between bg-white border border-gray-200 rounded p-2">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-lg ${pod.ready ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {pod.ready ? '●' : '◐'}
+                    </span>
+                    <span className="font-mono text-sm">{pod.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      pod.status === 'Running' ? 'bg-green-100 text-green-800' :
+                      pod.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {pod.status}
+                    </span>
+                    {!pod.ready && (
+                      <span className="text-xs text-gray-500">⏳</span>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">Loading pod information...</p>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
