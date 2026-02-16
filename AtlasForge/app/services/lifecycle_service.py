@@ -223,7 +223,9 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         metadata = cr.get("metadata", {})
         
         # Store FULL CR for recreation on start
-        shard_count = deployment.get("shardCount", len(spec.get("shardPodSpec", [])))
+        # MongoDB Enterprise Operator uses 'shardCount' field, not 'shardPodSpec'
+        shard_count = spec.get("shardCount", deployment.get("shardCount", 2))
+        
         shutdown_info = {
             "cr_spec": spec,  # Full CR spec
             "cr_metadata_labels": metadata.get("labels", {}),
@@ -232,7 +234,10 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         }
         
         print(f"[LIFECYCLE] Starting shutdown for ShardedCluster {deployment_id}")
-        print(f"[LIFECYCLE] Shard count: {shard_count}")
+        print(f"[LIFECYCLE] Shard count from CR: {shard_count}")
+        print(f"[LIFECYCLE] mongodsPerShardCount: {spec.get('mongodsPerShardCount')}")
+        print(f"[LIFECYCLE] mongosCount: {spec.get('mongosCount')}")
+        print(f"[LIFECYCLE] configSrvCount: {spec.get('configSrvCount')}")
         
         # Step 1: Delete the MongoDB CR
         # This stops the operator from reconciling
@@ -334,11 +339,16 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         
         print(f"[LIFECYCLE] Shutdown complete for {deployment_id}")
         
+        # Calculate total replicas from CR spec
+        total_replicas = (shard_count * spec.get("mongodsPerShardCount", 3) + 
+                         spec.get("mongosCount", 2) + 
+                         spec.get("configSrvCount", 3))
+        
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "shutdown",
-            "previousReplicas": "N/A",
+            "previousReplicas": total_replicas,
             "currentReplicas": 0,
             "message": f"Shutdown complete - CR deleted, all pods terminated"
         }
@@ -379,33 +389,63 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     else:
         # ReplicaSet (default)
-        # For ReplicaSet, update the MongoDB CR to scale to 0
+        # Use same strategy as ShardedCluster: delete CR and force delete pods
         spec = cr.get("spec", {})
+        metadata = cr.get("metadata", {})
         previous_replicas = spec.get("members", 3)
         
-        # Update CR to scale to 0
-        patch_body = {
-            "spec": {
-                "members": 0
-            }
+        # Store full CR spec for recreation
+        shutdown_info = {
+            "cr_spec": spec,
+            "cr_metadata_labels": metadata.get("labels", {}),
+            "cr_metadata_annotations": metadata.get("annotations", {}),
+            "previous_replicas": previous_replicas
         }
         
+        print(f"[LIFECYCLE] Starting shutdown for ReplicaSet {deployment_id}")
+        
+        # Delete the MongoDB CR
         try:
-            k8s.custom_objects.patch_namespaced_custom_object(
+            k8s.custom_objects.delete_namespaced_custom_object(
                 group="mongodb.com",
                 version="v1",
                 namespace=namespace,
                 plural="mongodb",
-                name=deployment_id,
-                body=patch_body
+                name=deployment_id
             )
-            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} members to 0")
+            print(f"[LIFECYCLE] Deleted MongoDB CR {deployment_id}")
         except Exception as e:
-            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
-            raise ValueError(f"Failed to shutdown ReplicaSet: {e}")
+            print(f"[LIFECYCLE] Error deleting MongoDB CR: {e}")
+            raise ValueError(f"Failed to delete MongoDB CR: {e}")
+        
+        # Wait for operator to process deletion
+        import time
+        time.sleep(2)
+        
+        # Delete all pods
+        try:
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={deployment_id}-svc"
+            )
+            
+            print(f"[LIFECYCLE] Found {len(pods.items)} pods to delete")
+            
+            for pod in pods.items:
+                try:
+                    k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
+                    print(f"[LIFECYCLE] Force deleted pod {pod.metadata.name}")
+                except Exception as pod_e:
+                    print(f"[LIFECYCLE] Could not delete pod {pod.metadata.name}: {pod_e}")
+            
+            # Scale StatefulSet to 0
+            k8s.patch_statefulset_replicas(namespace, deployment_id, 0)
+            print(f"[LIFECYCLE] Scaled StatefulSet {deployment_id} to 0")
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Error during pod deletion: {e}")
 
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.membersBeforeShutdown": previous_replicas
+            "lastRequestedSpec.shutdownInfo": shutdown_info
         })
 
         return {
@@ -541,40 +581,53 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     else:
         # ReplicaSet (default)
-        members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown")
-        if not members_before_shutdown:
-            members_before_shutdown = cr.get("spec", {}).get("members", 3)
+        shutdown_info = deployment.get("lastRequestedSpec", {}).get("shutdownInfo", {})
         
-        # Update CR to restore members
-        patch_body = {
-            "spec": {
-                "members": members_before_shutdown
-            }
+        if not shutdown_info or "cr_spec" not in shutdown_info:
+            raise ValueError("No shutdown info found. Deployment may not have been properly shutdown.")
+        
+        cr_spec = shutdown_info.get("cr_spec")
+        cr_labels = shutdown_info.get("cr_metadata_labels", {})
+        cr_annotations = shutdown_info.get("cr_metadata_annotations", {})
+        previous_replicas = shutdown_info.get("previous_replicas", 3)
+        
+        print(f"[LIFECYCLE] Starting ReplicaSet {deployment_id}")
+        
+        # Recreate the MongoDB CR
+        mongodb_cr = {
+            "apiVersion": "mongodb.com/v1",
+            "kind": "MongoDB",
+            "metadata": {
+                "name": deployment_id,
+                "namespace": namespace,
+                "labels": cr_labels,
+                "annotations": cr_annotations
+            },
+            "spec": cr_spec
         }
         
         try:
-            k8s.custom_objects.patch_namespaced_custom_object(
+            k8s.custom_objects.create_namespaced_custom_object(
                 group="mongodb.com",
                 version="v1",
                 namespace=namespace,
                 plural="mongodb",
-                name=deployment_id,
-                body=patch_body
+                body=mongodb_cr
             )
-            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} members to {members_before_shutdown}")
+            print(f"[LIFECYCLE] Recreated MongoDB CR {deployment_id}")
         except Exception as e:
-            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
-            raise ValueError(f"Failed to start ReplicaSet: {e}")
+            print(f"[LIFECYCLE] Error recreating MongoDB CR: {e}")
+            raise ValueError(f"Failed to recreate MongoDB CR: {e}")
 
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.membersBeforeShutdown": None
+            "lastRequestedSpec.shutdownInfo": None
         })
 
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "start",
-            "replicas": members_before_shutdown
+            "replicas": previous_replicas
         }
 
 
