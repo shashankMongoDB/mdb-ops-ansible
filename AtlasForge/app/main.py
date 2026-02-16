@@ -78,6 +78,7 @@ from app.services import tenants_service
 from app.services import deployments_service
 from app.services import monitoring_service
 from app.services import lifecycle_service
+from app.services import deployment_status_service
 from app.services import scaling_service
 from app.services import backup_service
 from app.services import db_users_service
@@ -252,6 +253,51 @@ def get_deployment(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error getting deployment")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments/{deploymentId}/status"
+)
+def get_deployment_status(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Get real-time status for a deployment including pod status and topology.
+    Used for polling to show deployment progress.
+    """
+    try:
+        status = deployment_status_service.get_deployment_status(tenantId, deploymentId)
+        return status
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Error getting deployment status for {tenantId}/{deploymentId}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get(
+    "/tenants/{tenantId}/deployments-status"
+)
+def get_all_deployments_status(
+    tenantId: str = Path(..., description="Tenant identifier")
+):
+    """
+    Get status for all deployments in a tenant.
+    Optimized endpoint for overview page with continuous polling.
+    """
+    try:
+        statuses = deployment_status_service.get_all_deployments_status(tenantId)
+        return {"deployments": statuses}
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Error getting all deployment statuses for {tenantId}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

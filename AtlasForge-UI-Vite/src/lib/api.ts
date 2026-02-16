@@ -41,6 +41,27 @@ export const versionsApi = {
   }
 };
 
+// Deployment Status API
+export const deploymentStatusApi = {
+  async getStatus(tenantId: string, deploymentId: string): Promise<any> {
+    try {
+      const response = await api.get(`/tenants/${tenantId}/deployments/${deploymentId}/status`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
+  async getAllStatus(tenantId: string): Promise<any> {
+    try {
+      const response = await api.get(`/tenants/${tenantId}/deployments-status`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  }
+};
+
 // Tenants API
 export const tenantsApi = {
   async getAll(): Promise<Tenant[]> {

@@ -5,6 +5,7 @@ import { tenantsApi, deploymentsApi } from '@/lib/api';
 import { CreateDeploymentModal } from '@/components/CreateDeploymentModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ExpandableDeploymentList } from '@/components/ExpandableDeploymentList';
 import { useToast } from '@/components/Toast';
 import type { Tenant, Deployment } from '@/lib/types';
 
@@ -144,64 +145,11 @@ export function TenantDetailsPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {deployments.map((deployment) => (
-            <div
-              key={deployment.deploymentId}
-              className="card cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-mongodb-forest mb-1">
-                    {deployment.displayName || deployment.deploymentId}
-                  </h3>
-                  <p className="text-sm text-mongodb-slate mb-3">{deployment.deploymentId}</p>
-
-                  <div className="flex gap-6 flex-wrap">
-                    <div>
-                      <span className="text-xs text-mongodb-slate">Type</span>
-                      <p className="font-medium">{deployment.type}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-mongodb-slate">Version</span>
-                      <p className="font-medium">{deployment.mongoVersion}</p>
-                    </div>
-                    {deployment.members && (
-                      <div>
-                        <span className="text-xs text-mongodb-slate">Members</span>
-                        <p className="font-medium">{deployment.members}</p>
-                      </div>
-                    )}
-                    {deployment.environment && (
-                      <div>
-                        <span className="text-xs text-mongodb-slate">Environment</span>
-                        <span className="badge badge-gray">{deployment.environment}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-3">
-                  {deployment.status ? (
-                    <StatusBadge status={deployment.status} />
-                  ) : (
-                    <span className="badge badge-gray">Unknown</span>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`);
-                    }}
-                    className="btn-secondary text-sm"
-                  >
-                    View Details
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ExpandableDeploymentList
+          tenantId={tenantId!}
+          deployments={deployments}
+          tenantPlan={tenant.plan || 'enterprise'}
+        />
       )}
 
       <CreateDeploymentModal
