@@ -207,26 +207,125 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not cr:
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 
-    statefulset_name = deployment_id
-    sts = k8s.get_statefulset(namespace, statefulset_name)
-    if not sts:
-        raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
+    # Determine deployment type from CR
+    deployment_type = deployment.get("type", "ReplicaSet")
+    
+    # Handle different deployment types
+    if deployment_type == "ShardedCluster":
+        # ShardedCluster has multiple StatefulSets
+        # Get shard configuration
+        shard_count = deployment.get("shardCount", 2)
+        
+        shutdown_info = {}
+        
+        # Shutdown all shards
+        for i in range(shard_count):
+            shard_name = f"{deployment_id}-shard-{i}"
+            try:
+                sts = k8s.get_statefulset(namespace, shard_name)
+                if sts:
+                    previous_replicas = sts.spec.replicas
+                    k8s.patch_statefulset_replicas(namespace, shard_name, 0)
+                    shutdown_info[f"shard-{i}"] = previous_replicas
+            except Exception as e:
+                print(f"[LIFECYCLE] Warning: Could not shutdown shard {shard_name}: {e}")
+        
+        # Shutdown config servers
+        configsvr_name = f"{deployment_id}-configsvr"
+        try:
+            sts = k8s.get_statefulset(namespace, configsvr_name)
+            if sts:
+                previous_replicas = sts.spec.replicas
+                k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
+                shutdown_info["configsvr"] = previous_replicas
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not shutdown config servers: {e}")
+        
+        # Shutdown mongos
+        mongos_name = f"{deployment_id}-mongos"
+        try:
+            deployment_obj = k8s.apps_v1.read_namespaced_deployment(mongos_name, namespace)
+            if deployment_obj:
+                previous_replicas = deployment_obj.spec.replicas
+                k8s.apps_v1.patch_namespaced_deployment(
+                    name=mongos_name,
+                    namespace=namespace,
+                    body={"spec": {"replicas": 0}}
+                )
+                shutdown_info["mongos"] = previous_replicas
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not shutdown mongos: {e}")
+        
+        # Store shutdown info
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.shutdownInfo": shutdown_info
+        })
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "shutdown",
+            "type": "ShardedCluster",
+            "shutdownInfo": shutdown_info
+        }
+    
+    elif deployment_type == "Standalone":
+        # Standalone uses Deployment, not StatefulSet
+        deployment_name = f"{deployment_id}-db"
+        try:
+            deployment_obj = k8s.apps_v1.read_namespaced_deployment(deployment_name, namespace)
+            previous_replicas = deployment_obj.spec.replicas
+            k8s.apps_v1.patch_namespaced_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                body={"spec": {"replicas": 0}}
+            )
+        except Exception as e:
+            # Try StatefulSet as fallback
+            try:
+                sts = k8s.get_statefulset(namespace, deployment_id)
+                if sts:
+                    previous_replicas = sts.spec.replicas
+                    k8s.patch_statefulset_replicas(namespace, deployment_id, 0)
+            except:
+                raise ValueError(f"Could not find Deployment or StatefulSet for {deployment_id}")
+        
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.membersBeforeShutdown": previous_replicas
+        })
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "shutdown",
+            "type": "Standalone",
+            "previousReplicas": previous_replicas,
+            "currentReplicas": 0
+        }
+    
+    else:
+        # ReplicaSet (default)
+        statefulset_name = deployment_id
+        sts = k8s.get_statefulset(namespace, statefulset_name)
+        if not sts:
+            raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
 
-    previous_replicas = sts.spec.replicas
+        previous_replicas = sts.spec.replicas
 
-    k8s.patch_statefulset_replicas(namespace, statefulset_name, 0)
+        k8s.patch_statefulset_replicas(namespace, statefulset_name, 0)
 
-    repo.update_deployment(tenant_id, deployment_id, {
-        "lastRequestedSpec.membersBeforeShutdown": previous_replicas
-    })
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.membersBeforeShutdown": previous_replicas
+        })
 
-    return {
-        "tenantId": tenant_id,
-        "deploymentId": deployment_id,
-        "action": "shutdown",
-        "previousReplicas": previous_replicas,
-        "currentReplicas": 0
-    }
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "shutdown",
+            "type": "ReplicaSet",
+            "previousReplicas": previous_replicas,
+            "currentReplicas": 0
+        }
 
 
 def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -266,29 +365,111 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not cr:
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 
-    statefulset_name = deployment_id
-    sts = k8s.get_statefulset(namespace, statefulset_name)
-    if not sts:
-        raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
-
-    members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown")
-    if members_before_shutdown:
-        desired_replicas = members_before_shutdown
+    # Determine deployment type
+    deployment_type = deployment.get("type", "ReplicaSet")
+    
+    if deployment_type == "ShardedCluster":
+        # Get stored shutdown info
+        shutdown_info = deployment.get("lastRequestedSpec", {}).get("shutdownInfo", {})
+        
+        # Start all shards
+        shard_count = deployment.get("shardCount", 2)
+        for i in range(shard_count):
+            shard_name = f"{deployment_id}-shard-{i}"
+            desired_replicas = shutdown_info.get(f"shard-{i}", 3)
+            try:
+                k8s.patch_statefulset_replicas(namespace, shard_name, desired_replicas)
+            except Exception as e:
+                print(f"[LIFECYCLE] Warning: Could not start shard {shard_name}: {e}")
+        
+        # Start config servers
+        configsvr_name = f"{deployment_id}-configsvr"
+        desired_replicas = shutdown_info.get("configsvr", 3)
+        try:
+            k8s.patch_statefulset_replicas(namespace, configsvr_name, desired_replicas)
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not start config servers: {e}")
+        
+        # Start mongos
+        mongos_name = f"{deployment_id}-mongos"
+        desired_replicas = shutdown_info.get("mongos", 2)
+        try:
+            k8s.apps_v1.patch_namespaced_deployment(
+                name=mongos_name,
+                namespace=namespace,
+                body={"spec": {"replicas": desired_replicas}}
+            )
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not start mongos: {e}")
+        
+        # Clear shutdown info
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.shutdownInfo": None
+        })
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "start",
+            "type": "ShardedCluster",
+            "shutdownInfo": shutdown_info
+        }
+    
+    elif deployment_type == "Standalone":
+        members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown", 1)
+        deployment_name = f"{deployment_id}-db"
+        
+        try:
+            k8s.apps_v1.patch_namespaced_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                body={"spec": {"replicas": members_before_shutdown}}
+            )
+        except Exception as e:
+            # Try StatefulSet as fallback
+            try:
+                k8s.patch_statefulset_replicas(namespace, deployment_id, members_before_shutdown)
+            except:
+                raise ValueError(f"Could not find Deployment or StatefulSet for {deployment_id}")
+        
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.membersBeforeShutdown": None
+        })
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "start",
+            "type": "Standalone",
+            "replicas": members_before_shutdown
+        }
+    
     else:
-        desired_replicas = cr.get("spec", {}).get("members", 3)
+        # ReplicaSet (default)
+        statefulset_name = deployment_id
+        sts = k8s.get_statefulset(namespace, statefulset_name)
+        if not sts:
+            raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
 
-    k8s.patch_statefulset_replicas(namespace, statefulset_name, desired_replicas)
+        members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown")
+        if members_before_shutdown:
+            desired_replicas = members_before_shutdown
+        else:
+            desired_replicas = cr.get("spec", {}).get("members", 3)
 
-    repo.update_deployment(tenant_id, deployment_id, {
-        "lastRequestedSpec.membersBeforeShutdown": None
-    })
+        k8s.patch_statefulset_replicas(namespace, statefulset_name, desired_replicas)
 
-    return {
-        "tenantId": tenant_id,
-        "deploymentId": deployment_id,
-        "action": "start",
-        "replicas": desired_replicas
-    }
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.membersBeforeShutdown": None
+        })
+
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "start",
+            "type": "ReplicaSet",
+            "replicas": desired_replicas
+        }
 
 
 def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -327,23 +508,99 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if not cr:
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 
-    statefulset_name = deployment_id
-    sts = k8s.get_statefulset(namespace, statefulset_name)
-    if not sts:
-        raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
-
-    pods = k8s.list_pods_for_statefulset(namespace, statefulset_name)
-
-    for pod in pods:
-        pod_name = pod.metadata.name
+    deployment_type = deployment.get("type", "ReplicaSet")
+    
+    if deployment_type == "ShardedCluster":
+        # Restart all components of sharded cluster
+        shard_count = deployment.get("shardCount", 2)
+        restarted = []
         
-        k8s.delete_pod(namespace, pod_name)
+        # Restart shards
+        for i in range(shard_count):
+            shard_name = f"{deployment_id}-shard-{i}"
+            try:
+                pods = k8s.list_pods_for_statefulset(namespace, shard_name)
+                for pod in pods:
+                    k8s.delete_pod(namespace, pod.metadata.name)
+                restarted.append(f"shard-{i}")
+            except Exception as e:
+                print(f"[LIFECYCLE] Warning: Could not restart shard {shard_name}: {e}")
         
-        k8s.wait_for_pod_ready(namespace, pod_name, timeout=300)
+        # Restart config servers
+        configsvr_name = f"{deployment_id}-configsvr"
+        try:
+            pods = k8s.list_pods_for_statefulset(namespace, configsvr_name)
+            for pod in pods:
+                k8s.delete_pod(namespace, pod.metadata.name)
+            restarted.append("configsvr")
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not restart config servers: {e}")
+        
+        # Restart mongos (Deployment, not StatefulSet)
+        mongos_name = f"{deployment_id}-mongos"
+        try:
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={mongos_name}"
+            )
+            for pod in pods.items:
+                k8s.delete_pod(namespace, pod.metadata.name)
+            restarted.append("mongos")
+        except Exception as e:
+            print(f"[LIFECYCLE] Warning: Could not restart mongos: {e}")
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "restart",
+            "type": "ShardedCluster",
+            "restarted": restarted
+        }
+    
+    elif deployment_type == "Standalone":
+        # Standalone uses Deployment
+        deployment_name = f"{deployment_id}-db"
+        try:
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={deployment_id}"
+            )
+            for pod in pods.items:
+                k8s.delete_pod(namespace, pod.metadata.name)
+        except Exception as e:
+            # Try StatefulSet as fallback
+            try:
+                pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
+                for pod in pods:
+                    k8s.delete_pod(namespace, pod.metadata.name)
+            except:
+                raise ValueError(f"Could not find pods for {deployment_id}")
+        
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "restart",
+            "type": "Standalone"
+        }
+    
+    else:
+        # ReplicaSet (default)
+        statefulset_name = deployment_id
+        sts = k8s.get_statefulset(namespace, statefulset_name)
+        if not sts:
+            raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
 
-    return {
-        "tenantId": tenant_id,
-        "deploymentId": deployment_id,
-        "action": "restart",
-        "status": "rolling"
-    }
+        pods = k8s.list_pods_for_statefulset(namespace, statefulset_name)
+
+        for pod in pods:
+            pod_name = pod.metadata.name
+            k8s.delete_pod(namespace, pod_name)
+            # Don't wait for each pod, let K8s handle rolling restart
+
+        return {
+            "tenantId": tenant_id,
+            "deploymentId": deployment_id,
+            "action": "restart",
+            "type": "ReplicaSet",
+            "status": "rolling"
+        }
