@@ -82,17 +82,6 @@ export function DeploymentDetailsPage() {
     loadData();
   }, [tenantId, deploymentId]); // Removed auto-refresh to prevent flickering
 
-  // Redirect back if deployment is not running (still starting up)
-  useEffect(() => {
-    if (deployment && (deployment.status === 'pending' || deployment.status === 'partial')) {
-      showError(
-        'Deployment not ready',
-        'This deployment is still starting up. Please wait for all pods to be running.'
-      );
-      navigate(`/tenants/${tenantId}`);
-    }
-  }, [deployment?.status]);
-
   // DB Users handlers (must be before conditional returns)
   const loadDBUsers = async () => {
     if (!tenantId || !deploymentId) return;
@@ -256,6 +245,32 @@ export function DeploymentDetailsPage() {
         </div>
       )}
 
+      {/* Show initializing/stabilizing banner when not all replicas are ready */}
+      {deployment.status !== 'shutdown' && deployment.members && connectionInfo && 
+       connectionInfo.status && connectionInfo.status !== 'running' && (
+        <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin">
+              <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-blue-800">
+                {connectionInfo.readyReplicas === 1 ? 'Deployment Initializing' : 'Deployment Stabilizing'}
+              </p>
+              <p className="text-sm text-blue-700">
+                {connectionInfo.readyReplicas}/{connectionInfo.totalReplicas || deployment.members} replicas ready. 
+                {connectionInfo.readyReplicas === 1 
+                  ? ' PRIMARY is available. You can view connection info and create DB users, but scaling/upgrading is disabled until all replicas are running.'
+                  : ' Some features are limited until all replicas are running.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card mb-8">
         <div className="flex justify-between items-start">
           <div className="flex-1">
@@ -348,11 +363,21 @@ export function DeploymentDetailsPage() {
               <h2 className="text-2xl font-semibold text-mongodb-forest mb-4">Lifecycle Controls</h2>
               <div className="flex gap-3 flex-wrap">
                 {deployment.type === 'ReplicaSet' && deployment.members && (
-                  <button onClick={() => setShowScaleModal(true)} className="btn-primary">
+                  <button 
+                    onClick={() => setShowScaleModal(true)} 
+                    disabled={connectionInfo?.status !== 'running'}
+                    className={connectionInfo?.status !== 'running' ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
+                    title={connectionInfo?.status !== 'running' ? 'Available when all replicas are running' : ''}
+                  >
                     Scale Members
                   </button>
                 )}
-                <button onClick={() => setShowUpgradeModal(true)} className="btn-primary">
+                <button 
+                  onClick={() => setShowUpgradeModal(true)} 
+                  disabled={connectionInfo?.status !== 'running'}
+                  className={connectionInfo?.status !== 'running' ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
+                  title={connectionInfo?.status !== 'running' ? 'Available when all replicas are running' : ''}
+                >
                   Upgrade Version
                 </button>
                 <button onClick={() => setConfirmAction('restart')} className="btn-secondary">

@@ -150,8 +150,8 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                 <div className="flex-1 min-w-0">
                   <button
                     onClick={() => {
-                      // Only allow navigation if deployment is running
-                      if (status?.status === 'running') {
+                      // Allow navigation if at least 1 replica is ready
+                      if (status && status.readyReplicas >= 1) {
                         navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`);
                       } else {
                         // Just toggle expand to show status
@@ -159,11 +159,11 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                       }
                     }}
                     className={`font-medium transition-colors text-left ${
-                      status?.status === 'running' 
+                      status && status.readyReplicas >= 1
                         ? 'text-mongodb-forest hover:text-mongodb-green cursor-pointer'
                         : 'text-gray-600 cursor-default'
                     }`}
-                    title={status?.status !== 'running' ? 'Details available when deployment is fully running' : ''}
+                    title={status && status.readyReplicas === 0 ? 'Details available when first replica is ready' : ''}
                   >
                     {deployment.displayName || deployment.deploymentId}
                   </button>
@@ -197,7 +197,7 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-gray-500 text-xs">Pods</div>
+                    <div className="text-gray-500 text-xs">Replicas</div>
                     <div className="font-medium">
                       {status ? `${status.readyReplicas}/${status.totalReplicas}` : '-'}
                     </div>
@@ -208,16 +208,32 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                       {deployment.mongoVersion}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-gray-500 text-xs">Monitoring</div>
-                    <div className="font-medium">
-                      {deployment.prometheusEnabled ? '✓' : '✗'}
+                  <div className="text-center min-w-[80px]">
+                    <div className="text-gray-500 text-xs mb-1">Monitoring</div>
+                    <div>
+                      {deployment.prometheusEnabled ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          Enabled
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                          Disabled
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-gray-500 text-xs">Backup</div>
-                    <div className="font-medium">
-                      {deployment.backupEnabled ? '✓' : '✗'}
+                  <div className="text-center min-w-[80px]">
+                    <div className="text-gray-500 text-xs mb-1">Backup</div>
+                    <div>
+                      {deployment.backupEnabled ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          Enabled
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                          Disabled
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -235,26 +251,17 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                     >
                       {startingDeployment === deployment.deploymentId ? 'Starting...' : 'Start'}
                     </button>
-                  ) : status?.status === 'pending' || status?.status === 'partial' ? (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          loadAllStatuses();
-                        }}
-                        className="px-3 py-1 text-sm border border-blue-500 text-blue-600 rounded hover:bg-blue-50"
-                      >
-                        🔄 Refresh
-                      </button>
-                      <button
-                        disabled
-                        className="px-3 py-1 text-sm border border-gray-300 text-gray-400 rounded cursor-not-allowed"
-                        title="Details available when deployment is fully running"
-                      >
-                        Details (Starting...)
-                      </button>
-                    </>
+                  ) : status && status.readyReplicas === 0 ? (
+                    // No replicas ready - block access
+                    <button
+                      disabled
+                      className="px-3 py-1 text-sm border border-gray-300 text-gray-400 rounded cursor-not-allowed"
+                      title="Details available when first replica is ready"
+                    >
+                      Details (Starting...)
+                    </button>
                   ) : (
+                    // At least 1 replica ready - allow access
                     <button
                       onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
                       className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
@@ -296,6 +303,19 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
 
   // Show progress view for pending/partial deployments
   if (status.status === 'pending' || status.status === 'partial') {
+    // Determine status message
+    const statusMessage = status.readyReplicas === 0 
+      ? 'Starting Up...'
+      : status.readyReplicas === 1
+      ? 'Initializing...'
+      : 'Stabilizing...';
+    
+    const detailMessage = status.readyReplicas === 0
+      ? 'Waiting for first replica to start'
+      : status.readyReplicas === 1
+      ? 'First replica running. Detail page accessible with limited features.'
+      : 'Multiple replicas running. Waiting for full cluster.';
+    
     return (
       <div className="space-y-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -307,8 +327,8 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
               </svg>
             </div>
             <div>
-              <h3 className="font-semibold text-blue-900">Starting Up...</h3>
-              <p className="text-sm text-blue-700">Pods: {status.readyReplicas}/{status.totalReplicas} ready</p>
+              <h3 className="font-semibold text-blue-900">{statusMessage}</h3>
+              <p className="text-sm text-blue-700">Replicas: {status.readyReplicas}/{status.totalReplicas} ready</p>
             </div>
           </div>
 
@@ -327,22 +347,22 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
           </div>
 
           <p className="text-xs text-blue-600">
-            This may take 2-3 minutes. The detail page will be available once all pods are running.
+            {detailMessage}
           </p>
         </div>
 
-        {/* Pod Status List */}
+        {/* Replica Status List */}
         <div>
-          <h4 className="font-medium text-gray-700 mb-2">Pod Status</h4>
+          <h4 className="font-medium text-gray-700 mb-2">Replica Status</h4>
           <div className="space-y-2">
             {status.pods && status.pods.length > 0 ? (
-              status.pods.map((pod: any) => (
+              status.pods.map((pod: any, index: number) => (
                 <div key={pod.name} className="flex items-center justify-between bg-white border border-gray-200 rounded p-2">
                   <div className="flex items-center gap-3">
                     <span className={`text-lg ${pod.ready ? 'text-green-600' : 'text-yellow-600'}`}>
                       {pod.ready ? '●' : '◐'}
                     </span>
-                    <span className="font-mono text-sm">{pod.name}</span>
+                    <span className="font-mono text-sm">{pod.name} <span className="text-xs text-gray-500">(Replica {index})</span></span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-1 rounded ${
@@ -359,7 +379,7 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
                 </div>
               ))
             ) : (
-              <p className="text-sm text-gray-500">Loading pod information...</p>
+              <p className="text-sm text-gray-500">Loading replica information...</p>
             )}
           </div>
         </div>

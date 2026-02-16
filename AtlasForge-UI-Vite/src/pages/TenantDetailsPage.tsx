@@ -127,6 +127,10 @@ export function TenantDetailsPage() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-mongodb-forest">Deployments</h2>
         <div className="flex gap-3">
+          <button onClick={loadData} className="btn-secondary flex items-center gap-2">
+            <ArrowPathIcon className="h-5 w-5" />
+            Refresh
+          </button>
           <button onClick={() => setShowCreateModal(true)} className="btn-primary">
             Create Deployment
           </button>
