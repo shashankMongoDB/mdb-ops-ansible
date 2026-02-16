@@ -212,48 +212,52 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     # Handle different deployment types
     if deployment_type == "ShardedCluster":
-        # ShardedCluster has multiple StatefulSets
-        # Get shard configuration
-        shard_count = deployment.get("shardCount", 2)
+        # For ShardedCluster, we need to update the MongoDB CR to scale down
+        # The operator will then reconcile all StatefulSets
         
-        shutdown_info = {}
+        # Get current CR spec
+        spec = cr.get("spec", {})
         
-        # Shutdown all shards
-        for i in range(shard_count):
-            shard_name = f"{deployment_id}-shard-{i}"
-            try:
-                sts = k8s.get_statefulset(namespace, shard_name)
-                if sts:
-                    previous_replicas = sts.spec.replicas
-                    k8s.patch_statefulset_replicas(namespace, shard_name, 0)
-                    shutdown_info[f"shard-{i}"] = previous_replicas
-            except Exception as e:
-                print(f"[LIFECYCLE] Warning: Could not shutdown shard {shard_name}: {e}")
+        # Store original configuration
+        shard_count = deployment.get("shardCount", len(spec.get("shardPodSpec", [])))
+        original_config = {
+            "shardCount": shard_count,
+            "mongodsPerShardCount": spec.get("mongodsPerShardCount", 3),
+            "mongosCount": spec.get("mongosCount", 2),
+            "configServerCount": spec.get("configSrvCount", 3)
+        }
         
-        # Shutdown config servers
-        configsvr_name = f"{deployment_id}-configsvr"
+        # Update CR to scale everything to 0
+        patch_body = {
+            "spec": {
+                "mongodsPerShardCount": 0,
+                "mongosCount": 0,
+                "configSrvCount": 0
+            }
+        }
+        
         try:
-            sts = k8s.get_statefulset(namespace, configsvr_name)
-            if sts:
-                previous_replicas = sts.spec.replicas
-                k8s.patch_statefulset_replicas(namespace, configsvr_name, 0)
-                shutdown_info["configsvr"] = previous_replicas
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb",
+                name=deployment_id,
+                body=patch_body
+            )
+            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} to scale to 0")
         except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not shutdown config servers: {e}")
-        
-        # Note: mongos is managed by the MongoDB CR, not a separate Deployment
-        # The operator will handle scaling mongos when we scale the shards
-        # We just store the expected mongos count from deployment metadata
-        mongos_count = deployment.get("mongosCount", 2)
-        shutdown_info["mongos"] = mongos_count
+            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
+            raise ValueError(f"Failed to shutdown ShardedCluster: {e}")
         
         # Store shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.shutdownInfo": shutdown_info
+            "lastRequestedSpec.shutdownInfo": original_config
         })
         
-        # Calculate total pods shutdown
-        total_previous = sum(shutdown_info.values())
+        total_previous = (original_config["shardCount"] * original_config["mongodsPerShardCount"] + 
+                         original_config["mongosCount"] + 
+                         original_config["configServerCount"])
         
         return {
             "tenantId": tenant_id,
@@ -261,7 +265,7 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "action": "shutdown",
             "previousReplicas": total_previous,
             "currentReplicas": 0,
-            "message": f"Shutdown {len(shutdown_info)} components: {list(shutdown_info.keys())}"
+            "message": f"Shutdown ShardedCluster via CR update"
         }
     
     elif deployment_type == "Standalone":
@@ -300,14 +304,30 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     else:
         # ReplicaSet (default)
-        statefulset_name = deployment_id
-        sts = k8s.get_statefulset(namespace, statefulset_name)
-        if not sts:
-            raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
-
-        previous_replicas = sts.spec.replicas
-
-        k8s.patch_statefulset_replicas(namespace, statefulset_name, 0)
+        # For ReplicaSet, update the MongoDB CR to scale to 0
+        spec = cr.get("spec", {})
+        previous_replicas = spec.get("members", 3)
+        
+        # Update CR to scale to 0
+        patch_body = {
+            "spec": {
+                "members": 0
+            }
+        }
+        
+        try:
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb",
+                name=deployment_id,
+                body=patch_body
+            )
+            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} members to 0")
+        except Exception as e:
+            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
+            raise ValueError(f"Failed to shutdown ReplicaSet: {e}")
 
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.membersBeforeShutdown": previous_replicas
@@ -317,7 +337,6 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "shutdown",
-            "type": "ReplicaSet",
             "previousReplicas": previous_replicas,
             "currentReplicas": 0
         }
@@ -367,39 +386,47 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         # Get stored shutdown info
         shutdown_info = deployment.get("lastRequestedSpec", {}).get("shutdownInfo", {})
         
-        # Start all shards
-        shard_count = deployment.get("shardCount", 2)
-        for i in range(shard_count):
-            shard_name = f"{deployment_id}-shard-{i}"
-            desired_replicas = shutdown_info.get(f"shard-{i}", 3)
-            try:
-                k8s.patch_statefulset_replicas(namespace, shard_name, desired_replicas)
-            except Exception as e:
-                print(f"[LIFECYCLE] Warning: Could not start shard {shard_name}: {e}")
+        if not shutdown_info:
+            raise ValueError("No shutdown info found. Deployment may not have been properly shutdown.")
         
-        # Start config servers
-        configsvr_name = f"{deployment_id}-configsvr"
-        desired_replicas = shutdown_info.get("configsvr", 3)
+        # Update CR to restore original configuration
+        patch_body = {
+            "spec": {
+                "mongodsPerShardCount": shutdown_info.get("mongodsPerShardCount", 3),
+                "mongosCount": shutdown_info.get("mongosCount", 2),
+                "configSrvCount": shutdown_info.get("configServerCount", 3)
+            }
+        }
+        
         try:
-            k8s.patch_statefulset_replicas(namespace, configsvr_name, desired_replicas)
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb",
+                name=deployment_id,
+                body=patch_body
+            )
+            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} to restore original config")
         except Exception as e:
-            print(f"[LIFECYCLE] Warning: Could not start config servers: {e}")
-        
-        # Note: mongos is managed by the MongoDB CR, operator handles it automatically
+            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
+            raise ValueError(f"Failed to start ShardedCluster: {e}")
         
         # Clear shutdown info
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None
         })
         
-        total_replicas = sum(shutdown_info.values())
+        total_replicas = (shutdown_info["shardCount"] * shutdown_info["mongodsPerShardCount"] + 
+                         shutdown_info["mongosCount"] + 
+                         shutdown_info["configServerCount"])
         
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "start",
             "replicas": total_replicas,
-            "message": f"Started {len(shutdown_info)} components"
+            "message": "Started ShardedCluster via CR update"
         }
     
     elif deployment_type == "Standalone":
@@ -433,18 +460,30 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     else:
         # ReplicaSet (default)
-        statefulset_name = deployment_id
-        sts = k8s.get_statefulset(namespace, statefulset_name)
-        if not sts:
-            raise ValueError(f"StatefulSet {statefulset_name} not found in namespace {namespace}")
-
         members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown")
-        if members_before_shutdown:
-            desired_replicas = members_before_shutdown
-        else:
-            desired_replicas = cr.get("spec", {}).get("members", 3)
-
-        k8s.patch_statefulset_replicas(namespace, statefulset_name, desired_replicas)
+        if not members_before_shutdown:
+            members_before_shutdown = cr.get("spec", {}).get("members", 3)
+        
+        # Update CR to restore members
+        patch_body = {
+            "spec": {
+                "members": members_before_shutdown
+            }
+        }
+        
+        try:
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb",
+                name=deployment_id,
+                body=patch_body
+            )
+            print(f"[LIFECYCLE] Updated MongoDB CR {deployment_id} members to {members_before_shutdown}")
+        except Exception as e:
+            print(f"[LIFECYCLE] Error updating MongoDB CR: {e}")
+            raise ValueError(f"Failed to start ReplicaSet: {e}")
 
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.membersBeforeShutdown": None
@@ -454,8 +493,7 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
             "action": "start",
-            "type": "ReplicaSet",
-            "replicas": desired_replicas
+            "replicas": members_before_shutdown
         }
 
 

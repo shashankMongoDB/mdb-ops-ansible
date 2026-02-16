@@ -36,19 +36,81 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate Deployment ID
     if (!formData.deploymentId.trim()) {
       showError('Deployment ID is required');
       return;
     }
 
+    // Validate Deployment ID format (lowercase alphanumeric with hyphens)
+    const deploymentIdRegex = /^[a-z0-9-]+$/;
+    if (!deploymentIdRegex.test(formData.deploymentId)) {
+      showError('Invalid Deployment ID', 'Use lowercase letters, numbers, and hyphens only');
+      return;
+    }
+
+    // Validate MongoDB Version
     if (!formData.mongoVersion.trim()) {
       showError('MongoDB version is required');
       return;
     }
 
+    // Validate version format (e.g., 8.0.3, 7.0.14-ent)
+    const versionRegex = /^\d+\.\d+\.\d+(-ent)?$/;
+    if (!versionRegex.test(formData.mongoVersion)) {
+      showError('Invalid MongoDB version', 'Use format like 8.0.3 or 7.0.14-ent');
+      return;
+    }
+
+    // Validate Environment
+    if (!formData.environment.trim()) {
+      showError('Environment is required');
+      return;
+    }
+
+    // Validate environment value
+    const validEnvironments = ['dev', 'test', 'staging', 'prod'];
+    if (!validEnvironments.includes(formData.environment.toLowerCase())) {
+      showError('Invalid environment', 'Must be one of: dev, test, staging, prod');
+      return;
+    }
+
+    // Validate ReplicaSet members
     if (formData.type === 'ReplicaSet' && !membersValidation.valid) {
       showError('Invalid member count', membersValidation.error);
       return;
+    }
+
+    // Validate ShardedCluster configuration
+    if (formData.type === 'ShardedCluster') {
+      const shardCount = parseInt(formData.shardCount);
+      const mongodsPerShard = parseInt(formData.mongodsPerShardCount);
+      const mongosCount = parseInt(formData.mongosCount);
+      const configServerCount = parseInt(formData.configServerCount);
+
+      if (shardCount < 1 || shardCount > 50) {
+        showError('Invalid shard count', 'Must be between 1 and 50');
+        return;
+      }
+
+      if (mongodsPerShard < 3 || mongodsPerShard > 50) {
+        showError('Invalid members per shard', 'Must be at least 3');
+        return;
+      }
+
+      if (mongodsPerShard % 2 === 0) {
+        showWarning('Even member count', 'Odd numbers (3, 5, 7) are recommended for proper election');
+      }
+
+      if (mongosCount < 1) {
+        showError('Invalid mongos count', 'Must be at least 1');
+        return;
+      }
+
+      if (configServerCount !== 3) {
+        showError('Invalid config server count', 'Must be exactly 3 (replica set requirement)');
+        return;
+      }
     }
 
     setLoading(true);
@@ -159,11 +221,13 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                   <input
                     type="text"
                     value={formData.deploymentId}
-                    onChange={(e) => setFormData({ ...formData, deploymentId: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, deploymentId: e.target.value.toLowerCase() })}
                     className="input"
                     placeholder="rs-orders, sc-analytics"
+                    pattern="[a-z0-9-]+"
                     required
                   />
+                  <p className="mt-1 text-xs text-gray-500">Lowercase letters, numbers, and hyphens only</p>
                 </div>
 
                 <div>
@@ -226,9 +290,11 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                     value={formData.mongoVersion}
                     onChange={(e) => setFormData({ ...formData, mongoVersion: e.target.value })}
                     className="input"
-                    placeholder="8.0.3, 7.0.14, 8.0.17-ent"
+                    placeholder="8.0.3, 7.0.14-ent"
+                    pattern="\d+\.\d+\.\d+(-ent)?"
                     required
                   />
+                  <p className="mt-1 text-xs text-gray-500">Format: X.Y.Z or X.Y.Z-ent (e.g., 8.0.3 or 7.0.14-ent)</p>
                 </div>
 
                 {formData.type === 'ReplicaSet' && (
@@ -313,11 +379,13 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                           type="number"
                           value={formData.configServerCount}
                           onChange={(e) => setFormData({ ...formData, configServerCount: e.target.value })}
-                          className="input"
+                          className="input bg-gray-50"
                           min="3"
+                          max="3"
                           required
+                          disabled
                         />
-                        <p className="mt-1 text-xs text-gray-500">Must be 3 (replica set)</p>
+                        <p className="mt-1 text-xs text-gray-500">Fixed at 3 (MongoDB replica set requirement)</p>
                       </div>
                     </div>
 
@@ -339,17 +407,26 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                     className="input"
                     placeholder="Orders Database"
                   />
+                  <p className="mt-1 text-xs text-gray-500">Optional: Friendly name for this deployment</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
-                  <input
-                    type="text"
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Environment <span className="text-red-500">*</span>
+                  </label>
+                  <select
                     value={formData.environment}
                     onChange={(e) => setFormData({ ...formData, environment: e.target.value })}
                     className="input"
-                    placeholder="dev, staging, prod"
-                  />
+                    required
+                  >
+                    <option value="">Select environment</option>
+                    <option value="dev">Development</option>
+                    <option value="test">Test</option>
+                    <option value="staging">Staging</option>
+                    <option value="prod">Production</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Choose the environment for this deployment</p>
                 </div>
 
                 <div className="flex gap-3 justify-end pt-4">
