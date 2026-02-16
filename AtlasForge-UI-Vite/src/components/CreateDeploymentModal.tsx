@@ -1,7 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
-import { deploymentsApi } from '@/lib/api';
+import { deploymentsApi, versionsApi } from '@/lib/api';
 import { useToast } from './Toast';
 import { validateMembers } from '@/lib/utils';
 import type { CreateDeploymentRequest } from '@/lib/types';
@@ -18,7 +18,7 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
   const [formData, setFormData] = useState({
     deploymentId: '',
     type: 'ReplicaSet' as 'Standalone' | 'ReplicaSet' | 'ShardedCluster',
-    mongoVersion: '8.0.3',
+    mongoVersion: '8.0.19',
     members: '3',
     displayName: '',
     environment: '',
@@ -29,7 +29,35 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
     configServerCount: '3',
   });
   const [loading, setLoading] = useState(false);
+  const [versions, setVersions] = useState<any>(null);
+  const [loadingVersions, setLoadingVersions] = useState(false);
   const { showSuccess, showError, showWarning } = useToast();
+
+  // Load MongoDB versions on mount
+  useEffect(() => {
+    const loadVersions = async () => {
+      setLoadingVersions(true);
+      try {
+        const data = await versionsApi.getAll();
+        setVersions(data);
+        // Set default version to recommended
+        if (data.recommended) {
+          const defaultVersion = tenantPlan === 'enterprise' 
+            ? data.recommended.latestEnterprise 
+            : data.recommended.latest;
+          setFormData(prev => ({ ...prev, mongoVersion: defaultVersion }));
+        }
+      } catch (error: any) {
+        console.error('Failed to load MongoDB versions:', error);
+        showError('Failed to load MongoDB versions', error.detail);
+      } finally {
+        setLoadingVersions(false);
+      }
+    };
+    if (open) {
+      loadVersions();
+    }
+  }, [open, tenantPlan]);
 
   const membersValidation = formData.type === 'ReplicaSet' ? validateMembers(parseInt(formData.members) || 0) : { valid: true };
 
@@ -285,16 +313,43 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     MongoDB Version <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={formData.mongoVersion}
-                    onChange={(e) => setFormData({ ...formData, mongoVersion: e.target.value })}
-                    className="input"
-                    placeholder="8.0.3, 7.0.14-ent"
-                    pattern="\d+\.\d+\.\d+(-ent)?"
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Format: X.Y.Z or X.Y.Z-ent (e.g., 8.0.3 or 7.0.14-ent)</p>
+                  {loadingVersions ? (
+                    <div className="input bg-gray-50 text-gray-500">Loading versions...</div>
+                  ) : (
+                    <select
+                      value={formData.mongoVersion}
+                      onChange={(e) => setFormData({ ...formData, mongoVersion: e.target.value })}
+                      className="input"
+                      required
+                    >
+                      <option value="">Select MongoDB version</option>
+                      {versions?.versions?.map((majorVersion: any) => (
+                        <optgroup key={majorVersion.major} label={`MongoDB ${majorVersion.major}`}>
+                          {majorVersion.releases.map((version: string) => {
+                            // Filter based on plan
+                            const isEnterprise = version.endsWith('-ent');
+                            if (tenantPlan === 'enterprise' && !isEnterprise) return null;
+                            if (tenantPlan === 'community' && isEnterprise) return null;
+                            
+                            return (
+                              <option key={version} value={version}>
+                                {version}
+                                {versions?.recommended?.latest === version && ' (Latest)'}
+                                {versions?.recommended?.latestEnterprise === version && ' (Latest Enterprise)'}
+                                {versions?.recommended?.lts === version && ' (LTS)'}
+                                {versions?.recommended?.ltsEnterprise === version && ' (LTS Enterprise)'}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      ))}
+                    </select>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {tenantPlan === 'enterprise' 
+                      ? 'Enterprise versions only (-ent suffix)' 
+                      : 'Community versions available'}
+                  </p>
                 </div>
 
                 {formData.type === 'ReplicaSet' && (

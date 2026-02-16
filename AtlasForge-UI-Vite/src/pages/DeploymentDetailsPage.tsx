@@ -60,10 +60,16 @@ export function DeploymentDetailsPage() {
       console.log('Full response:', JSON.stringify(deploymentData, null, 2));
       console.log('Type field:', deploymentData.type);
       console.log('Members field:', deploymentData.members);
+      console.log('Status:', deploymentData.status);
       console.log('Tenant plan:', tenantData.plan);
       console.log('===============================');
       setDeployment(deploymentData);
       setTenant(tenantData);
+      
+      // Don't try to load connection info if deployment is shutdown
+      if (deploymentData.status === 'shutdown') {
+        console.log('Deployment is shutdown, skipping connection info load');
+      }
     } catch (error: any) {
       console.error('Failed to load deployment:', error);
       showError('Failed to load deployment details', error.detail || 'An error occurred');
@@ -223,6 +229,20 @@ export function DeploymentDetailsPage() {
         </Link>
       </div>
 
+      {deployment.status === 'shutdown' && (
+        <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+          <div className="flex items-center gap-3">
+            <svg className="h-5 w-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <p className="font-medium text-yellow-800">Deployment is Shutdown</p>
+              <p className="text-sm text-yellow-700">This deployment is currently shutdown. All MongoDB processes are stopped. Click "Start" to restore the deployment.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card mb-8">
         <div className="flex justify-between items-start">
           <div className="flex-1">
@@ -234,6 +254,9 @@ export function DeploymentDetailsPage() {
                 <span className="badge badge-blue">Community</span>
               ) : (
                 <span className="badge badge-green">Enterprise</span>
+              )}
+              {deployment.status === 'shutdown' && (
+                <span className="badge badge-yellow">Shutdown</span>
               )}
             </div>
             <p className="text-mongodb-slate mb-1">Deployment ID: {deployment.deploymentId}</p>

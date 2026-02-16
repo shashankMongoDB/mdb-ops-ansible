@@ -29,6 +29,18 @@ const handleError = (error: unknown): never => {
   throw { detail: 'An unexpected error occurred' };
 };
 
+// MongoDB Versions API
+export const versionsApi = {
+  async getAll(): Promise<any> {
+    try {
+      const response = await api.get('/mongodb-versions');
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  }
+};
+
 // Tenants API
 export const tenantsApi = {
   async getAll(): Promise<Tenant[]> {

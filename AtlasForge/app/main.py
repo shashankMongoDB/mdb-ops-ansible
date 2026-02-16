@@ -27,6 +27,8 @@ MAIN ENDPOINTS:
 """
 
 import logging
+import json
+import os
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
@@ -106,6 +108,27 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+@app.get("/mongodb-versions")
+def get_mongodb_versions():
+    """
+    Get list of supported MongoDB versions.
+    
+    Returns a JSON structure with all available versions grouped by major version,
+    plus recommended versions.
+    """
+    try:
+        versions_file = os.path.join(os.path.dirname(__file__), "data", "mongodb_versions.json")
+        with open(versions_file, 'r') as f:
+            versions_data = json.load(f)
+        return versions_data
+    except FileNotFoundError:
+        logger.error("MongoDB versions file not found")
+        raise HTTPException(status_code=500, detail="MongoDB versions configuration not found")
+    except Exception as e:
+        logger.exception("Error loading MongoDB versions")
+        raise HTTPException(status_code=500, detail=f"Error loading versions: {str(e)}")
 
 
 @app.get("/tenants", response_model=List[dict])

@@ -28,6 +28,19 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+    
+    # Check if deployment is shutdown
+    deployment_status = deployment.get("status", "running")
+    if deployment_status == "shutdown":
+        return {
+            "namespace": namespace,
+            "deploymentId": deployment_id,
+            "status": "shutdown",
+            "message": "Deployment is currently shutdown. Start the deployment to get connection info.",
+            "internalUri": None,
+            "externalHostPort": None,
+            "externalUri": None
+        }
 
     # Get CR based on plan to read replica set name
     if plan == "community":
@@ -36,6 +49,17 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
     
     if not cr:
+        # Check if it's shutdown (CR was deleted)
+        if deployment_status == "shutdown":
+            return {
+                "namespace": namespace,
+                "deploymentId": deployment_id,
+                "status": "shutdown",
+                "message": "Deployment is currently shutdown. Start the deployment to restore connection.",
+                "internalUri": None,
+                "externalHostPort": None,
+                "externalUri": None
+            }
         raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
 
     # Get replica set name from CR
@@ -332,9 +356,10 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"[LIFECYCLE] Warning: Could not shutdown mongos: {e}")
         
-        # Store shutdown info
+        # Store shutdown info and mark as shutdown
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.shutdownInfo": shutdown_info
+            "lastRequestedSpec.shutdownInfo": shutdown_info,
+            "status": "shutdown"
         })
         
         print(f"[LIFECYCLE] Shutdown complete for {deployment_id}")
@@ -445,7 +470,8 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             print(f"[LIFECYCLE] Warning: Error during pod deletion: {e}")
 
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.shutdownInfo": shutdown_info
+            "lastRequestedSpec.shutdownInfo": shutdown_info,
+            "status": "shutdown"
         })
 
         return {
@@ -537,9 +563,10 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             print(f"[LIFECYCLE] Error recreating MongoDB CR: {e}")
             raise ValueError(f"Failed to recreate MongoDB CR: {e}")
         
-        # Clear shutdown info
+        # Clear shutdown info and restore status
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.shutdownInfo": None
+            "lastRequestedSpec.shutdownInfo": None,
+            "status": "running"
         })
         
         return {
@@ -620,7 +647,8 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             raise ValueError(f"Failed to recreate MongoDB CR: {e}")
 
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.shutdownInfo": None
+            "lastRequestedSpec.shutdownInfo": None,
+            "status": "running"
         })
 
         return {
