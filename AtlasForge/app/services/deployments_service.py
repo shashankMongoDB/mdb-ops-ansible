@@ -476,7 +476,9 @@ def list_tenant_deployments(tenant_id: str) -> list[Dict[str, Any]]:
             "environment": d["environment"],
             "mongoVersion": d["lastRequestedSpec"]["mongoVersion"],
             "state": d["lastKnownStatus"].get("phase", "Unknown"),
-            "createdAt": d["createdAt"]
+            "createdAt": d["createdAt"],
+            "prometheusEnabled": d.get("prometheusEnabled", False),
+            "backupEnabled": d.get("backupEnabled", False)
         }
         
         # Add members only if present (ReplicaSet)
