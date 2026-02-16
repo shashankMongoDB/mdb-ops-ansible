@@ -96,7 +96,7 @@ export function TenantDetailsPage() {
             <p className="text-mongodb-slate mb-1">Tenant ID: {tenant.tenantId}</p>
             {tenant.namespace && <p className="text-mongodb-slate mb-1">Namespace: {tenant.namespace}</p>}
             <p className="text-mongodb-slate mb-3">
-              Plan: <span className="font-medium">{tenant.plan === 'community' ? 'Community (No Ops Manager)' : 'Enterprise (Ops Manager)'}</span>
+              Plan: <span className="font-medium">{tenant.plan === 'community' ? 'Community' : 'Enterprise'}</span>
             </p>
             {tenant.environment && <span className="badge badge-gray">{tenant.environment}</span>}
           </div>
@@ -127,10 +127,6 @@ export function TenantDetailsPage() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-mongodb-forest">Deployments</h2>
         <div className="flex gap-3">
-          <button onClick={loadData} className="btn-secondary flex items-center gap-2">
-            <ArrowPathIcon className="h-5 w-5" />
-            Refresh
-          </button>
           <button onClick={() => setShowCreateModal(true)} className="btn-primary">
             Create Deployment
           </button>

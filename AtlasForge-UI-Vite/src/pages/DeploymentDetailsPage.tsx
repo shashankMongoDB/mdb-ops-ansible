@@ -195,7 +195,9 @@ export function DeploymentDetailsPage() {
         case 'shutdown':
           await deploymentsApi.shutdown(tenantId, deploymentId);
           showSuccess('Shutdown initiated', 'Deployment is shutting down');
-          break;
+          // Redirect to tenant page after shutdown
+          navigate(`/tenants/${tenantId}`);
+          return;
         case 'restart':
           await deploymentsApi.restart(tenantId, deploymentId);
           showSuccess('Restart initiated', 'Deployment is restarting');

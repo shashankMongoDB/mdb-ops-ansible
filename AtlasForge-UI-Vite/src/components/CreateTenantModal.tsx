@@ -150,7 +150,7 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
                       />
                       <div className="ml-3 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">Enterprise (Ops Manager)</span>
+                          <span className="font-medium text-gray-900">Enterprise</span>
                           <span className="badge badge-green text-xs">Recommended</span>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">
@@ -170,7 +170,7 @@ export function CreateTenantModal({ open, onClose, onSuccess }: CreateTenantModa
                       />
                       <div className="ml-3 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">Community (No Ops Manager)</span>
+                          <span className="font-medium text-gray-900">Community</span>
                           <span className="badge badge-blue text-xs">Open Source</span>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">

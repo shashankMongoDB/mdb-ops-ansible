@@ -284,13 +284,6 @@ def shutdown_deployment_community(namespace: str, deployment_id: str) -> Dict[st
                 logger.info(f"Force deleted pod: {pod.metadata.name}")
             except Exception as pod_e:
                 logger.warning(f"Could not delete pod {pod.metadata.name}: {pod_e}")
-        
-        # Step 5: Scale StatefulSet to 0 to prevent recreation
-        try:
-            k8s.patch_statefulset_replicas(namespace, deployment_id, 0)
-            logger.info(f"Scaled StatefulSet {deployment_id} to 0")
-        except Exception as sts_e:
-            logger.warning(f"Could not scale StatefulSet: {sts_e}")
             
     except Exception as e:
         logger.warning(f"Error during pod cleanup: {e}")
