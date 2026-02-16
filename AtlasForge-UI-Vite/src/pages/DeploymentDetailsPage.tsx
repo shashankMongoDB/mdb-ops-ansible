@@ -24,6 +24,7 @@ export function DeploymentDetailsPage() {
   const navigate = useNavigate();
   const [deployment, setDeployment] = useState<Deployment | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [connectionInfo, setConnectionInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showScaleModal, setShowScaleModal] = useState(false);
@@ -66,9 +67,17 @@ export function DeploymentDetailsPage() {
       setDeployment(deploymentData);
       setTenant(tenantData);
       
-      // Don't try to load connection info if deployment is shutdown
-      if (deploymentData.status === 'shutdown') {
-        console.log('Deployment is shutdown, skipping connection info load');
+      // Load connection info for status checking (unless shutdown)
+      if (deploymentData.status !== 'shutdown') {
+        try {
+          const connInfo = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
+          setConnectionInfo(connInfo);
+        } catch (error: any) {
+          console.log('Could not load connection info:', error);
+          setConnectionInfo(null);
+        }
+      } else {
+        setConnectionInfo(null);
       }
     } catch (error: any) {
       console.error('Failed to load deployment:', error);

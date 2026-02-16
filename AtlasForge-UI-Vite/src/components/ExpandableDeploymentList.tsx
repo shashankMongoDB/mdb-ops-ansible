@@ -211,15 +211,9 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                   <div className="text-center min-w-[80px]">
                     <div className="text-gray-500 text-xs mb-1">Monitoring</div>
                     <div>
-                      {deployment.prometheusEnabled ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                          Enabled
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                          Disabled
-                        </span>
-                      )}
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Enabled
+                      </span>
                     </div>
                   </div>
                   <div className="text-center min-w-[80px]">
