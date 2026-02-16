@@ -241,6 +241,16 @@ def create_deployment(
             pass
         raise
 
+    # Auto-enable Prometheus monitoring
+    try:
+        logger.info(f"Auto-enabling Prometheus monitoring for {tenant_id}/{deployment_id}")
+        from app.services import monitoring_service
+        monitoring_service.enable_prometheus_metrics(tenant_id, deployment_id)
+        logger.info(f"Prometheus monitoring enabled for {deployment_id}")
+    except Exception as e:
+        # Don't fail deployment if monitoring fails (Prometheus might not be installed)
+        logger.warning(f"Could not enable Prometheus monitoring for {deployment_id}: {e}")
+    
     logger.info(f"Deployment creation complete - tenantId: {tenant_id}, deploymentId: {deployment_id}")
     return response
 
@@ -320,11 +330,15 @@ def _create_standalone_doc(tenant_id: str, deployment_id: str, namespace: str, d
         "displayName": display_name,
         "environment": environment,
         "plan": "gold",
+        "prometheusEnabled": True,  # Enable by default
+        "backupEnabled": False,     # Requires explicit configuration
+        "mongoVersion": mongo_version,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "createdBy": created_by,
         "lastUpdatedAt": datetime.now(timezone.utc).isoformat(),
         "lastRequestedSpec": {
-            "mongoVersion": mongo_version
+            "mongoVersion": mongo_version,
+            "prometheusEnabled": True
         },
         "lastKnownStatus": {
             "phase": "Creating"
@@ -347,12 +361,17 @@ def _create_replicaset_doc(tenant_id: str, deployment_id: str, namespace: str, d
         "displayName": display_name,
         "environment": environment,
         "plan": "gold",
+        "prometheusEnabled": True,  # Enable by default
+        "backupEnabled": False,     # Requires explicit configuration
+        "mongoVersion": mongo_version,
+        "members": members,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "createdBy": created_by,
         "lastUpdatedAt": datetime.now(timezone.utc).isoformat(),
         "lastRequestedSpec": {
             "mongoVersion": mongo_version,
-            "members": members
+            "members": members,
+            "prometheusEnabled": True
         },
         "lastKnownStatus": {
             "phase": "Creating"
@@ -375,6 +394,13 @@ def _create_sharded_doc(tenant_id: str, deployment_id: str, namespace: str, disp
         "displayName": display_name,
         "environment": environment,
         "plan": "gold",
+        "prometheusEnabled": True,  # Enable by default
+        "backupEnabled": False,     # Requires explicit configuration
+        "mongoVersion": mongo_version,
+        "shardCount": shard_count,
+        "mongodsPerShardCount": mongods_per_shard_count,
+        "mongosCount": mongos_count,
+        "configServerCount": config_server_count,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "createdBy": created_by,
         "lastUpdatedAt": datetime.now(timezone.utc).isoformat(),
@@ -383,7 +409,8 @@ def _create_sharded_doc(tenant_id: str, deployment_id: str, namespace: str, disp
             "shardCount": shard_count,
             "mongodsPerShardCount": mongods_per_shard_count,
             "mongosCount": mongos_count,
-            "configServerCount": config_server_count
+            "configServerCount": config_server_count,
+            "prometheusEnabled": True
         },
         "lastKnownStatus": {
             "phase": "Creating"

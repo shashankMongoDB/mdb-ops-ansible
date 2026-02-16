@@ -224,58 +224,139 @@ def upgrade_version_community(
 
 def shutdown_deployment_community(namespace: str, deployment_id: str) -> Dict[str, Any]:
     """
-    Shutdown a community deployment by scaling StatefulSet to 0 replicas.
-    Community operator may not support this directly via CR, so we manipulate the StatefulSet.
+    Shutdown a community deployment by deleting the MongoDBCommunity CR.
+    This stops the operator from reconciling, then we force delete pods.
+    PVCs are preserved so data is not lost.
     """
     k8s = get_k8s_client()
     
     logger.info(f"Shutting down community deployment: {namespace}/{deployment_id}")
     
-    # Get current StatefulSet
+    # Step 1: Get current CR to save spec for restart
+    cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+    if not cr:
+        raise ValueError(f"MongoDBCommunity CR {deployment_id} not found in namespace {namespace}")
+    
+    spec = cr.get("spec", {})
+    metadata = cr.get("metadata", {})
+    previous_replicas = spec.get("members", 3)
+    
+    # Save full CR for restart
+    shutdown_info = {
+        "cr_spec": spec,
+        "cr_metadata_labels": metadata.get("labels", {}),
+        "cr_metadata_annotations": metadata.get("annotations", {}),
+        "previous_replicas": previous_replicas
+    }
+    
+    logger.info(f"Saved CR spec for {deployment_id}, members={previous_replicas}")
+    
+    # Step 2: Delete MongoDBCommunity CR
     try:
-        sts = k8s.apps_v1.read_namespaced_stateful_set(name=deployment_id, namespace=namespace)
-        previous_replicas = sts.spec.replicas
-        
-        # Scale to 0
-        sts.spec.replicas = 0
-        k8s.apps_v1.patch_namespaced_stateful_set(name=deployment_id, namespace=namespace, body=sts)
-        
-        logger.info(f"Shutdown community deployment: {namespace}/{deployment_id}, replicas: {previous_replicas} -> 0")
-        
-        return {
-            "action": "shutdown",
-            "previousReplicas": previous_replicas,
-            "currentReplicas": 0
-        }
+        k8s.custom_objects.delete_namespaced_custom_object(
+            group="mongodbcommunity.mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbcommunity",
+            name=deployment_id
+        )
+        logger.info(f"Deleted MongoDBCommunity CR: {namespace}/{deployment_id}")
     except Exception as e:
-        logger.error(f"Failed to shutdown community deployment: {namespace}/{deployment_id}: {e}")
-        raise
+        logger.error(f"Failed to delete MongoDBCommunity CR: {e}")
+        raise ValueError(f"Failed to delete MongoDBCommunity CR: {e}")
+    
+    # Step 3: Wait for operator to process deletion
+    import time
+    time.sleep(2)
+    
+    # Step 4: Force delete all pods
+    try:
+        pods = k8s.core_v1.list_namespaced_pod(
+            namespace=namespace,
+            label_selector=f"app={deployment_id}-svc"
+        )
+        
+        logger.info(f"Found {len(pods.items)} pods to delete for {deployment_id}")
+        
+        for pod in pods.items:
+            try:
+                k8s.delete_pod(namespace, pod.metadata.name, grace_period=0)
+                logger.info(f"Force deleted pod: {pod.metadata.name}")
+            except Exception as pod_e:
+                logger.warning(f"Could not delete pod {pod.metadata.name}: {pod_e}")
+        
+        # Step 5: Scale StatefulSet to 0 to prevent recreation
+        try:
+            k8s.patch_statefulset_replicas(namespace, deployment_id, 0)
+            logger.info(f"Scaled StatefulSet {deployment_id} to 0")
+        except Exception as sts_e:
+            logger.warning(f"Could not scale StatefulSet: {sts_e}")
+            
+    except Exception as e:
+        logger.warning(f"Error during pod cleanup: {e}")
+    
+    logger.info(f"Shutdown complete for community deployment: {namespace}/{deployment_id}")
+    
+    return {
+        "action": "shutdown",
+        "previousReplicas": previous_replicas,
+        "currentReplicas": 0,
+        "shutdownInfo": shutdown_info
+    }
 
 
-def start_deployment_community(namespace: str, deployment_id: str, target_members: int) -> Dict[str, Any]:
+def start_deployment_community(namespace: str, deployment_id: str, shutdown_info: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Start a community deployment by restoring StatefulSet replicas.
+    Start a community deployment by recreating the MongoDBCommunity CR.
+    The CR spec is restored from shutdown_info saved during shutdown.
+    Pods will automatically be created by the operator.
     """
     k8s = get_k8s_client()
     
-    logger.info(f"Starting community deployment: {namespace}/{deployment_id} with {target_members} replicas")
+    logger.info(f"Starting community deployment: {namespace}/{deployment_id}")
+    
+    if not shutdown_info or "cr_spec" not in shutdown_info:
+        raise ValueError(f"No shutdown info found for {deployment_id}. Cannot restore without saved CR spec.")
+    
+    cr_spec = shutdown_info.get("cr_spec")
+    cr_labels = shutdown_info.get("cr_metadata_labels", {})
+    cr_annotations = shutdown_info.get("cr_metadata_annotations", {})
+    previous_replicas = shutdown_info.get("previous_replicas", 3)
+    
+    logger.info(f"Restoring MongoDBCommunity CR for {deployment_id} with {previous_replicas} members")
+    
+    # Recreate the MongoDBCommunity CR
+    mongodb_cr = {
+        "apiVersion": "mongodbcommunity.mongodb.com/v1",
+        "kind": "MongoDBCommunity",
+        "metadata": {
+            "name": deployment_id,
+            "namespace": namespace,
+            "labels": cr_labels,
+            "annotations": cr_annotations
+        },
+        "spec": cr_spec
+    }
     
     try:
-        sts = k8s.apps_v1.read_namespaced_stateful_set(name=deployment_id, namespace=namespace)
-        
-        # Restore replicas
-        sts.spec.replicas = target_members
-        k8s.apps_v1.patch_namespaced_stateful_set(name=deployment_id, namespace=namespace, body=sts)
-        
-        logger.info(f"Started community deployment: {namespace}/{deployment_id}, replicas set to {target_members}")
-        
-        return {
-            "action": "start",
-            "replicas": target_members
-        }
+        k8s.custom_objects.create_namespaced_custom_object(
+            group="mongodbcommunity.mongodb.com",
+            version="v1",
+            namespace=namespace,
+            plural="mongodbcommunity",
+            body=mongodb_cr
+        )
+        logger.info(f"Recreated MongoDBCommunity CR: {namespace}/{deployment_id}")
     except Exception as e:
-        logger.error(f"Failed to start community deployment: {namespace}/{deployment_id}: {e}")
-        raise
+        logger.error(f"Failed to recreate MongoDBCommunity CR: {e}")
+        raise ValueError(f"Failed to recreate MongoDBCommunity CR: {e}")
+    
+    logger.info(f"Start complete for community deployment: {namespace}/{deployment_id}")
+    
+    return {
+        "action": "start",
+        "replicas": previous_replicas
+    }
 
 
 def restart_deployment_community(namespace: str, deployment_id: str) -> Dict[str, Any]:

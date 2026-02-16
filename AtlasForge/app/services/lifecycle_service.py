@@ -217,14 +217,17 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     # Route to community service if needed
     if plan == "community":
         result = deployments_community_service.shutdown_deployment_community(namespace, deployment_id)
-        # Store shutdown info in DB
+        # Store shutdown info (CR spec) and mark as shutdown in DB
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.membersBeforeShutdown": result["previousReplicas"]
+            "lastRequestedSpec.shutdownInfo": result.get("shutdownInfo", {}),
+            "status": "shutdown"
         })
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
-            **result
+            "action": "shutdown",
+            "previousReplicas": result["previousReplicas"],
+            "currentReplicas": 0
         }
     
     # Enterprise logic continues below
@@ -504,12 +507,19 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
     
-    # Get target members from stored shutdown info
-    members_before_shutdown = deployment.get("lastRequestedSpec", {}).get("membersBeforeShutdown", 3)
+    # Get shutdown info (CR spec saved during shutdown)
+    shutdown_info = deployment.get("lastRequestedSpec", {}).get("shutdownInfo", {})
     
     # Route to community service if needed
     if plan == "community":
-        result = deployments_community_service.start_deployment_community(namespace, deployment_id, members_before_shutdown)
+        result = deployments_community_service.start_deployment_community(namespace, deployment_id, shutdown_info)
+        
+        # Clear shutdown info and mark as running
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.shutdownInfo": None,
+            "status": "running"
+        })
+        
         return {
             "tenantId": tenant_id,
             "deploymentId": deployment_id,
