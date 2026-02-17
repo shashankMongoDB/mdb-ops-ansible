@@ -9,6 +9,18 @@ from app.services import backup_service
 logger = logging.getLogger(__name__)
 
 
+def _normalize_version(version: str) -> str:
+    if not version:
+        return ""
+    normalized = str(version).strip()
+    # Remove image digest suffix if present
+    if "@" in normalized:
+        normalized = normalized.split("@", 1)[0]
+    # Normalize enterprise suffix for comparisons
+    normalized = normalized.replace("-ent", "")
+    return normalized
+
+
 def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Get connection information for a MongoDB deployment.
@@ -180,22 +192,37 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         
         # Detect upgrade signal from CR/pods
         else:
-            unique_versions = set([r["version"] for r in replicas if r["version"] and r["version"] != "unknown"])
+            normalized_cr_version = _normalize_version(cr_version)
+            normalized_cr_actual_version = _normalize_version(cr_actual_version)
+            normalized_versions = [
+                _normalize_version(r["version"])
+                for r in replicas
+                if r["version"] and r["version"] != "unknown"
+            ]
+            unique_versions = set([v for v in normalized_versions if v])
             upgrade_signal = False
+            fully_converged = (
+                actual_pod_count == total_replicas
+                and ready_count == total_replicas
+                and (not unique_versions or (normalized_cr_version and unique_versions == {normalized_cr_version}))
+            )
 
-            if cr_version and cr_actual_version and cr_version != cr_actual_version:
+            if normalized_cr_version and normalized_cr_actual_version and normalized_cr_version != normalized_cr_actual_version:
                 upgrade_signal = True
                 operation_message = f"Operator upgrading from {cr_actual_version} to {cr_version}"
             elif len(unique_versions) > 1:
                 upgrade_signal = True
                 operation_message = f"Upgrading pods from {min(unique_versions)} to {max(unique_versions)}"
-            elif cr_version and unique_versions and any(v != cr_version for v in unique_versions):
+            elif normalized_cr_version and unique_versions and any(v != normalized_cr_version for v in unique_versions):
                 upgrade_signal = True
                 operation_message = f"Reconciling pod versions to {cr_version}"
 
-            if upgrade_signal:
+            if upgrade_signal and not fully_converged:
                 operation = "upgrading"
-                upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
+                upgraded_count = sum(
+                    1 for r in replicas
+                    if r["ready"] and _normalize_version(r["version"]) == normalized_cr_version
+                )
                 progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
 
             # Check for scaling (actual pod count vs target)
