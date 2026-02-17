@@ -445,18 +445,18 @@ export function DeploymentDetailsPage() {
                 {deployment.type === 'ReplicaSet' && deployment.members && (
                   <button 
                     onClick={() => setShowScaleModal(true)} 
-                    disabled={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas}
-                    className={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
-                    title={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'Available when all replicas are running' : ''}
+                    disabled={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running'}
+                    className={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
+                    title={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'Operation in progress. Please wait.' : ''}
                   >
                     Scale Members
                   </button>
                 )}
                 <button 
                   onClick={() => setShowUpgradeModal(true)} 
-                  disabled={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas}
-                  className={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
-                  title={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'Available when all replicas are running' : ''}
+                  disabled={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running'}
+                  className={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'btn-primary opacity-50 cursor-not-allowed' : 'btn-primary'}
+                  title={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'Operation in progress. Please wait.' : ''}
                 >
                   Upgrade Version
                 </button>
