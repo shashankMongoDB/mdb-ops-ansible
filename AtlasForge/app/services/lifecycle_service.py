@@ -79,52 +79,67 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     internal_uri = f"mongodb://{internal_host_port}"
     
     # Get target state from DB (what user requested)
-    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "")
-    target_replicas = deployment.get("lastRequestedSpec", {}).get("replicas", 3)
+    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "") or ""
+    target_replicas = deployment.get("lastRequestedSpec", {}).get("replicas", 3) or 3
     
     # Get actual state from CR (what Kubernetes has)
-    if plan == "community":
-        cr_version = cr.get("spec", {}).get("version", "")
-        cr_replicas = cr.get("spec", {}).get("members", 3)
-    else:
-        cr_version = cr.get("spec", {}).get("version", "")
-        cr_replicas = cr.get("spec", {}).get("members", 3)
+    try:
+        if plan == "community":
+            cr_version = cr.get("spec", {}).get("version", "") or ""
+            cr_replicas = cr.get("spec", {}).get("members", 3) or 3
+        else:
+            cr_version = cr.get("spec", {}).get("version", "") or ""
+            cr_replicas = cr.get("spec", {}).get("members", 3) or 3
+    except Exception as e:
+        logger.warning(f"Error reading CR spec: {e}")
+        cr_version = target_version
+        cr_replicas = target_replicas
     
     # Get pod/replica status
-    pods = k8s.get_deployment_pods(namespace, deployment_id)
+    try:
+        pods = k8s.get_deployment_pods(namespace, deployment_id)
+    except Exception as e:
+        logger.warning(f"Failed to get pods for {namespace}/{deployment_id}: {e}")
+        pods = []
+    
     replicas = []
     ready_count = 0
     
     for pod in pods:
-        pod_name = pod.metadata.name
-        pod_phase = pod.status.phase
-        is_ready = False
-        
-        # Check if pod is ready
-        if pod.status.conditions:
-            for condition in pod.status.conditions:
-                if condition.type == "Ready" and condition.status == "True":
-                    is_ready = True
-                    ready_count += 1
-                    break
-        
-        # Get MongoDB version from pod (from image or container)
-        mongo_version = "unknown"
-        if pod.spec.containers:
-            for container in pod.spec.containers:
-                if "mongo" in container.image.lower():
-                    # Extract version from image tag
-                    image_parts = container.image.split(":")
-                    if len(image_parts) > 1:
-                        mongo_version = image_parts[1]
-                    break
-        
-        replicas.append({
-            "name": pod_name,
-            "version": mongo_version,
-            "status": pod_phase,
-            "ready": is_ready
-        })
+        try:
+            pod_name = pod.metadata.name if pod.metadata else "unknown"
+            pod_phase = pod.status.phase if pod.status and pod.status.phase else "Unknown"
+            is_ready = False
+            
+            # Check if pod is ready
+            if pod.status and hasattr(pod.status, 'conditions') and pod.status.conditions:
+                for condition in pod.status.conditions:
+                    if hasattr(condition, 'type') and condition.type == "Ready" and \
+                       hasattr(condition, 'status') and condition.status == "True":
+                        is_ready = True
+                        ready_count += 1
+                        break
+            
+            # Get MongoDB version from pod (from image or container)
+            mongo_version = cr_version or "unknown"  # Default to CR version
+            if pod.spec and hasattr(pod.spec, 'containers') and pod.spec.containers:
+                for container in pod.spec.containers:
+                    if hasattr(container, 'image') and container.image and "mongo" in container.image.lower():
+                        # Extract version from image tag
+                        image_parts = container.image.split(":")
+                        if len(image_parts) > 1:
+                            mongo_version = image_parts[1]
+                        break
+            
+            replicas.append({
+                "name": pod_name,
+                "version": mongo_version,
+                "status": pod_phase,
+                "ready": is_ready
+            })
+        except Exception as e:
+            logger.warning(f"Error processing pod in {namespace}/{deployment_id}: {e}")
+            continue
     
     total_replicas = len(replicas)
     
@@ -133,37 +148,41 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     progress = 100
     operation_message = "All replicas running"
     
-    # Check for version upgrade
-    unique_versions = set([r["version"] for r in replicas if r["version"] != "unknown"])
-    if len(unique_versions) > 1:
-        # Multiple versions = upgrade in progress
-        operation = "upgrading"
-        upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
-        progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Upgrading from {min(unique_versions)} to {max(unique_versions)}"
-    elif cr_version != target_version:
-        # CR version doesn't match target = upgrade starting
-        operation = "upgrading"
-        progress = 0
-        operation_message = f"Starting upgrade to {target_version}"
-    
-    # Check for scaling
-    elif total_replicas != target_replicas:
-        operation = "scaling"
-        if total_replicas < target_replicas:
-            # Scaling up
-            progress = int((total_replicas / target_replicas) * 100)
-            operation_message = f"Scaling up from {total_replicas} to {target_replicas} members"
-        else:
-            # Scaling down
-            progress = int((target_replicas / total_replicas) * 100)
-            operation_message = f"Scaling down from {total_replicas} to {target_replicas} members"
-    
-    # Check for stabilizing (replicas exist but not all ready)
-    elif ready_count < total_replicas:
-        operation = "stabilizing"
-        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Waiting for {total_replicas - ready_count} replica(s) to become ready"
+    try:
+        # Check for version upgrade
+        unique_versions = set([r["version"] for r in replicas if r["version"] and r["version"] != "unknown"])
+        if len(unique_versions) > 1:
+            # Multiple versions = upgrade in progress
+            operation = "upgrading"
+            upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
+            progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
+            operation_message = f"Upgrading from {min(unique_versions)} to {max(unique_versions)}"
+        elif cr_version and target_version and cr_version != target_version:
+            # CR version doesn't match target = upgrade starting
+            operation = "upgrading"
+            progress = 0
+            operation_message = f"Starting upgrade to {target_version}"
+        
+        # Check for scaling
+        elif total_replicas != target_replicas:
+            operation = "scaling"
+            if total_replicas < target_replicas:
+                # Scaling up
+                progress = int((total_replicas / target_replicas) * 100) if target_replicas > 0 else 0
+                operation_message = f"Scaling up from {total_replicas} to {target_replicas} members"
+            else:
+                # Scaling down
+                progress = int((target_replicas / total_replicas) * 100) if total_replicas > 0 else 100
+                operation_message = f"Scaling down from {total_replicas} to {target_replicas} members"
+        
+        # Check for stabilizing (replicas exist but not all ready)
+        elif ready_count < total_replicas:
+            operation = "stabilizing"
+            progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+            operation_message = f"Waiting for {total_replicas - ready_count} replica(s) to become ready"
+    except Exception as e:
+        logger.warning(f"Error detecting operation status: {e}")
+        # Keep defaults: running, 100%, "All replicas running"
     
     # Ensure external NodePort service exists
     try:
