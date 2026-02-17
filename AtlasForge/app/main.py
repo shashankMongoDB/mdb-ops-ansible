@@ -898,6 +898,35 @@ def restart_deployment(
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/actions/sync",
+    response_model=dict
+)
+def sync_deployment_state(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier")
+):
+    """
+    Sync deployment state in control plane DB with actual Kubernetes CR.
+    
+    Use this to fix state drift when DB and CR are out of sync.
+    Reads actual state from MongoDB CR and updates the control plane database.
+    """
+    try:
+        result = lifecycle_service.sync_deployment_state(
+            tenant_id=tenantId,
+            deployment_id=deploymentId
+        )
+        return result
+    except ValueError as e:
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error syncing deployment state")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
 @app.patch(
     "/tenants/{tenantId}/deployments/{deploymentId}/scale",
     response_model=ScaleResponse

@@ -188,6 +188,15 @@ export const deploymentsApi = {
     }
   },
 
+  async syncState(tenantId: string, deploymentId: string): Promise<any> {
+    try {
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/actions/sync`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
   async getPrometheusConfig(tenantId: string, deploymentId: string): Promise<PrometheusConfig> {
     try {
       const response = await api.get<PrometheusConfig>(`/tenants/${tenantId}/deployments/${deploymentId}/monitoring/prometheus`);

@@ -108,6 +108,74 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         }
 
 
+def sync_deployment_state(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
+    """
+    Sync deployment state in control plane DB with actual Kubernetes CR.
+    
+    Fixes state drift by reading actual CR and updating DB to match.
+    Returns the synced state and any changes detected.
+    """
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    namespace = tenant["namespace"]
+    plan = tenant.get("plan", "enterprise")
+
+    # Get actual CR
+    if plan == "community":
+        cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+        if not cr:
+            raise ValueError(f"MongoDBCommunity CR {deployment_id} not found in namespace {namespace}")
+        
+        actual_version = cr.get("spec", {}).get("version", "unknown")
+        actual_replicas = cr.get("spec", {}).get("members", 3)
+    else:
+        cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
+        if not cr:
+            raise ValueError(f"MongoDB CR {deployment_id} not found in namespace {namespace}")
+        
+        actual_version = cr.get("spec", {}).get("version", "unknown")
+        actual_replicas = cr.get("spec", {}).get("members", 3)
+
+    # Get current DB state
+    db_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "unknown")
+    db_replicas = deployment.get("lastRequestedSpec", {}).get("replicas", 3)
+
+    # Detect drift
+    changes = []
+    if actual_version != db_version:
+        changes.append(f"version: {db_version} → {actual_version}")
+    if actual_replicas != db_replicas:
+        changes.append(f"replicas: {db_replicas} → {actual_replicas}")
+
+    # Update DB to match CR
+    if changes:
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.mongoVersion": actual_version,
+            "lastRequestedSpec.replicas": actual_replicas
+        })
+
+    return {
+        "tenantId": tenant_id,
+        "deploymentId": deployment_id,
+        "synced": True,
+        "driftDetected": len(changes) > 0,
+        "changes": changes,
+        "currentState": {
+            "version": actual_version,
+            "replicas": actual_replicas
+        }
+    }
+
+
 def update_backup_setting(tenant_id: str, deployment_id: str, enabled: bool) -> Dict[str, Any]:
     """
     Enable or disable backup for a MongoDB deployment by patching the CR.

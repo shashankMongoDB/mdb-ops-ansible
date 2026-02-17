@@ -44,8 +44,9 @@ export function DeploymentDetailsPage() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [updatingUser, setUpdatingUser] = useState(false);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
 
   const tenantPlan = tenant?.plan || 'enterprise';
 
@@ -184,6 +185,31 @@ export function DeploymentDetailsPage() {
       loadDBUsers();
     }
   }, [activeTab, tenantId, deploymentId]);
+
+  const handleSyncState = async () => {
+    if (!tenantId || !deploymentId) return;
+
+    setSyncing(true);
+    try {
+      const result = await deploymentsApi.syncState(tenantId, deploymentId);
+      
+      if (result.driftDetected) {
+        showSuccess(
+          'State Synchronized', 
+          `Fixed drift: ${result.changes.join(', ')}`
+        );
+      } else {
+        showInfo('No Drift Detected', 'Database state is already in sync with Kubernetes');
+      }
+      
+      // Reload deployment data
+      await loadData();
+    } catch (error: any) {
+      showError('Sync Failed', error.detail || 'Failed to synchronize state');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleAction = async (action: ActionType) => {
     if (!tenantId || !deploymentId || !action) return;
@@ -439,6 +465,15 @@ export function DeploymentDetailsPage() {
                   title={connectionInfo && connectionInfo.readyReplicas < connectionInfo.totalReplicas ? 'Available when all replicas are running' : ''}
                 >
                   Upgrade Version
+                </button>
+                <button 
+                  onClick={handleSyncState} 
+                  disabled={syncing}
+                  className="btn-secondary flex items-center gap-2"
+                  title="Sync database state with Kubernetes CR"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Syncing...' : 'Sync State'}
                 </button>
                 <button onClick={() => setConfirmAction('restart')} className="btn-secondary">
                   Restart
