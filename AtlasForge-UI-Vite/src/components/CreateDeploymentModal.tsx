@@ -40,12 +40,34 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
       try {
         const data = await versionsApi.getAll();
         setVersions(data);
-        // Set default version to recommended
-        if (data.recommended) {
-          const defaultVersion = tenantPlan === 'enterprise' 
-            ? data.recommended.latestEnterprise 
-            : data.recommended.latest;
-          setFormData(prev => ({ ...prev, mongoVersion: defaultVersion }));
+        
+        // Set default version to first "Latest" labeled version for the plan
+        if (data && data.length > 0) {
+          let defaultVersion = '';
+          for (const majorGroup of data) {
+            const latestVersion = majorGroup.versions.find((v: any) => 
+              v.label === 'Latest' && 
+              (tenantPlan === 'enterprise' ? v.version.endsWith('-ent') : !v.version.endsWith('-ent'))
+            );
+            if (latestVersion) {
+              defaultVersion = latestVersion.version;
+              break;
+            }
+          }
+          
+          // Fallback to first version if no "Latest" found
+          if (!defaultVersion && data[0].versions.length > 0) {
+            const firstMatchingVersion = data[0].versions.find((v: any) => 
+              tenantPlan === 'enterprise' ? v.version.endsWith('-ent') : !v.version.endsWith('-ent')
+            );
+            if (firstMatchingVersion) {
+              defaultVersion = firstMatchingVersion.version;
+            }
+          }
+          
+          if (defaultVersion) {
+            setFormData(prev => ({ ...prev, mongoVersion: defaultVersion }));
+          }
         }
       } catch (error: any) {
         console.error('Failed to load MongoDB versions:', error);
@@ -323,24 +345,23 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                       required
                     >
                       <option value="">Select MongoDB version</option>
-                      {versions?.versions?.map((majorVersion: any) => (
-                        <optgroup key={majorVersion.major} label={`MongoDB ${majorVersion.major}`}>
-                          {majorVersion.releases.map((version: string) => {
-                            // Filter based on plan
-                            const isEnterprise = version.endsWith('-ent');
-                            if (tenantPlan === 'enterprise' && !isEnterprise) return null;
-                            if (tenantPlan === 'community' && isEnterprise) return null;
-                            
-                            return (
-                              <option key={version} value={version}>
-                                {version}
-                                {versions?.recommended?.latest === version && ' (Latest)'}
-                                {versions?.recommended?.latestEnterprise === version && ' (Latest Enterprise)'}
-                                {versions?.recommended?.lts === version && ' (LTS)'}
-                                {versions?.recommended?.ltsEnterprise === version && ' (LTS Enterprise)'}
+                      {versions && Array.isArray(versions) && versions.map((majorGroup: any) => (
+                        <optgroup key={majorGroup.major} label={majorGroup.label || `MongoDB ${majorGroup.major}`}>
+                          {majorGroup.versions
+                            .filter((versionObj: any) => {
+                              // Filter based on plan
+                              const isEnterprise = versionObj.version.endsWith('-ent');
+                              if (tenantPlan === 'enterprise') return isEnterprise;
+                              if (tenantPlan === 'community') return !isEnterprise;
+                              return true;
+                            })
+                            .map((versionObj: any) => (
+                              <option key={versionObj.version} value={versionObj.version}>
+                                {versionObj.version}
+                                {versionObj.label && ` (${versionObj.label})`}
                               </option>
-                            );
-                          })}
+                            ))
+                          }
                         </optgroup>
                       ))}
                     </select>

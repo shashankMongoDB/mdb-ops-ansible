@@ -500,9 +500,25 @@ def deploy_backup_cronjob(
     sa_name = f"{deployment_id}-backup"
     cronjob_name = f"{deployment_id}-backup"
     
-    # Create AWS credentials secret in this namespace (if credentials are configured)
+    # Build aws-cli flags for custom S3 endpoint (MinIO or other S3-compatible)
+    s3_endpoint_url = config.COMMUNITY_BACKUP_S3_ENDPOINT_URL or ""
+    s3_no_verify_ssl = config.COMMUNITY_BACKUP_S3_NO_VERIFY_SSL
+    aws_endpoint_flags = ""
+    if s3_endpoint_url:
+        aws_endpoint_flags = f" --endpoint-url {s3_endpoint_url}"
+        if s3_no_verify_ssl:
+            aws_endpoint_flags += " --no-verify-ssl"
+
+    # Create AWS/S3 credentials secret in this namespace (if credentials are configured)
     if config.AWS_ACCESS_KEY_ID and config.AWS_SECRET_ACCESS_KEY:
         aws_secret_name = "aws-backup-credentials"
+        secret_data = {
+            "AWS_ACCESS_KEY_ID": config.AWS_ACCESS_KEY_ID,
+            "AWS_SECRET_ACCESS_KEY": config.AWS_SECRET_ACCESS_KEY,
+            "AWS_DEFAULT_REGION": config.AWS_DEFAULT_REGION
+        }
+        if s3_endpoint_url:
+            secret_data["S3_ENDPOINT_URL"] = s3_endpoint_url
         aws_secret = client.V1Secret(
             api_version="v1",
             kind="Secret",
@@ -511,24 +527,20 @@ def deploy_backup_cronjob(
                 namespace=namespace
             ),
             type="Opaque",
-            string_data={
-                "AWS_ACCESS_KEY_ID": config.AWS_ACCESS_KEY_ID,
-                "AWS_SECRET_ACCESS_KEY": config.AWS_SECRET_ACCESS_KEY,
-                "AWS_DEFAULT_REGION": config.AWS_DEFAULT_REGION
-            }
+            string_data=secret_data
         )
-        
+
         try:
             k8s.core_v1.create_namespaced_secret(namespace, aws_secret)
-            print(f"[COMMUNITY_BACKUP] Created AWS credentials secret in namespace: {namespace}")
+            print(f"[COMMUNITY_BACKUP] Created AWS/S3 credentials secret in namespace: {namespace}")
         except client.exceptions.ApiException as e:
             if e.status == 409:
                 k8s.core_v1.patch_namespaced_secret(aws_secret_name, namespace, aws_secret)
-                print(f"[COMMUNITY_BACKUP] Updated AWS credentials secret in namespace: {namespace}")
+                print(f"[COMMUNITY_BACKUP] Updated AWS/S3 credentials secret in namespace: {namespace}")
             else:
                 raise
     else:
-        print(f"[COMMUNITY_BACKUP] No AWS credentials configured in environment, will rely on IRSA or existing secrets")
+        print(f"[COMMUNITY_BACKUP] No AWS/S3 credentials configured in environment, will rely on IRSA or existing secrets")
     
     # Create ServiceAccount
     sa = client.V1ServiceAccount(
@@ -655,17 +667,17 @@ def deploy_backup_cronjob(
                                         f"""
                                         cd /backup
                                         for file in dump-*.tar.gz; do
-                                            aws s3 cp "$file" "{s3_path}/$file" --region {s3_region}
+                                            aws s3 cp "$file" "{s3_path}/$file" --region {s3_region}{aws_endpoint_flags}
                                             echo "Uploaded: $file"
                                         done
-                                        
+
                                         # Cleanup old backups
                                         cutoff_date=$(date -d "{retention_days} days ago" +%Y%m%d || date -v-{retention_days}d +%Y%m%d)
-                                        aws s3 ls "{s3_path}/" --region {s3_region} | while read -r line; do
+                                        aws s3 ls "{s3_path}/" --region {s3_region}{aws_endpoint_flags} | while read -r line; do
                                             file=$(echo "$line" | awk '{{print $4}}')
                                             file_date=$(echo "$file" | grep -oP 'dump-\\K[0-9]{{8}}' || echo "")
                                             if [[ -n "$file_date" && "$file_date" -lt "$cutoff_date" ]]; then
-                                                aws s3 rm "{s3_path}/$file" --region {s3_region}
+                                                aws s3 rm "{s3_path}/$file" --region {s3_region}{aws_endpoint_flags}
                                                 echo "Deleted old backup: $file"
                                             fi
                                         done
@@ -1026,8 +1038,13 @@ def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[
     try:
         import boto3
         from botocore.exceptions import ClientError
-        
-        s3_client = boto3.client('s3', region_name=s3_region)
+
+        boto_kwargs = {"region_name": s3_region}
+        if config.COMMUNITY_BACKUP_S3_ENDPOINT_URL:
+            boto_kwargs["endpoint_url"] = config.COMMUNITY_BACKUP_S3_ENDPOINT_URL
+        if config.COMMUNITY_BACKUP_S3_NO_VERIFY_SSL:
+            boto_kwargs["verify"] = False
+        s3_client = boto3.client('s3', **boto_kwargs)
         
         # List objects in the snapshots directory
         prefix = f"{s3_prefix}/snapshots/"

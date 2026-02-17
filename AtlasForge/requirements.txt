@@ -20,3 +20,4 @@ requests==2.31.0
 
 # Utilities
 python-dateutil==2.8.2
+packaging>=23.0

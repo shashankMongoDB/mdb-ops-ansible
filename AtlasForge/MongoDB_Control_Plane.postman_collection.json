@@ -26,6 +26,43 @@
       "response": []
     },
     {
+      "name": "Get MongoDB Versions",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/mongodb-versions",
+          "host": ["{{baseUrl}}"],
+          "path": ["mongodb-versions"]
+        },
+        "description": "Get list of supported MongoDB versions grouped by major version.\n\nUsed by the UI for version upgrade dropdown.\n\nReturns versions with labels (Latest, LTS) automatically applied."
+      },
+      "response": [
+        {
+          "name": "Success - All Versions",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mongodb-versions",
+              "host": ["{{baseUrl}}"],
+              "path": ["mongodb-versions"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "[\n  {\n    \"major\": \"8.0\",\n    \"label\": \"MongoDB 8.0\",\n    \"versions\": [\n      {\"version\": \"8.0.19\", \"label\": \"Latest\"},\n      {\"version\": \"8.0.19-ent\", \"label\": \"Latest\"},\n      {\"version\": \"8.0.18\", \"label\": null}\n    ]\n  },\n  {\n    \"major\": \"7.0\",\n    \"label\": \"MongoDB 7.0\",\n    \"versions\": [\n      {\"version\": \"7.0.30\", \"label\": \"LTS\"},\n      {\"version\": \"7.0.30-ent\", \"label\": \"LTS\"}\n    ]\n  }\n]"
+        }
+      ]
+    },
+    {
       "name": "List All Tenants",
       "request": {
         "method": "GET",

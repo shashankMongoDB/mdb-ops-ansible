@@ -38,6 +38,11 @@ MCP_SERVICE_PORT: int = int(os.getenv("MCP_SERVICE_PORT", "8001"))
 COMMUNITY_BACKUP_S3_BUCKET: str = os.getenv("COMMUNITY_BACKUP_S3_BUCKET", "mdbaas-community-mongodb-backups")
 COMMUNITY_BACKUP_S3_PREFIX: str = os.getenv("COMMUNITY_BACKUP_S3_PREFIX", "community-mongodb-backup")
 COMMUNITY_BACKUP_S3_REGION: str = os.getenv("COMMUNITY_BACKUP_S3_REGION", os.getenv("AWS_REGION", "us-east-1"))
+# Custom S3 endpoint URL for MinIO or other S3-compatible storage.
+# When empty, aws-cli and boto3 default to AWS S3.
+COMMUNITY_BACKUP_S3_ENDPOINT_URL: Optional[str] = os.getenv("COMMUNITY_BACKUP_S3_ENDPOINT_URL")
+# Skip TLS verification for self-signed certificates (e.g. MinIO with internal CA)
+COMMUNITY_BACKUP_S3_NO_VERIFY_SSL: bool = os.getenv("COMMUNITY_BACKUP_S3_NO_VERIFY_SSL", "false").lower() in ("true", "1", "yes")
 COMMUNITY_BACKUP_SCHEDULE: str = os.getenv("COMMUNITY_BACKUP_SCHEDULE", "0 */4 * * *")
 COMMUNITY_BACKUP_RETENTION_DAYS: int = int(os.getenv("COMMUNITY_BACKUP_RETENTION_DAYS", "7"))
 COMMUNITY_BACKUP_MONGODUMP_IMAGE: str = os.getenv("COMMUNITY_BACKUP_MONGODUMP_IMAGE", "mongo:8.0")

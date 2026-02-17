@@ -6,13 +6,17 @@
 # Stage 1: Build stage
 FROM node:18-alpine AS builder
 
+ARG VITE_API_BASE_URL=http://localhost:8001
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
 # Install ALL dependencies (including devDependencies needed for build)
-RUN npm ci && npm cache clean --force
+# npm ci requires package-lock.json, so fall back to npm install to support builds without a lockfile
+RUN npm install && npm cache clean --force
 
 # Copy source code
 COPY . .

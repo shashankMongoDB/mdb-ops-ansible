@@ -1,0 +1,61 @@
+{
+  "name": "Get MongoDB Versions",
+  "request": {
+    "method": "GET",
+    "header": [],
+    "url": {
+      "raw": "{{baseUrl}}/mongodb-versions",
+      "host": ["{{baseUrl}}"],
+      "path": ["mongodb-versions"]
+    },
+    "description": "Get list of supported MongoDB versions grouped by major version.\n\nUsed by the UI for version upgrade dropdown.\n\nReturns versions with labels (Latest, LTS) automatically applied based on mongodb_versions.json configuration.\n\n**Response Format:**\n```json\n[\n  {\n    \"major\": \"8.0\",\n    \"label\": \"MongoDB 8.0\",\n    \"versions\": [\n      {\"version\": \"8.0.19\", \"label\": \"Latest\"},\n      {\"version\": \"8.0.19-ent\", \"label\": \"Latest\"},\n      {\"version\": \"8.0.18\", \"label\": null},\n      {\"version\": \"8.0.18-ent\", \"label\": null}\n    ]\n  },\n  {\n    \"major\": \"7.0\",\n    \"label\": \"MongoDB 7.0\",\n    \"versions\": [\n      {\"version\": \"7.0.30\", \"label\": \"LTS\"},\n      {\"version\": \"7.0.30-ent\", \"label\": \"LTS\"},\n      {\"version\": \"7.0.29\", \"label\": null}\n    ]\n  }\n]\n```\n\n**Frontend Usage:**\n- Filters by tenant plan (Enterprise shows -ent versions, Community shows regular)\n- Groups versions in dropdown by major version\n- Shows labels like \"8.0.19 (Latest)\" and \"7.0.30 (LTS)\""
+  },
+  "response": [
+    {
+      "name": "Success - All Versions",
+      "originalRequest": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/mongodb-versions",
+          "host": ["{{baseUrl}}"],
+          "path": ["mongodb-versions"]
+        }
+      },
+      "status": "OK",
+      "code": 200,
+      "_postman_previewlanguage": "json",
+      "header": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "cookie": [],
+      "body": "[\n  {\n    \"major\": \"8.0\",\n    \"label\": \"MongoDB 8.0\",\n    \"versions\": [\n      {\n        \"version\": \"8.0.19\",\n        \"label\": \"Latest\"\n      },\n      {\n        \"version\": \"8.0.19-ent\",\n        \"label\": \"Latest\"\n      },\n      {\n        \"version\": \"8.0.18\",\n        \"label\": null\n      },\n      {\n        \"version\": \"8.0.18-ent\",\n        \"label\": null\n      },\n      {\n        \"version\": \"8.0.17\",\n        \"label\": null\n      },\n      {\n        \"version\": \"8.0.17-ent\",\n        \"label\": null\n      }\n    ]\n  },\n  {\n    \"major\": \"7.0\",\n    \"label\": \"MongoDB 7.0\",\n    \"versions\": [\n      {\n        \"version\": \"7.0.30\",\n        \"label\": \"LTS\"\n      },\n      {\n        \"version\": \"7.0.30-ent\",\n        \"label\": \"LTS\"\n      },\n      {\n        \"version\": \"7.0.29\",\n        \"label\": null\n      },\n      {\n        \"version\": \"7.0.29-ent\",\n        \"label\": null\n      }\n    ]\n  },\n  {\n    \"major\": \"6.0\",\n    \"label\": \"MongoDB 6.0\",\n    \"versions\": [\n      {\n        \"version\": \"6.0.27\",\n        \"label\": null\n      },\n      {\n        \"version\": \"6.0.27-ent\",\n        \"label\": null\n      }\n    ]\n  }\n]"
+    },
+    {
+      "name": "Error - File Not Found",
+      "originalRequest": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/mongodb-versions",
+          "host": ["{{baseUrl}}"],
+          "path": ["mongodb-versions"]
+        }
+      },
+      "status": "Internal Server Error",
+      "code": 500,
+      "_postman_previewlanguage": "json",
+      "header": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "cookie": [],
+      "body": "{\n  \"detail\": \"MongoDB versions configuration not found\"\n}"
+    }
+  ]
+}
