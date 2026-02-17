@@ -286,10 +286,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             if _is_recent_restart_marker(start_requested_at) and not fully_converged:
                 operation = "starting"
                 progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-                operation_message = (
-                    f"Starting deployment: {ready_count}/{total_replicas} replicas ready. "
-                    f"Existing connections remain available."
-                )
+                operation_message = f"Starting deployment: {ready_count}/{total_replicas} replicas ready."
 
             # Explicit restart state when restart was just requested and cluster is not yet converged.
             if _is_recent_restart_marker(restart_requested_at) and not fully_converged:

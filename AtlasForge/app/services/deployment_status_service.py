@@ -73,12 +73,13 @@ def get_deployment_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     if deployment_type == "ShardedCluster":
         return _get_sharded_cluster_status(namespace, deployment_id, deployment, plan)
     elif deployment_type == "ReplicaSet":
-        return _get_replica_set_status(namespace, deployment_id, deployment, plan)
+        return _get_replica_set_status(tenant_id, namespace, deployment_id, deployment, plan)
     else:
         return _get_standalone_status(namespace, deployment_id, deployment, plan)
 
 
 def _get_replica_set_status(
+    tenant_id: str,
     namespace: str,
     deployment_id: str,
     deployment: Dict[str, Any],
@@ -129,37 +130,53 @@ def _get_replica_set_status(
         has_upgrade_signal = False
         upgrading = False
 
-    # During replica-count changes, always show scaling (even if versions are mixed).
-    if actual_replicas != total_replicas:
-        operation = "scaling"
-        progress = int((actual_replicas / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Scaling replicas ({actual_replicas}/{total_replicas} created)"
-        status = "partial" if ready_count > 0 else "pending"
-        phase = "Scaling"
-    elif upgrading and has_upgrade_signal:
-        operation = "upgrading"
-        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
-        status = "partial" if ready_count < total_replicas else "running"
-        phase = "Upgrading"
-    elif ready_count == 0:
-        operation = "pending"
-        progress = 0
-        operation_message = "Waiting for first replica to start"
-        status = "pending"
-        phase = "Pending"
-    elif ready_count < total_replicas:
-        operation = "stabilizing"
-        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Stabilizing replicas ({ready_count}/{total_replicas} ready)"
-        status = "partial"
-        phase = "Partial"
-    else:
-        operation = "running"
-        progress = 100
-        operation_message = "All replicas running"
+    # Keep operation mapping consistent with details page (/connection)
+    operation = "running"
+    progress = 100
+    operation_message = "All replicas running"
+
+    try:
+        from app.services import lifecycle_service
+        conn = lifecycle_service.get_connection_info(tenant_id, deployment_id)
+        operation = conn.get("operation") or "running"
+        progress = conn.get("progress") if isinstance(conn.get("progress"), int) else 100
+        operation_message = conn.get("operationMessage") or operation_message
+        ready_count = conn.get("readyReplicas") if isinstance(conn.get("readyReplicas"), int) else ready_count
+        total_replicas = conn.get("totalReplicas") if isinstance(conn.get("totalReplicas"), int) else total_replicas
+    except Exception:
+        # Fallback to local calculation if /connection logic is unavailable
+        if actual_replicas != total_replicas:
+            operation = "scaling"
+            progress = int((actual_replicas / total_replicas) * 100) if total_replicas > 0 else 0
+            operation_message = f"Scaling replicas ({actual_replicas}/{total_replicas} created)"
+        elif upgrading and has_upgrade_signal:
+            operation = "upgrading"
+            progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+            operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
+        elif ready_count == 0:
+            operation = "pending"
+            progress = 0
+            operation_message = "Waiting for first replica to start"
+        elif ready_count < total_replicas:
+            operation = "stabilizing"
+            progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+            operation_message = f"Stabilizing replicas ({ready_count}/{total_replicas} ready)"
+
+    if operation == "running":
         status = "running"
         phase = "Running"
+    elif operation == "failed":
+        status = "error"
+        phase = "Failed"
+    elif operation in ["pending", "starting"]:
+        status = "pending"
+        phase = "Pending"
+    elif operation in ["upgrading", "scaling", "stabilizing", "restarting"]:
+        status = "partial"
+        phase = operation.capitalize()
+    else:
+        status = "partial"
+        phase = "Partial"
     return {
         "deploymentId": deployment_id,
         "type": "ReplicaSet",
