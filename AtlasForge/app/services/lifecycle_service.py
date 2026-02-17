@@ -1,9 +1,12 @@
 from typing import Dict, Any
+import logging
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
 from app.services import deployments_community_service
 from app.services import backup_service
+
+logger = logging.getLogger(__name__)
 
 
 def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -97,7 +100,8 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     # Get pod/replica status
     try:
-        pods = k8s.get_deployment_pods(namespace, deployment_id)
+        # Get pods for the StatefulSet
+        pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
     except Exception as e:
         logger.warning(f"Failed to get pods for {namespace}/{deployment_id}: {e}")
         pods = []
