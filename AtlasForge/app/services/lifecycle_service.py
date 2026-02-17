@@ -189,9 +189,9 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     operation_message = "All replicas running"
     
     try:
-        # Check CR phase first - if Pending/Failed, show that
-        if cr_phase in ["Pending", "Failed"]:
-            operation = cr_phase.lower()
+        # Check CR phase first - only force failed state
+        if cr_phase == "Failed":
+            operation = "failed"
             progress = 0
             operation_message = cr_message or f"CR Phase: {cr_phase}"
         
@@ -204,12 +204,21 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 for r in replicas
                 if r["version"] and r["version"] != "unknown"
             ]
+            normalized_target_version = _normalize_version(target_version)
             unique_versions = set([v for v in normalized_versions if v])
             upgrade_signal = False
+            target_version_signal = False
             fully_converged = (
                 actual_pod_count == total_replicas
                 and ready_count == total_replicas
-                and (not unique_versions or (normalized_cr_version and unique_versions == {normalized_cr_version}))
+                and (
+                    not unique_versions
+                    or (
+                        normalized_cr_version
+                        and unique_versions == {normalized_cr_version}
+                        and (not normalized_target_version or normalized_target_version == normalized_cr_version)
+                    )
+                )
             )
 
             if normalized_cr_version and normalized_cr_actual_version and normalized_cr_version != normalized_cr_actual_version:
@@ -222,13 +231,30 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 upgrade_signal = True
                 operation_message = f"Reconciling pod versions to {cr_version}"
 
+            if normalized_target_version:
+                if normalized_cr_version and normalized_target_version != normalized_cr_version:
+                    target_version_signal = True
+                elif normalized_cr_actual_version and normalized_target_version != normalized_cr_actual_version:
+                    target_version_signal = True
+                elif unique_versions and any(v != normalized_target_version for v in unique_versions):
+                    target_version_signal = True
+
+            if target_version_signal:
+                upgrade_signal = True
+
             if upgrade_signal and not fully_converged:
                 operation = "upgrading"
+                version_goal = normalized_target_version or normalized_cr_version
                 upgraded_count = sum(
                     1 for r in replicas
-                    if r["ready"] and _normalize_version(r["version"]) == normalized_cr_version
+                    if r["ready"] and version_goal and _normalize_version(r["version"]) == version_goal
                 )
                 progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
+                display_version = target_version or cr_version or "target"
+                operation_message = (
+                    f"Upgrading version in progress: {upgraded_count}/{total_replicas} replicas on {display_version}. "
+                    f"Existing connections remain available."
+                )
 
             # Check for scaling (actual pod count vs target)
             elif actual_pod_count != total_replicas:
@@ -236,17 +262,23 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 if actual_pod_count < total_replicas:
                     # Scaling up - base progress on actual pods created
                     progress = int((actual_pod_count / total_replicas) * 100) if total_replicas > 0 else 0
-                    operation_message = f"Scaling up: {actual_pod_count}/{total_replicas} replicas created"
+                    operation_message = f"Scaling up in progress: {ready_count}/{total_replicas} replicas ready. Existing connections remain available."
                 else:
                     # Scaling down
                     progress = int((total_replicas / actual_pod_count) * 100) if actual_pod_count > 0 else 100
-                    operation_message = f"Scaling down: removing {actual_pod_count - total_replicas} replica(s)"
+                    operation_message = "Scaling down in progress. Existing connections remain available."
             
             # Check for stabilizing (not all replicas ready yet)
             elif ready_count < total_replicas:
                 operation = "stabilizing"
                 progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-                operation_message = f"Stabilizing: {ready_count}/{total_replicas} replicas ready"
+                operation_message = f"Stabilizing after scaling: {ready_count}/{total_replicas} replicas ready. Existing connections remain available."
+
+            # If fully converged, always report running (clears stale upgrade/scaling labels)
+            if fully_converged:
+                operation = "running"
+                progress = 100
+                operation_message = "All replicas running"
     except Exception as e:
         logger.warning(f"Error detecting operation status: {e}")
         # Keep defaults: running, 100%, "All replicas running"

@@ -42,6 +42,7 @@ export function useUpgradePolling({
   const [isPolling, setIsPolling] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<Date | null>(null);
+  const failureCountRef = useRef(0);
 
   const calculateETA = useCallback((startTime: Date, current: number, total: number): string | null => {
     if (current === 0) return null;
@@ -62,6 +63,7 @@ export function useUpgradePolling({
     
     try {
       const connectionInfo = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
+      failureCountRef.current = 0;
       
       if (!connectionInfo.replicas || connectionInfo.replicas.length === 0) {
         return;
@@ -118,7 +120,11 @@ export function useUpgradePolling({
       console.error('Failed to check upgrade status:', error);
       const errorMsg = error.detail || 'Failed to check upgrade status';
       setProgress(prev => prev ? { ...prev, error: errorMsg } : null);
-      onError?.(errorMsg);
+      failureCountRef.current += 1;
+      // Avoid noisy first-click toast while backend/operator is settling
+      if (failureCountRef.current >= 3) {
+        onError?.(errorMsg);
+      }
     }
   }, [tenantId, deploymentId, targetVersion, calculateETA, onComplete, onError]);
 
@@ -131,6 +137,7 @@ export function useUpgradePolling({
     console.log('[useUpgradePolling] Starting polling interval');
     setIsPolling(true);
     startTimeRef.current = new Date();
+    failureCountRef.current = 0;
     
     // Check immediately
     checkUpgradeStatus();
@@ -167,6 +174,7 @@ export function useUpgradePolling({
       
       intervalRef.current = null;
     }
+    failureCountRef.current = 0;
     setIsPolling(false);
   }, []);
 
