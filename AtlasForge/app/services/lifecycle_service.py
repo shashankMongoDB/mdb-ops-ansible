@@ -1,5 +1,6 @@
 from typing import Dict, Any
 import logging
+import re
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
@@ -18,6 +19,10 @@ def _normalize_version(version: str) -> str:
         normalized = normalized.split("@", 1)[0]
     # Normalize enterprise suffix for comparisons
     normalized = normalized.replace("-ent", "")
+    # Extract semantic version if image tags include distro/build suffixes (e.g. 8.0.7-ubi8)
+    match = re.search(r"(\d+\.\d+\.\d+)", normalized)
+    if match:
+        normalized = match.group(1)
     return normalized
 
 
