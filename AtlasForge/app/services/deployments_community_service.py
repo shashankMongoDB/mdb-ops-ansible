@@ -207,19 +207,24 @@ def upgrade_version_community(
 ) -> None:
     """
     Upgrade MongoDB version for a community deployment by patching the CR.
+    
+    Community MongoDB doesn't use -ent suffix, so strip it if present.
     """
     k8s = get_k8s_client()
     
-    logger.info(f"Upgrading community deployment: {namespace}/{deployment_id} to version {new_version}")
+    # Strip -ent suffix for community (community uses plain versions like "7.0.14")
+    clean_version = new_version.replace("-ent", "")
+    
+    logger.info(f"Upgrading community deployment: {namespace}/{deployment_id} to version {clean_version} (from {new_version})")
     
     patch = {
         "spec": {
-            "version": new_version
+            "version": clean_version
         }
     }
     
     k8s.patch_mongodb_community_cr(namespace, deployment_id, patch)
-    logger.info(f"Patched community MongoDB CR with version={new_version}")
+    logger.info(f"Patched community MongoDB CR with version={clean_version}")
 
 
 def shutdown_deployment_community(namespace: str, deployment_id: str) -> Dict[str, Any]:
