@@ -345,25 +345,26 @@ export function CreateDeploymentModal({ open, onClose, onSuccess, tenantId, tena
                       required
                     >
                       <option value="">Select MongoDB version</option>
-                      {versions && Array.isArray(versions) && versions.map((majorGroup: any) => (
-                        <optgroup key={majorGroup.major} label={majorGroup.label || `MongoDB ${majorGroup.major}`}>
-                          {majorGroup.versions
-                            .filter((versionObj: any) => {
-                              // Filter based on plan
-                              const isEnterprise = versionObj.version.endsWith('-ent');
-                              if (tenantPlan === 'enterprise') return isEnterprise;
-                              if (tenantPlan === 'community') return !isEnterprise;
-                              return true;
-                            })
-                            .map((versionObj: any) => (
+                      {versions && Array.isArray(versions) && versions.map((majorGroup: any) => {
+                        const filteredVersions = majorGroup.versions.filter((versionObj: any) => {
+                          // Filter based on plan
+                          const isEnterprise = versionObj.version.endsWith('-ent');
+                          if (tenantPlan === 'enterprise') return isEnterprise;
+                          if (tenantPlan === 'community') return !isEnterprise;
+                          return true;
+                        });
+                        
+                        return (
+                          <optgroup key={majorGroup.major} label={majorGroup.label || `MongoDB ${majorGroup.major}`}>
+                            {filteredVersions.map((versionObj: any) => (
                               <option key={versionObj.version} value={versionObj.version}>
                                 {versionObj.version}
                                 {versionObj.label && ` (${versionObj.label})`}
                               </option>
-                            ))
-                          }
-                        </optgroup>
-                      ))}
+                            ))}
+                          </optgroup>
+                        );
+                      })}
                     </select>
                   )}
                   <p className="mt-1 text-xs text-gray-500">

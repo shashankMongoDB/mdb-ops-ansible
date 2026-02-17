@@ -12,6 +12,7 @@ import { BackupPanel } from '@/components/BackupPanelReadOnly';
 import { CreateUserModal } from '@/components/CreateUserModal';
 import { UserConnectionModal } from '@/components/UserConnectionModal';
 import { EditUserModal } from '@/components/EditUserModal';
+import { UpgradeBanner } from '@/components/UpgradeBanner';
 import { useToast } from '@/components/Toast';
 import { formatTimestamp } from '@/lib/utils';
 import type { Deployment, Tenant } from '@/lib/types';
@@ -253,6 +254,56 @@ export function DeploymentDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* Show upgrade banner if upgrade is in progress */}
+      {deployment.status !== 'shutdown' && connectionInfo && connectionInfo.replicas && (() => {
+        // Detect if upgrade is in progress
+        const replicaVersions = connectionInfo.replicas.map((r: any) => r.version);
+        const uniqueVersions = Array.from(new Set(replicaVersions));
+        
+        // Upgrade in progress if multiple versions exist or version doesn't match deployment
+        const upgradeInProgress = uniqueVersions.length > 1 || 
+          (deployment.mongoVersion && !replicaVersions.every((v: string) => v === deployment.mongoVersion));
+        
+        if (upgradeInProgress) {
+          // Find which version is the target (the one in deployment.mongoVersion)
+          const toVersion = deployment.mongoVersion;
+          // Find which version replicas are coming from
+          const fromVersion = replicaVersions.find((v: string) => v !== toVersion) || replicaVersions[0];
+          
+          // Count upgraded replicas
+          const upgradedCount = connectionInfo.replicas.filter(
+            (r: any) => r.version === toVersion && r.ready
+          ).length;
+          const totalReplicas = connectionInfo.replicas.length;
+          const percentage = Math.round((upgradedCount / totalReplicas) * 100);
+          
+          // Calculate estimated time remaining (rough estimate: 2 min per replica)
+          const remainingReplicas = totalReplicas - upgradedCount;
+          const estimatedMinutes = remainingReplicas * 2;
+          const estimatedTime = estimatedMinutes > 0 
+            ? `~${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''}` 
+            : null;
+          
+          return (
+            <UpgradeBanner
+              fromVersion={fromVersion}
+              toVersion={toVersion}
+              currentReplica={upgradedCount}
+              totalReplicas={totalReplicas}
+              percentage={percentage}
+              replicas={connectionInfo.replicas.map((r: any) => ({
+                name: r.name || 'unknown',
+                version: r.version || 'unknown',
+                status: r.ready ? 'Running' : 'Pending',
+                ready: r.ready || false,
+              }))}
+              estimatedTimeRemaining={estimatedTime || undefined}
+            />
+          );
+        }
+        return null;
+      })()}
 
       {/* Show initializing/stabilizing banner when not all replicas are ready */}
       {deployment.status !== 'shutdown' && deployment.members && connectionInfo && 

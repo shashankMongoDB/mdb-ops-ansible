@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test MongoDB Versions API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test MongoDB Versions API</h1>
+    
+    <div>
+        <label>API Base URL:</label>
+        <input type="text" id="apiUrl" value="http://localhost:8001" style="width: 300px; padding: 5px;">
+    </div>
+    
+    <br>
+    
+    <button onclick="testVersionsAPI()">Test /mongodb-versions Endpoint</button>
+    
+    <br><br>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function testVersionsAPI() {
+            const resultDiv = document.getElementById('result');
+            const apiUrl = document.getElementById('apiUrl').value;
+            
+            resultDiv.innerHTML = '<p>Testing API...</p>';
+            
+            try {
+                const response = await fetch(`${apiUrl}/mongodb-versions`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h2 class="success">✅ API Call Successful!</h2>
+                    <h3>Response Structure:</h3>
+                    <ul>
+                        <li>Is Array: ${Array.isArray(data) ? 'Yes' : 'No'}</li>
+                        <li>Number of major versions: ${Array.isArray(data) ? data.length : 'N/A'}</li>
+                    </ul>
+                    
+                    <h3>Raw Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    
+                    <h3>Parsed Structure:</h3>
+                    <div id="parsed"></div>
+                `;
+                
+                // Parse and display structure
+                if (Array.isArray(data)) {
+                    let html = '<ul>';
+                    data.forEach(majorGroup => {
+                        html += `<li><strong>${majorGroup.label || majorGroup.major}</strong>`;
+                        html += `<ul>`;
+                        html += `<li>Total versions: ${majorGroup.versions.length}</li>`;
+                        html += `<li>Community versions: ${majorGroup.versions.filter(v => !v.version.endsWith('-ent')).length}</li>`;
+                        html += `<li>Enterprise versions: ${majorGroup.versions.filter(v => v.version.endsWith('-ent')).length}</li>`;
+                        html += `<li>Versions with "Latest" label: ${majorGroup.versions.filter(v => v.label === 'Latest').length}</li>`;
+                        html += `<li>Versions with "LTS" label: ${majorGroup.versions.filter(v => v.label === 'LTS').length}</li>`;
+                        html += `</ul>`;
+                        html += '</li>';
+                    });
+                    html += '</ul>';
+                    document.getElementById('parsed').innerHTML = html;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h2 class="error">❌ API Call Failed!</h2>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>Make sure:</p>
+                    <ul>
+                        <li>Backend is running on ${apiUrl}</li>
+                        <li>CORS is enabled</li>
+                        <li>/mongodb-versions endpoint exists</li>
+                    </ul>
+                `;
+            }
+        }
+        
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(testVersionsAPI, 500);
+        });
+    </script>
+</body>
+</html>
