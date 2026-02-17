@@ -118,79 +118,6 @@ class K8sClient:
             }
         )
 
-    def ensure_service_account(self, namespace: str, name: str) -> None:
-        """
-        Create a ServiceAccount if it does not exist.
-        If it already exists, do nothing (no error).
-        
-        MCK expects this ServiceAccount for MongoDB StatefulSet pods.
-        Without it, pods fail with 'serviceaccount ... not found' and deployments never become Ready.
-        """
-        try:
-            self.core_v1.read_namespaced_service_account(name=name, namespace=namespace)
-        except ApiException as e:
-            if e.status == 404:
-                service_account = client.V1ServiceAccount(
-                    metadata=client.V1ObjectMeta(name=name, namespace=namespace)
-                )
-                self.core_v1.create_namespaced_service_account(namespace=namespace, body=service_account)
-            else:
-                raise
-
-    def ensure_role(self, namespace: str, name: str, rules: list) -> None:
-        """
-        Create a Role if it does not exist.
-        If it already exists, do nothing (no error).
-        
-        Used for community tenant RBAC setup.
-        """
-        rbac_v1 = client.RbacAuthorizationV1Api(self.core_v1.api_client)
-        
-        try:
-            rbac_v1.read_namespaced_role(name=name, namespace=namespace)
-        except ApiException as e:
-            if e.status == 404:
-                role = client.V1Role(
-                    metadata=client.V1ObjectMeta(name=name, namespace=namespace),
-                    rules=rules
-                )
-                rbac_v1.create_namespaced_role(namespace=namespace, body=role)
-            else:
-                raise
-
-    def ensure_role_binding(self, namespace: str, name: str, role_name: str, service_account_name: str) -> None:
-        """
-        Create a RoleBinding if it does not exist.
-        If it already exists, do nothing (no error).
-        
-        Binds a ServiceAccount to a Role in the same namespace.
-        Used for community tenant RBAC setup.
-        """
-        rbac_v1 = client.RbacAuthorizationV1Api(self.core_v1.api_client)
-        
-        try:
-            rbac_v1.read_namespaced_role_binding(name=name, namespace=namespace)
-        except ApiException as e:
-            if e.status == 404:
-                role_binding = client.V1RoleBinding(
-                    metadata=client.V1ObjectMeta(name=name, namespace=namespace),
-                    role_ref=client.V1RoleRef(
-                        api_group="rbac.authorization.k8s.io",
-                        kind="Role",
-                        name=role_name
-                    ),
-                    subjects=[
-                        client.RbacV1Subject(
-                            kind="ServiceAccount",
-                            name=service_account_name,
-                            namespace=namespace
-                        )
-                    ]
-                )
-                rbac_v1.create_namespaced_role_binding(namespace=namespace, body=role_binding)
-            else:
-                raise
-
     def ensure_external_service(self, namespace: str, deployment_id: str) -> tuple[str, int]:
         """
         Ensure external NodePort service exists for a MongoDB deployment.
@@ -631,21 +558,12 @@ class K8sClient:
         except ApiException:
             return []
 
-    def delete_pod(self, namespace: str, name: str, grace_period: int = None) -> bool:
+    def delete_pod(self, namespace: str, name: str) -> bool:
         """
         Delete a pod. Returns True if deleted, False if not found.
-        
-        Args:
-            namespace: K8s namespace
-            name: Pod name
-            grace_period: Grace period in seconds. 0 for immediate deletion.
         """
         try:
-            if grace_period is not None:
-                body = client.V1DeleteOptions(grace_period_seconds=grace_period)
-                self.core_v1.delete_namespaced_pod(name=name, namespace=namespace, body=body)
-            else:
-                self.core_v1.delete_namespaced_pod(name=name, namespace=namespace)
+            self.core_v1.delete_namespaced_pod(name=name, namespace=namespace)
             return True
         except ApiException as e:
             if e.status == 404:

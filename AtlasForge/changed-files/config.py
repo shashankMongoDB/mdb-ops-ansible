@@ -13,6 +13,7 @@ MCP_KUBECONFIG_PATH: Optional[str] = os.getenv("MCP_KUBECONFIG_PATH", "/home/ubu
 
 # Namespace convention
 MCP_NAMESPACE_PREFIX: str = os.getenv("MCP_NAMESPACE_PREFIX", "mdb-")
+MCP_OPERATOR_NAMESPACE: str = os.getenv("MCP_OPERATOR_NAMESPACE", "mongodb-operator")
 
 # Ops Manager (for wiring only; no direct API calls in v1)
 MCP_OPS_MANAGER_URL: str = os.getenv("MCP_OPS_MANAGER_URL", "http://ec2-35-88-225-248.us-west-2.compute.amazonaws.com:8080")
@@ -26,9 +27,6 @@ MCP_OM_GLOBAL_PRIVATE_KEY: str = os.getenv("MCP_OM_GLOBAL_PRIVATE_KEY", "99ad891
 # Path to CA certificate file for Ops Manager TLS, or "false" to disable verification
 OPS_MANAGER_CA_CERT_PATH: Optional[str] = os.getenv("OPS_MANAGER_CA_CERT_PATH")
 OPS_MANAGER_VERIFY_SSL: bool = os.getenv("OPS_MANAGER_VERIFY_SSL", "true").lower() != "false"
-
-# Operator namespace
-MCP_OPERATOR_NAMESPACE: str = os.getenv("MCP_OPERATOR_NAMESPACE", "mongodb-operator")
 
 # Optional logging/config
 MCP_LOG_LEVEL: str = os.getenv("MCP_LOG_LEVEL", "INFO")
