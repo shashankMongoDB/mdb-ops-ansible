@@ -10,6 +10,9 @@ interface DeploymentStatus {
   type: string;
   status: 'running' | 'pending' | 'partial' | 'shutdown' | 'error';
   phase: string;
+  operation?: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'pending' | 'failed';
+  progress?: number;
+  operationMessage?: string;
   readyReplicas: number;
   totalReplicas: number;
   topology?: any;
@@ -270,7 +273,9 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
 // Topology component for expanded view
 function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: Deployment; status: DeploymentStatus; tenantPlan: string }) {
   // Calculate progress percentage
-  const progressPercent = status.totalReplicas > 0 
+  const progressPercent = typeof status.progress === 'number'
+    ? status.progress
+    : status.totalReplicas > 0
     ? Math.round((status.readyReplicas / status.totalReplicas) * 100)
     : 0;
 
@@ -282,20 +287,26 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
     );
   }
 
-  // Show progress view for pending/partial deployments
-  if (status.status === 'pending' || status.status === 'partial') {
+  const activeOperation = status.operation && status.operation !== 'running';
+
+  // Show progress view for create/scale/upgrade operations
+  if (status.status === 'pending' || status.status === 'partial' || activeOperation) {
     // Determine status message
-    const statusMessage = status.readyReplicas === 0 
+    const statusMessage = status.operation === 'upgrading'
+      ? 'Upgrading Version...'
+      : status.operation === 'scaling'
+      ? 'Scaling Members...'
+      : status.readyReplicas === 0 
       ? 'Starting Up...'
       : status.readyReplicas === 1
       ? 'Initializing...'
       : 'Stabilizing...';
     
-    const detailMessage = status.readyReplicas === 0
+    const detailMessage = status.operationMessage || (status.readyReplicas === 0
       ? 'Waiting for first replica to start'
       : status.readyReplicas === 1
       ? 'First replica running. Detail page accessible with limited features.'
-      : 'Multiple replicas running. Waiting for full cluster.';
+      : 'Multiple replicas running. Waiting for full cluster.');
     
     return (
       <div className="space-y-4">

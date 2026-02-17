@@ -108,17 +108,47 @@ def _get_replica_set_status(
             ready_count += 1
     
     # Determine target replicas from CR spec first (source of truth), fallback to DB
+    # Determine overall status and operation state
     total_replicas = _get_target_members_from_cr(namespace, deployment_id, plan, deployment)
-    if ready_count == 0:
+    actual_replicas = len(pod_list)
+    target_version = deployment.get("mongoVersion", "") or deployment.get("lastRequestedSpec", {}).get("mongoVersion", "")
+    pod_versions = [pod.get("version") for pod in pod_list if pod.get("version")]
+
+    if pod_versions and target_version:
+        upgrading = len(set(pod_versions)) > 1 or any(v != target_version for v in pod_versions)
+    else:
+        upgrading = False
+
+    if upgrading:
+        operation = "upgrading"
+        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
+        status = "partial" if ready_count < total_replicas else "running"
+        phase = "Upgrading"
+    elif actual_replicas != total_replicas:
+        operation = "scaling"
+        progress = int((actual_replicas / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Scaling replicas ({actual_replicas}/{total_replicas} created)"
+        status = "partial" if ready_count > 0 else "pending"
+        phase = "Scaling"
+    elif ready_count == 0:
+        operation = "pending"
+        progress = 0
+        operation_message = "Waiting for first replica to start"
         status = "pending"
         phase = "Pending"
     elif ready_count < total_replicas:
+        operation = "stabilizing"
+        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Stabilizing replicas ({ready_count}/{total_replicas} ready)"
         status = "partial"
         phase = "Partial"
     else:
+        operation = "running"
+        progress = 100
+        operation_message = "All replicas running"
         status = "running"
         phase = "Running"
-    
     return {
         "deploymentId": deployment_id,
         "type": "ReplicaSet",
@@ -127,6 +157,9 @@ def _get_replica_set_status(
         "pods": pod_list,
         "readyReplicas": ready_count,
         "totalReplicas": total_replicas,
+        "operation": operation,
+        "progress": progress,
+        "operationMessage": operation_message,
         "topology": {
             "replicaSet": {
                 "name": deployment_id,
@@ -357,10 +390,20 @@ def _get_pod_info(pod) -> Dict[str, Any]:
                 is_ready = True
                 break
     
+    # Extract MongoDB version from container image
+    mongo_version = "unknown"
+    if pod.status.container_statuses:
+        for cs in pod.status.container_statuses:
+            image = getattr(cs, "image", "") or ""
+            if "mongo" in image.lower() and ":" in image:
+                mongo_version = image.rsplit(":", 1)[-1]
+                break
+
     return {
         "name": pod.metadata.name,
         "status": pod.status.phase,
         "ready": is_ready,
+        "version": mongo_version,
         "containerStatuses": container_statuses,
         "nodeName": pod.spec.node_name,
         "podIP": pod.status.pod_ip,
