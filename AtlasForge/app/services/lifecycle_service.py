@@ -1,6 +1,7 @@
 from typing import Dict, Any
 import logging
 import re
+from datetime import datetime, timezone
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
@@ -8,6 +9,8 @@ from app.services import deployments_community_service
 from app.services import backup_service
 
 logger = logging.getLogger(__name__)
+
+RESTART_MARKER_TTL_SECONDS = 180
 
 
 def _normalize_version(version: str) -> str:
@@ -24,6 +27,19 @@ def _normalize_version(version: str) -> str:
     if match:
         normalized = match.group(1)
     return normalized
+
+
+def _is_recent_restart_marker(restart_requested_at: str) -> bool:
+    if not restart_requested_at:
+        return False
+    try:
+        marker_time = datetime.fromisoformat(str(restart_requested_at).replace("Z", "+00:00"))
+        if marker_time.tzinfo is None:
+            marker_time = marker_time.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - marker_time).total_seconds()
+        return 0 <= age <= RESTART_MARKER_TTL_SECONDS
+    except Exception:
+        return False
 
 
 def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -48,6 +64,8 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+    restart_requested_at = deployment.get("lastRequestedSpec", {}).get("restartRequestedAt", "")
+    start_requested_at = deployment.get("lastRequestedSpec", {}).get("startRequestedAt", "")
     
     # Check if deployment is shutdown
     deployment_status = deployment.get("status", "running")
@@ -263,6 +281,24 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 operation = "stabilizing"
                 progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
                 operation_message = f"Stabilizing after scaling: {ready_count}/{total_replicas} replicas ready. Existing connections remain available."
+
+            # Explicit start state when deployment was just started from shutdown.
+            if _is_recent_restart_marker(start_requested_at) and not fully_converged:
+                operation = "starting"
+                progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+                operation_message = (
+                    f"Starting deployment: {ready_count}/{total_replicas} replicas ready. "
+                    f"Existing connections remain available."
+                )
+
+            # Explicit restart state when restart was just requested and cluster is not yet converged.
+            if _is_recent_restart_marker(restart_requested_at) and not fully_converged:
+                operation = "restarting"
+                progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+                operation_message = (
+                    f"Rolling restart in progress: {ready_count}/{total_replicas} replicas ready. "
+                    f"Existing connections remain available."
+                )
 
             # If fully converged, always report running (clears stale upgrade/scaling labels)
             if fully_converged:
@@ -806,7 +842,8 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         # Clear shutdown info and mark as running
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None,
-            "status": "running"
+            "status": "running",
+            "lastRequestedSpec.startRequestedAt": datetime.now(timezone.utc).isoformat()
         })
         
         return {
@@ -867,7 +904,8 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         # Clear shutdown info and restore status
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None,
-            "status": "running"
+            "status": "running",
+            "lastRequestedSpec.startRequestedAt": datetime.now(timezone.utc).isoformat()
         })
         
         return {
@@ -896,7 +934,8 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 raise ValueError(f"Could not find Deployment or StatefulSet for {deployment_id}")
         
         repo.update_deployment(tenant_id, deployment_id, {
-            "lastRequestedSpec.membersBeforeShutdown": None
+            "lastRequestedSpec.membersBeforeShutdown": None,
+            "lastRequestedSpec.startRequestedAt": datetime.now(timezone.utc).isoformat()
         })
         
         return {
@@ -949,7 +988,8 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 
         repo.update_deployment(tenant_id, deployment_id, {
             "lastRequestedSpec.shutdownInfo": None,
-            "status": "running"
+            "status": "running",
+            "lastRequestedSpec.startRequestedAt": datetime.now(timezone.utc).isoformat()
         })
 
         return {
@@ -977,6 +1017,9 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     # Route to community service if needed
     if plan == "community":
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.restartRequestedAt": datetime.now(timezone.utc).isoformat()
+        })
         result = deployments_community_service.restart_deployment_community(namespace, deployment_id)
         return {
             "tenantId": tenant_id,
@@ -989,6 +1032,10 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     deployment = repo.get_deployment(tenant_id, deployment_id)
     if not deployment:
         raise ValueError(f"Deployment {deployment_id} not found for tenant {tenant_id}")
+
+    repo.update_deployment(tenant_id, deployment_id, {
+        "lastRequestedSpec.restartRequestedAt": datetime.now(timezone.utc).isoformat()
+    })
 
     namespace = tenant["namespace"]
 

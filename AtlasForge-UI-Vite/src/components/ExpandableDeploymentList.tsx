@@ -10,7 +10,7 @@ interface DeploymentStatus {
   type: string;
   status: 'running' | 'pending' | 'partial' | 'shutdown' | 'error';
   phase: string;
-  operation?: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'pending' | 'failed';
+  operation?: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'restarting' | 'starting' | 'pending' | 'failed';
   progress?: number;
   operationMessage?: string;
   readyReplicas: number;
@@ -295,6 +295,10 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
     // Determine status message
     const statusMessage = isInitialCreate && status.operation === 'scaling'
       ? 'Creating Members...'
+      : status.operation === 'starting'
+      ? 'Starting Deployment...'
+      : status.operation === 'restarting'
+      ? 'Restarting Members...'
       : status.operation === 'upgrading'
       ? 'Upgrading Version...'
       : status.operation === 'scaling'
