@@ -53,6 +53,7 @@ export default function DeploymentDetailsPage() {
     return () => clearInterval(interval);
   }, [tenantId, deploymentId]);
 
+
   const handleAction = async (action: ActionType) => {
     if (!tenantId || typeof tenantId !== 'string') return;
     if (!deploymentId || typeof deploymentId !== 'string') return;

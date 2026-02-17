@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Optional, Literal, Any
 from pydantic import BaseModel, Field
 
 
@@ -101,6 +101,19 @@ class ConnectionInfoResponse(BaseModel):
     error: Optional[str] = None
     status: Optional[str] = None  # "shutdown" or "running"
     message: Optional[str] = None  # Human-readable message
+    operation: Optional[str] = None
+    progress: Optional[int] = None
+    operationMessage: Optional[str] = None
+    targetVersion: Optional[str] = None
+    targetReplicas: Optional[int] = None
+    currentVersion: Optional[str] = None
+    currentReplicas: Optional[int] = None
+    readyReplicas: Optional[int] = None
+    totalReplicas: Optional[int] = None
+    replicas: Optional[list[dict[str, Any]]] = None
+    crPhase: Optional[str] = None
+    crMessage: Optional[str] = None
+    crActualVersion: Optional[str] = None
 
 
 class BackupUpdateRequest(BaseModel):

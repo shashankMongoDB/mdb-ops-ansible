@@ -178,28 +178,26 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             progress = 0
             operation_message = cr_message or f"CR Phase: {cr_phase}"
         
-        # Check if CR spec version doesn't match status version (operator reconciling)
-        elif cr_version and cr_actual_version and cr_version != cr_actual_version:
-            operation = "upgrading"
-            progress = 10  # Operator is working on it
-            operation_message = f"Operator upgrading from {cr_actual_version} to {cr_version}"
-        
-        # Check for version upgrade (spec vs target)
-        elif cr_version and target_version and cr_version != target_version:
-            operation = "upgrading"
-            progress = 5
-            operation_message = f"Requested upgrade to {target_version}, CR shows {cr_version}"
-        
-        # Check for version mismatch in pods
+        # Detect upgrade signal from CR/pods
         else:
             unique_versions = set([r["version"] for r in replicas if r["version"] and r["version"] != "unknown"])
-            if len(unique_versions) > 1:
-                # Multiple versions = upgrade in progress
+            upgrade_signal = False
+
+            if cr_version and cr_actual_version and cr_version != cr_actual_version:
+                upgrade_signal = True
+                operation_message = f"Operator upgrading from {cr_actual_version} to {cr_version}"
+            elif len(unique_versions) > 1:
+                upgrade_signal = True
+                operation_message = f"Upgrading pods from {min(unique_versions)} to {max(unique_versions)}"
+            elif cr_version and unique_versions and any(v != cr_version for v in unique_versions):
+                upgrade_signal = True
+                operation_message = f"Reconciling pod versions to {cr_version}"
+
+            if upgrade_signal:
                 operation = "upgrading"
                 upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
                 progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
-                operation_message = f"Upgrading pods from {min(unique_versions)} to {max(unique_versions)}"
-            
+
             # Check for scaling (actual pod count vs target)
             elif actual_pod_count != total_replicas:
                 operation = "scaling"
