@@ -367,6 +367,9 @@ def get_user_connection(
             raise ValueError(f"Secret {secret_name} not found")
         raise
 
+    # Get tenant plan to determine auth strategy
+    plan = tenant.get("plan", "enterprise")
+    
     # Get connection info
     conn_info = get_connection_info(tenant_id, deployment_id)
     external_host_port = conn_info.get("externalHostPort")
@@ -382,13 +385,26 @@ def get_user_connection(
     encoded_password = quote_plus(password)
 
     # Build URIs with credentials and encoded password
+    # For Community: users are created via direct commands, so we need authSource parameter
+    # For Enterprise: MongoDBUser CR handles authentication, no authSource needed
     external_uri = None
     if external_host_port:
-        external_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}"
+        if plan == "community":
+            # Community MongoDB needs authSource parameter
+            # Users are created in their database but authenticated against admin
+            external_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}?authSource={db}"
+        else:
+            # Enterprise MongoDB
+            external_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}"
 
     internal_uri = None
     if internal_host:
-        internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}"
+        if plan == "community":
+            # Community MongoDB needs authSource parameter
+            internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}?authSource={db}"
+        else:
+            # Enterprise MongoDB
+            internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}"
 
     return {
         "username": username,

@@ -58,6 +58,8 @@ export function useUpgradePolling({
   }, []);
 
   const checkUpgradeStatus = useCallback(async () => {
+    if (!enabled) return; // Don't check if disabled
+    
     try {
       const connectionInfo = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
       
@@ -121,8 +123,12 @@ export function useUpgradePolling({
   }, [tenantId, deploymentId, targetVersion, calculateETA, onComplete, onError]);
 
   const startPolling = useCallback(() => {
-    if (isPolling) return;
+    if (isPolling) {
+      console.log('[useUpgradePolling] Already polling, skipping start');
+      return;
+    }
     
+    console.log('[useUpgradePolling] Starting polling interval');
     setIsPolling(true);
     startTimeRef.current = new Date();
     
@@ -130,20 +136,35 @@ export function useUpgradePolling({
     checkUpgradeStatus();
     
     // Then poll every 5 seconds
-    intervalRef.current = setInterval(checkUpgradeStatus, 5000);
+    intervalRef.current = setInterval(() => {
+      console.log('[useUpgradePolling] Polling tick for', deploymentId);
+      checkUpgradeStatus();
+    }, 5000);
     
     // Safety timeout after 30 minutes
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      console.log('[useUpgradePolling] Timeout reached, stopping polling');
       if (intervalRef.current) {
         stopPolling();
         onError?.('Upgrade monitoring timeout after 30 minutes');
       }
     }, 1800000);
-  }, [isPolling, checkUpgradeStatus, onError]);
+    
+    // Store timeout ID for cleanup
+    (intervalRef.current as any)._timeoutId = timeoutId;
+  }, [isPolling, checkUpgradeStatus, onError, deploymentId]);
 
   const stopPolling = useCallback(() => {
+    console.log('[useUpgradePolling] Stopping polling');
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
+      
+      // Clear timeout if exists
+      const timeoutId = (intervalRef.current as any)._timeoutId;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
       intervalRef.current = null;
     }
     setIsPolling(false);
@@ -152,15 +173,21 @@ export function useUpgradePolling({
   // Auto-start polling when enabled
   useEffect(() => {
     if (enabled && !isPolling) {
+      console.log('[useUpgradePolling] Starting polling for', deploymentId);
       startPolling();
     } else if (!enabled && isPolling) {
+      console.log('[useUpgradePolling] Stopping polling for', deploymentId);
       stopPolling();
     }
 
+    // Cleanup on unmount
     return () => {
-      stopPolling();
+      if (isPolling) {
+        console.log('[useUpgradePolling] Cleanup - stopping polling for', deploymentId);
+        stopPolling();
+      }
     };
-  }, [enabled, isPolling, startPolling, stopPolling]);
+  }, [enabled]); // Only depend on 'enabled', not isPolling/startPolling/stopPolling to avoid loops
 
   return {
     progress,
