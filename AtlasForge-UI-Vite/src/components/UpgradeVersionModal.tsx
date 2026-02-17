@@ -101,30 +101,33 @@ export function UpgradeVersionModal({
     try {
       // Initiate upgrade
       await deploymentsApi.upgradeVersion(tenantId, deploymentId, newVersion);
-      
-      // Switch to upgrading state
-      setUpgradeState('upgrading');
       showSuccess('Version upgrade initiated', `Upgrading to ${newVersion}...`);
-      
-      // Start polling for progress
-      startPolling();
+      onSuccess();
+      onClose();
     } catch (error: any) {
-      // Handle backend side-effect success with response-model failure (upgrade may have started)
+      // Handle backend side-effect success with delayed operation visibility
       try {
-        const info = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
-        if (info?.operation === 'upgrading') {
-          setUpgradeState('upgrading');
+        let started = false;
+        for (let i = 0; i < 4; i++) {
+          const info = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
+          if (info?.operation === 'upgrading') {
+            started = true;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
+
+        if (started) {
           showSuccess('Version upgrade initiated', `Upgrading to ${newVersion}...`);
-          startPolling();
+          onSuccess();
+          onClose();
         } else {
           const message = error.detail || 'An error occurred';
           showError('Failed to start upgrade', message);
-          setUpgradeState('idle');
         }
       } catch {
         const message = error.detail || 'An error occurred';
         showError('Failed to start upgrade', message);
-        setUpgradeState('idle');
       }
     } finally {
       setLoading(false);
@@ -265,7 +268,7 @@ export function UpgradeVersionModal({
                 </>
               )}
 
-              {/* Upgrading State - Show Progress */}
+              {/* Upgrading State - Show Progress (legacy, currently not used) */}
               {upgradeState === 'upgrading' && progress && (
                 <>
                   <UpgradeProgressView
