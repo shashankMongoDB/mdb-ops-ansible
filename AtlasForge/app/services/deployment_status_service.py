@@ -111,26 +111,33 @@ def _get_replica_set_status(
     # Determine overall status and operation state
     total_replicas = _get_target_members_from_cr(namespace, deployment_id, plan, deployment)
     actual_replicas = len(pod_list)
-    target_version = deployment.get("mongoVersion", "") or deployment.get("lastRequestedSpec", {}).get("mongoVersion", "")
-    pod_versions = [pod.get("version") for pod in pod_list if pod.get("version")]
+    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "") or deployment.get("mongoVersion", "")
+    pod_versions = [
+        pod.get("version")
+        for pod in pod_list
+        if pod.get("version") and pod.get("version") != "unknown"
+    ]
 
     if pod_versions and target_version:
-        upgrading = len(set(pod_versions)) > 1 or any(v != target_version for v in pod_versions)
+        mixed_versions = len(set(pod_versions)) > 1
+        has_target_mismatch = any(v != target_version for v in pod_versions)
+        fully_ready = ready_count == total_replicas and actual_replicas == total_replicas
+        upgrading = (mixed_versions or has_target_mismatch) and not fully_ready
     else:
         upgrading = False
 
-    if upgrading:
-        operation = "upgrading"
-        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
-        status = "partial" if ready_count < total_replicas else "running"
-        phase = "Upgrading"
-    elif actual_replicas != total_replicas:
+    if actual_replicas != total_replicas:
         operation = "scaling"
         progress = int((actual_replicas / total_replicas) * 100) if total_replicas > 0 else 0
         operation_message = f"Scaling replicas ({actual_replicas}/{total_replicas} created)"
         status = "partial" if ready_count > 0 else "pending"
         phase = "Scaling"
+    elif upgrading:
+        operation = "upgrading"
+        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
+        status = "partial" if ready_count < total_replicas else "running"
+        phase = "Upgrading"
     elif ready_count == 0:
         operation = "pending"
         progress = 0
