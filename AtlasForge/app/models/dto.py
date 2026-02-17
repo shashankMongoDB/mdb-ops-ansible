@@ -182,6 +182,7 @@ class VersionUpgradeResponse(BaseModel):
     oldVersion: str
     newVersion: str
     message: Optional[str] = None
+    warning: Optional[str] = None
 
 
 class PrometheusScrapeConfigResponse(BaseModel):

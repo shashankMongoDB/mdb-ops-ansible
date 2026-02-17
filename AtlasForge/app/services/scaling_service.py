@@ -156,7 +156,11 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
     plan = tenant.get("plan", "enterprise")
 
     # Get current version from deployment doc
-    current_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "")
+    current_version = str(
+        deployment.get("lastRequestedSpec", {}).get("mongoVersion")
+        or deployment.get("mongoVersion")
+        or ""
+    )
     
     comparison = compare_versions(mongo_version, current_version)
 

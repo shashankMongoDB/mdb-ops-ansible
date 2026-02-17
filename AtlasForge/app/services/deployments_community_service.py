@@ -295,7 +295,7 @@ def upgrade_version_community(
     namespace: str,
     deployment_id: str,
     new_version: str,
-    force_restart: bool = True
+    force_restart: bool = False
 ) -> None:
     """
     Upgrade MongoDB version for a community deployment by patching the CR.
@@ -331,7 +331,8 @@ def upgrade_version_community(
     k8s.patch_mongodb_community_cr(namespace, deployment_id, patch)
     logger.info(f"[COMMUNITY_UPGRADE] Successfully patched CR to version {clean_version}")
     
-    # Force restart pods to trigger operator reconciliation
+    # Optional: force restart a single pod only when explicitly requested.
+    # Default is disabled to preserve connectivity and let operator perform rolling upgrade.
     if force_restart:
         logger.info(f"[COMMUNITY_UPGRADE] Force restarting pods (rolling) to trigger reconciliation")
         try:

@@ -109,9 +109,23 @@ export function UpgradeVersionModal({
       // Start polling for progress
       startPolling();
     } catch (error: any) {
-      const message = error.detail || 'An error occurred';
-      showError('Failed to start upgrade', message);
-      setUpgradeState('idle');
+      // Handle backend side-effect success with response-model failure (upgrade may have started)
+      try {
+        const info = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
+        if (info?.operation === 'upgrading') {
+          setUpgradeState('upgrading');
+          showSuccess('Version upgrade initiated', `Upgrading to ${newVersion}...`);
+          startPolling();
+        } else {
+          const message = error.detail || 'An error occurred';
+          showError('Failed to start upgrade', message);
+          setUpgradeState('idle');
+        }
+      } catch {
+        const message = error.detail || 'An error occurred';
+        showError('Failed to start upgrade', message);
+        setUpgradeState('idle');
+      }
     } finally {
       setLoading(false);
       submitLockRef.current = false;
