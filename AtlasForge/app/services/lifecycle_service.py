@@ -207,7 +207,6 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             normalized_target_version = _normalize_version(target_version)
             unique_versions = set([v for v in normalized_versions if v])
             upgrade_signal = False
-            target_version_signal = False
             fully_converged = (
                 actual_pod_count == total_replicas
                 and ready_count == total_replicas
@@ -216,7 +215,6 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                     or (
                         normalized_cr_version
                         and unique_versions == {normalized_cr_version}
-                        and (not normalized_target_version or normalized_target_version == normalized_cr_version)
                     )
                 )
             )
@@ -231,20 +229,12 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 upgrade_signal = True
                 operation_message = f"Reconciling pod versions to {cr_version}"
 
-            if normalized_target_version:
-                if normalized_cr_version and normalized_target_version != normalized_cr_version:
-                    target_version_signal = True
-                elif normalized_cr_actual_version and normalized_target_version != normalized_cr_actual_version:
-                    target_version_signal = True
-                elif unique_versions and any(v != normalized_target_version for v in unique_versions):
-                    target_version_signal = True
-
-            if target_version_signal:
-                upgrade_signal = True
+            # Don't mark as upgrading based only on DB target version drift.
+            # If CR + pods are fully converged, deployment is running even if DB requested version is stale.
 
             if upgrade_signal and not fully_converged:
                 operation = "upgrading"
-                version_goal = normalized_target_version or normalized_cr_version
+                version_goal = normalized_cr_version or normalized_target_version
                 upgraded_count = sum(
                     1 for r in replicas
                     if r["ready"] and version_goal and _normalize_version(r["version"]) == version_goal
