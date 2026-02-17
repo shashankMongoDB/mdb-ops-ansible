@@ -9,7 +9,7 @@ interface Replica {
 }
 
 interface StatusData {
-  operation: 'running' | 'upgrading' | 'scaling' | 'stabilizing';
+  operation: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'pending' | 'failed';
   progress: number;
   operationMessage: string;
   targetVersion: string;
@@ -19,6 +19,9 @@ interface StatusData {
   readyReplicas: number;
   totalReplicas: number;
   replicas: Replica[];
+  crPhase?: string;
+  crMessage?: string;
+  crActualVersion?: string;
 }
 
 interface Props {
@@ -50,7 +53,10 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
             currentReplicas: info.currentReplicas || 0,
             readyReplicas: info.readyReplicas || 0,
             totalReplicas: info.totalReplicas || 0,
-            replicas: info.replicas || []
+            replicas: info.replicas || [],
+            crPhase: info.crPhase,
+            crMessage: info.crMessage,
+            crActualVersion: info.crActualVersion
           };
           
           setStatus(statusData);
@@ -103,6 +109,10 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
         return 'text-yellow-600';
       case 'stabilizing':
         return 'text-orange-600';
+      case 'pending':
+        return 'text-yellow-600';
+      case 'failed':
+        return 'text-red-600';
       default:
         return 'text-gray-600';
     }
@@ -118,6 +128,10 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
         return '📊';
       case 'stabilizing':
         return '🔄';
+      case 'pending':
+        return '⏸️';
+      case 'failed':
+        return '❌';
       default:
         return '⚪';
     }
@@ -157,6 +171,37 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
         </div>
       </div>
 
+      {/* CR Phase and Message */}
+      {status.crPhase && status.crPhase !== 'Running' && (
+        <div className={`p-3 rounded-lg ${
+          status.crPhase === 'Failed' ? 'bg-red-50 border border-red-200' :
+          status.crPhase === 'Pending' ? 'bg-yellow-50 border border-yellow-200' :
+          'bg-blue-50 border border-blue-200'
+        }`}>
+          <p className={`text-sm font-medium ${
+            status.crPhase === 'Failed' ? 'text-red-800' :
+            status.crPhase === 'Pending' ? 'text-yellow-800' :
+            'text-blue-800'
+          }`}>
+            CR Phase: {status.crPhase}
+          </p>
+          {status.crMessage && (
+            <p className={`text-xs mt-1 ${
+              status.crPhase === 'Failed' ? 'text-red-700' :
+              status.crPhase === 'Pending' ? 'text-yellow-700' :
+              'text-blue-700'
+            }`}>
+              {status.crMessage}
+            </p>
+          )}
+          {status.crActualVersion && status.crActualVersion !== status.currentVersion && (
+            <p className="text-xs mt-1 text-gray-600">
+              Operator working: {status.crActualVersion} → {status.currentVersion}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Progress Bar */}
       {showProgress && (
         <div className="space-y-2">
@@ -167,6 +212,10 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
                   ? 'bg-blue-500'
                   : status.operation === 'scaling'
                   ? 'bg-yellow-500'
+                  : status.operation === 'pending'
+                  ? 'bg-yellow-500'
+                  : status.operation === 'failed'
+                  ? 'bg-red-500'
                   : 'bg-orange-500'
               }`}
               style={{ width: `${status.progress}%` }}

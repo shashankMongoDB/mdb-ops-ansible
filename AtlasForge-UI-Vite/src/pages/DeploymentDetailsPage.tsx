@@ -332,14 +332,13 @@ export function DeploymentDetailsPage() {
         return null;
       })()}
 
-      {/* Real-time Status Monitor */}
+      {/* Real-time Status Monitor - always show when not shutdown */}
       {deployment.status !== 'shutdown' && tenantId && deploymentId && (
         <div className="mb-6">
           <DeploymentStatusMonitor
             tenantId={tenantId}
             deploymentId={deploymentId}
             onStatusChange={(status) => {
-              // Update connectionInfo when status changes to keep rest of page in sync
               setConnectionInfo((prev: any) => ({
                 ...prev,
                 readyReplicas: status.readyReplicas,

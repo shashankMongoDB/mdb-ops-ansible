@@ -90,13 +90,25 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         if plan == "community":
             cr_version = cr.get("spec", {}).get("version", "") or ""
             cr_replicas = cr.get("spec", {}).get("members", 3) or 3
+            # Get CR status
+            cr_status = cr.get("status", {})
+            cr_phase = cr_status.get("phase", "Unknown")
+            cr_message = cr_status.get("message", "")
+            cr_actual_version = cr_status.get("version", cr_version)  # Version from status
         else:
             cr_version = cr.get("spec", {}).get("version", "") or ""
             cr_replicas = cr.get("spec", {}).get("members", 3) or 3
+            cr_status = cr.get("status", {})
+            cr_phase = cr_status.get("phase", "Unknown")
+            cr_message = cr_status.get("message", "")
+            cr_actual_version = cr_status.get("mongoDbVersion", cr_version)  # Enterprise uses different field
     except Exception as e:
         logger.warning(f"Error reading CR spec: {e}")
         cr_version = target_version
         cr_replicas = target_replicas
+        cr_phase = "Unknown"
+        cr_message = ""
+        cr_actual_version = cr_version
     
     # Get pod/replica status
     try:
@@ -153,37 +165,51 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     operation_message = "All replicas running"
     
     try:
-        # Check for version upgrade
-        unique_versions = set([r["version"] for r in replicas if r["version"] and r["version"] != "unknown"])
-        if len(unique_versions) > 1:
-            # Multiple versions = upgrade in progress
-            operation = "upgrading"
-            upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
-            progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
-            operation_message = f"Upgrading from {min(unique_versions)} to {max(unique_versions)}"
-        elif cr_version and target_version and cr_version != target_version:
-            # CR version doesn't match target = upgrade starting
-            operation = "upgrading"
+        # Check CR phase first - if Pending/Failed, show that
+        if cr_phase in ["Pending", "Failed"]:
+            operation = cr_phase.lower()
             progress = 0
-            operation_message = f"Starting upgrade to {target_version}"
+            operation_message = cr_message or f"CR Phase: {cr_phase}"
         
-        # Check for scaling
-        elif total_replicas != target_replicas:
-            operation = "scaling"
-            if total_replicas < target_replicas:
-                # Scaling up
-                progress = int((total_replicas / target_replicas) * 100) if target_replicas > 0 else 0
-                operation_message = f"Scaling up from {total_replicas} to {target_replicas} members"
-            else:
-                # Scaling down
-                progress = int((target_replicas / total_replicas) * 100) if total_replicas > 0 else 100
-                operation_message = f"Scaling down from {total_replicas} to {target_replicas} members"
+        # Check if CR spec version doesn't match status version (operator reconciling)
+        elif cr_version and cr_actual_version and cr_version != cr_actual_version:
+            operation = "upgrading"
+            progress = 10  # Operator is working on it
+            operation_message = f"Operator upgrading from {cr_actual_version} to {cr_version}"
         
-        # Check for stabilizing (replicas exist but not all ready)
-        elif ready_count < total_replicas:
-            operation = "stabilizing"
-            progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-            operation_message = f"Waiting for {total_replicas - ready_count} replica(s) to become ready"
+        # Check for version upgrade (spec vs target)
+        elif cr_version and target_version and cr_version != target_version:
+            operation = "upgrading"
+            progress = 5
+            operation_message = f"Requested upgrade to {target_version}, CR shows {cr_version}"
+        
+        # Check for version mismatch in pods
+        else:
+            unique_versions = set([r["version"] for r in replicas if r["version"] and r["version"] != "unknown"])
+            if len(unique_versions) > 1:
+                # Multiple versions = upgrade in progress
+                operation = "upgrading"
+                upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
+                progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
+                operation_message = f"Upgrading pods from {min(unique_versions)} to {max(unique_versions)}"
+            
+            # Check for scaling
+            elif total_replicas != target_replicas:
+                operation = "scaling"
+                if total_replicas < target_replicas:
+                    # Scaling up
+                    progress = int((total_replicas / target_replicas) * 100) if target_replicas > 0 else 0
+                    operation_message = f"Scaling up from {total_replicas} to {target_replicas} members"
+                else:
+                    # Scaling down
+                    progress = int((target_replicas / total_replicas) * 100) if total_replicas > 0 else 100
+                    operation_message = f"Scaling down from {total_replicas} to {target_replicas} members"
+            
+            # Check for stabilizing (replicas exist but not all ready)
+            elif ready_count < total_replicas:
+                operation = "stabilizing"
+                progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+                operation_message = f"Waiting for {total_replicas - ready_count} replica(s) to become ready"
     except Exception as e:
         logger.warning(f"Error detecting operation status: {e}")
         # Keep defaults: running, 100%, "All replicas running"
@@ -212,7 +238,10 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "currentReplicas": cr_replicas,
             "readyReplicas": ready_count,
             "totalReplicas": total_replicas,
-            "replicas": replicas
+            "replicas": replicas,
+            "crPhase": cr_phase,
+            "crMessage": cr_message,
+            "crActualVersion": cr_actual_version
         }
         
     except Exception as e:
@@ -234,6 +263,9 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "readyReplicas": ready_count,
             "totalReplicas": total_replicas,
             "replicas": replicas,
+            "crPhase": cr_phase,
+            "crMessage": cr_message,
+            "crActualVersion": cr_actual_version,
             "error": f"Failed to create external service: {str(e)}"
         }
 
