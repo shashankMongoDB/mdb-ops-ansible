@@ -420,14 +420,22 @@ class K8sClient:
 
     def patch_mongodb_enterprise_cr(self, namespace: str, name: str, patch: Dict[str, Any]) -> None:
         """Patch an enterprise MongoDB CR"""
-        self.custom_objects.patch_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodb",
-            name=name,
-            body=patch
-        )
+        try:
+            self.custom_objects.patch_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodb",
+                name=name,
+                body=patch
+            )
+        except ApiException as e:
+            if e.status == 404:
+                raise ValueError(f"MongoDB CR {name} not found in namespace {namespace}")
+            elif e.status == 403:
+                raise ValueError(f"Permission denied: Cannot patch MongoDB CR {name} in namespace {namespace}. Check RBAC permissions.")
+            else:
+                raise ValueError(f"Failed to patch MongoDB CR {name}: {e.reason}")
 
     # ========== Community MongoDB CRs (mongodbcommunity.mongodb.com) ==========
     
@@ -489,14 +497,22 @@ class K8sClient:
 
     def patch_mongodb_community_cr(self, namespace: str, name: str, patch: Dict[str, Any]) -> None:
         """Patch a community MongoDB CR"""
-        self.custom_objects.patch_namespaced_custom_object(
-            group="mongodbcommunity.mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodbcommunity",
-            name=name,
-            body=patch
-        )
+        try:
+            self.custom_objects.patch_namespaced_custom_object(
+                group="mongodbcommunity.mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbcommunity",
+                name=name,
+                body=patch
+            )
+        except ApiException as e:
+            if e.status == 404:
+                raise ValueError(f"MongoDBCommunity CR {name} not found in namespace {namespace}")
+            elif e.status == 403:
+                raise ValueError(f"Permission denied: Cannot patch MongoDBCommunity CR {name} in namespace {namespace}. Check RBAC permissions.")
+            else:
+                raise ValueError(f"Failed to patch MongoDBCommunity CR {name}: {e.reason}")
 
     # ========== Legacy methods for backward compatibility ==========
     

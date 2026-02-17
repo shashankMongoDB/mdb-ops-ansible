@@ -215,7 +215,17 @@ def upgrade_version_community(
     # Strip -ent suffix for community (community uses plain versions like "7.0.14")
     clean_version = new_version.replace("-ent", "")
     
-    logger.info(f"Upgrading community deployment: {namespace}/{deployment_id} to version {clean_version} (from {new_version})")
+    logger.info(f"[COMMUNITY_UPGRADE] Starting upgrade for {namespace}/{deployment_id}")
+    logger.info(f"[COMMUNITY_UPGRADE] Requested version: {new_version}")
+    logger.info(f"[COMMUNITY_UPGRADE] Clean version (stripped -ent): {clean_version}")
+    
+    # Verify CR exists before patching
+    cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+    if not cr:
+        raise ValueError(f"MongoDBCommunity CR {deployment_id} not found in namespace {namespace}")
+    
+    current_cr_version = cr.get("spec", {}).get("version", "unknown")
+    logger.info(f"[COMMUNITY_UPGRADE] Current CR version: {current_cr_version}")
     
     patch = {
         "spec": {
@@ -223,8 +233,9 @@ def upgrade_version_community(
         }
     }
     
+    logger.info(f"[COMMUNITY_UPGRADE] Patching CR with: {patch}")
     k8s.patch_mongodb_community_cr(namespace, deployment_id, patch)
-    logger.info(f"Patched community MongoDB CR with version={clean_version}")
+    logger.info(f"[COMMUNITY_UPGRADE] Successfully patched CR to version {clean_version}")
 
 
 def shutdown_deployment_community(namespace: str, deployment_id: str) -> Dict[str, Any]:

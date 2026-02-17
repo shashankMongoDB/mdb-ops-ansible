@@ -177,17 +177,26 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
         }
 
     # Route to community service if needed
-    if plan == "community":
-        deployments_community_service.upgrade_version_community(namespace, deployment_id, mongo_version)
-    else:
-        # Enterprise: patch CR
-        patch = {
-            "spec": {
-                "version": mongo_version
+    # IMPORTANT: Patch CR first, only update DB if CR patch succeeds
+    try:
+        if plan == "community":
+            deployments_community_service.upgrade_version_community(namespace, deployment_id, mongo_version)
+        else:
+            # Enterprise: patch CR
+            patch = {
+                "spec": {
+                    "version": mongo_version
+                }
             }
-        }
-        k8s.patch_mongodb_enterprise_cr(namespace, deployment_id, patch)
+            k8s.patch_mongodb_enterprise_cr(namespace, deployment_id, patch)
+    except ValueError as e:
+        # Re-raise with context
+        raise ValueError(f"Failed to patch MongoDB CR: {str(e)}")
+    except Exception as e:
+        # Catch any other errors from K8s client
+        raise ValueError(f"Failed to upgrade deployment: {str(e)}")
 
+    # Only update DB if CR patch succeeded
     repo.update_deployment(tenant_id, deployment_id, {
         "lastRequestedSpec.mongoVersion": mongo_version
     })
