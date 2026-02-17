@@ -157,6 +157,11 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
 
   const showProgress = status.operation !== 'running';
   
+  // Don't render anything if everything is running normally
+  if (status.operation === 'running') {
+    return null;
+  }
+  
   // Status message based on operation
   const statusMessage = 
     status.operation === 'upgrading' ? 'Upgrading...' :

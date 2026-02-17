@@ -231,8 +231,8 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                     >
                       {startingDeployment === deployment.deploymentId ? 'Starting...' : 'Start'}
                     </button>
-                  ) : status && status.readyReplicas === 0 ? (
-                    // No replicas ready - block access
+                  ) : status && status.readyReplicas === 0 && status.status === 'pending' ? (
+                    // Brand new deployment with 0 replicas and pending status - block access
                     <button
                       disabled
                       className="px-3 py-1 text-sm border border-gray-300 text-gray-400 rounded cursor-not-allowed"
@@ -241,12 +241,12 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                       Details (Starting...)
                     </button>
                   ) : (
-                    // At least 1 replica ready - allow access
+                    // All other cases - allow access (including during scale operations)
                     <button
                       onClick={() => navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`)}
                       className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
                     >
-                      Details
+                      Details{status && status.readyReplicas === 0 ? ' (Restarting...)' : ''}
                     </button>
                   )}
                 </div>
