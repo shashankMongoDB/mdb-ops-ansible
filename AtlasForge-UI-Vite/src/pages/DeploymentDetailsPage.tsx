@@ -90,6 +90,18 @@ export function DeploymentDetailsPage() {
     }
   };
 
+  // Force refresh connection info immediately after operations
+  const refreshConnectionInfo = async () => {
+    if (!tenantId || !deploymentId || !deployment || deployment.status === 'shutdown') return;
+    
+    try {
+      const connInfo = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
+      setConnectionInfo(connInfo);
+    } catch (error: any) {
+      console.log('Could not refresh connection info:', error);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [tenantId, deploymentId]); // Removed auto-refresh to prevent flickering
@@ -639,7 +651,11 @@ export function DeploymentDetailsPage() {
         <ScaleModal
           open={showScaleModal}
           onClose={() => setShowScaleModal(false)}
-          onSuccess={loadData}
+          onSuccess={async () => {
+            await loadData();
+            // Force immediate refresh to show operation status
+            setTimeout(() => refreshConnectionInfo(), 500);
+          }}
           tenantId={deployment.tenantId}
           deploymentId={deployment.deploymentId}
           currentMembers={deployment.members}
@@ -649,7 +665,11 @@ export function DeploymentDetailsPage() {
       <UpgradeVersionModal
         open={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-        onSuccess={loadData}
+        onSuccess={async () => {
+          await loadData();
+          // Force immediate refresh to show operation status
+          setTimeout(() => refreshConnectionInfo(), 500);
+        }}
         tenantId={deployment.tenantId}
         deploymentId={deployment.deploymentId}
         currentVersion={deployment.mongoVersion}
