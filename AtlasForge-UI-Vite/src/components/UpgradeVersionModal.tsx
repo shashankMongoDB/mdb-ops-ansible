@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, ExclamationTriangleIcon, InformationCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { deploymentsApi } from '@/lib/api';
@@ -31,6 +31,7 @@ export function UpgradeVersionModal({
   const [loading, setLoading] = useState(false);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [upgradeState, setUpgradeState] = useState<'idle' | 'upgrading' | 'complete'>('idle');
+  const submitLockRef = useRef(false);
   const { showSuccess, showError } = useToast();
 
   const isDowngradeAttempt = mongoVersion.trim() && isDowngrade(currentVersion, mongoVersion.trim());
@@ -73,21 +74,26 @@ export function UpgradeVersionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current || loading || upgradeState !== 'idle') return;
+    submitLockRef.current = true;
 
     const newVersion = mongoVersion.trim();
 
     if (!newVersion) {
       showError('MongoDB version is required');
+      submitLockRef.current = false;
       return;
     }
 
     if (newVersion === currentVersion) {
       showError('Version unchanged', 'The new version is the same as current');
+      submitLockRef.current = false;
       return;
     }
 
     if (isDowngradeAttempt) {
       showError('Downgrade not allowed', 'You cannot downgrade to an older MongoDB version');
+      submitLockRef.current = false;
       return;
     }
 
@@ -108,6 +114,7 @@ export function UpgradeVersionModal({
       setUpgradeState('idle');
     } finally {
       setLoading(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -121,6 +128,7 @@ export function UpgradeVersionModal({
     setUpgradeState('idle');
     setMongoVersion('');
     stopPolling();
+    submitLockRef.current = false;
     
     onClose();
     onSuccess(); // Refresh deployment page

@@ -79,8 +79,8 @@ def _rolling_restart_for_reconcile(namespace: str, deployment_id: str, action: s
             logger.warning(f"[{action}] No ready pod before deleting {pod_name}; skipping to avoid full outage")
             continue
 
-        logger.info(f"[{action}] Deleting pod {pod_name}")
-        k8s.delete_pod(namespace, pod_name)
+        logger.info(f"[{action}] Deleting pod {pod_name} with graceful termination")
+        k8s.delete_pod(namespace, pod_name, grace_period=60)
 
         if _wait_for_pod_ready(namespace, deployment_id, pod_name):
             logger.info(f"[{action}] Pod {pod_name} is ready; continuing rolling restart")
@@ -335,7 +335,8 @@ def upgrade_version_community(
     if force_restart:
         logger.info(f"[COMMUNITY_UPGRADE] Force restarting pods (rolling) to trigger reconciliation")
         try:
-            _rolling_restart_for_reconcile(namespace, deployment_id, "COMMUNITY_UPGRADE")
+            # Restart only one pod to trigger reconciliation, then let operator perform rolling upgrade.
+            _rolling_restart_for_reconcile(namespace, deployment_id, "COMMUNITY_UPGRADE", max_pods_to_restart=1)
             logger.info(f"[COMMUNITY_UPGRADE] Rolling restart complete, operator reconciled new version")
         except Exception as e:
             logger.warning(f"[COMMUNITY_UPGRADE] Failed to delete pods: {e}, upgrade may be slow")
