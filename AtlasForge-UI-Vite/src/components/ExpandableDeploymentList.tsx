@@ -124,7 +124,6 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
       {deployments.map((deployment) => {
         const isExpanded = expandedDeployments.has(deployment.deploymentId);
         const status = deploymentStatuses.get(deployment.deploymentId);
-        const isShutdown = (status && status.status === 'shutdown') || deployment.status === 'shutdown';
         const isInitialCreate = !!(status && deployment.status === 'pending' && status.readyReplicas === 0);
         const statusColor = status ? getStatusColor(status.status) : 'text-gray-600';
         const statusIcon = status ? getStatusIcon(status.status) : '○';
@@ -156,7 +155,7 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                   <button
                     onClick={() => {
                       // Block only for initial creation state, not scale/upgrade operations
-                      if (!isInitialCreate && !isShutdown) {
+                      if (!isInitialCreate) {
                         navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`);
                       } else {
                         // Just toggle expand to show status
@@ -164,11 +163,11 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                       }
                     }}
                     className={`font-medium transition-colors text-left ${
-                      !isInitialCreate && !isShutdown
+                      !isInitialCreate
                         ? 'text-mongodb-forest hover:text-mongodb-green cursor-pointer'
                         : 'text-gray-600 cursor-default'
                     }`}
-                    title={isInitialCreate ? 'Details available when first replica is ready' : isShutdown ? 'Details unavailable while deployment is shutdown' : ''}
+                    title={isInitialCreate ? 'Details available when first replica is ready' : ''}
                   >
                     {deployment.displayName || deployment.deploymentId}
                   </button>
@@ -225,13 +224,16 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
 
                 {/* Actions - Conditional based on status */}
                 <div className="flex gap-2">
-                  {isShutdown ? (
+                  {status?.status === 'shutdown' ? (
                     <button
-                      disabled
-                      className="px-3 py-1 text-sm border border-gray-300 text-gray-400 rounded cursor-not-allowed"
-                      title="Details unavailable while deployment is shutdown"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartDeployment(deployment.deploymentId);
+                      }}
+                      disabled={startingDeployment === deployment.deploymentId}
+                      className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Details
+                      {startingDeployment === deployment.deploymentId ? 'Starting...' : 'Start'}
                     </button>
                   ) : isInitialCreate ? (
                     // Brand new deployment with 0 replicas and pending status - block access

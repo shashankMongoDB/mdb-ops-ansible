@@ -364,7 +364,12 @@ export function DeploymentDetailsPage() {
               <p className="text-xs text-mongodb-slate">Updated: {formatTimestamp(deployment.status.timestamp)}</p>
             )}
             <div className="flex gap-2 items-center">
-              <button onClick={loadData} className="text-mongodb-green hover:text-mongodb-green-dark p-1" title="Refresh">
+              <button
+                onClick={loadData}
+                disabled={deployment.status === 'shutdown'}
+                className={deployment.status === 'shutdown' ? 'text-gray-400 p-1 cursor-not-allowed' : 'text-mongodb-green hover:text-mongodb-green-dark p-1'}
+                title={deployment.status === 'shutdown' ? 'Refresh disabled while shutdown' : 'Refresh'}
+              >
                 <ArrowPathIcon className="h-5 w-5" />
               </button>
               <button 
@@ -385,10 +390,17 @@ export function DeploymentDetailsPage() {
           {(['overview', 'users', 'backup', 'monitoring'] as TabType[]).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                if (deployment.status !== 'shutdown') {
+                  setActiveTab(tab);
+                }
+              }}
+              disabled={deployment.status === 'shutdown'}
               className={`py-2 px-1 border-b-2 font-medium text-sm capitalize ${
                 activeTab === tab
                   ? 'border-mongodb-green text-mongodb-green'
+                  : deployment.status === 'shutdown'
+                  ? 'border-transparent text-gray-400 cursor-not-allowed'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
