@@ -196,15 +196,24 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
         # Catch any other errors from K8s client
         raise ValueError(f"Failed to upgrade deployment: {str(e)}")
 
-    # Only update DB if CR patch succeeded
-    repo.update_deployment(tenant_id, deployment_id, {
-        "lastRequestedSpec.mongoVersion": mongo_version
-    })
+    # CR patch already succeeded; DB sync failure should not fail the API response
+    db_sync_warning = None
+    try:
+        repo.update_deployment(tenant_id, deployment_id, {
+            "lastRequestedSpec.mongoVersion": mongo_version
+        })
+    except Exception as e:
+        db_sync_warning = f"Upgrade started, but failed to persist requested version in DB: {str(e)}"
 
-    return {
+    result = {
         "tenantId": tenant_id,
         "deploymentId": deployment_id,
         "clusterType": deployment.get("type", "ReplicaSet"),
         "oldVersion": current_version,
         "newVersion": mongo_version
     }
+
+    if db_sync_warning:
+        result["warning"] = db_sync_warning
+
+    return result

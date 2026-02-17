@@ -46,7 +46,7 @@ export function UpgradeVersionModal({
       showSuccess('Upgrade complete!', `All replicas upgraded to ${mongoVersion}`);
     },
     onError: (error) => {
-      showError('Upgrade monitoring failed', error);
+      showError('Upgrade monitoring delayed', error);
     },
   });
 
@@ -103,7 +103,8 @@ export function UpgradeVersionModal({
       // Start polling for progress
       startPolling();
     } catch (error: any) {
-      showError('Failed to upgrade version', error.detail || 'An error occurred');
+      const message = error.detail || 'An error occurred';
+      showError('Failed to start upgrade', message);
       setUpgradeState('idle');
     } finally {
       setLoading(false);
