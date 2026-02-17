@@ -332,8 +332,9 @@ export function DeploymentDetailsPage() {
         return null;
       })()}
 
-      {/* Real-time Status Monitor - always show when not shutdown */}
-      {deployment.status !== 'shutdown' && tenantId && deploymentId && (
+      {/* Real-time Status Monitor - only show during operations */}
+      {deployment.status !== 'shutdown' && connectionInfo && 
+       connectionInfo.operation && connectionInfo.operation !== 'running' && (
         <div className="mb-6">
           <DeploymentStatusMonitor
             tenantId={tenantId}
