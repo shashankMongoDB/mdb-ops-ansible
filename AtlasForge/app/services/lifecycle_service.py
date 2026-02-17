@@ -78,6 +78,93 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     internal_host_port = f"{internal_service}.{namespace}.svc.cluster.local:27017"
     internal_uri = f"mongodb://{internal_host_port}"
     
+    # Get target state from DB (what user requested)
+    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "")
+    target_replicas = deployment.get("lastRequestedSpec", {}).get("replicas", 3)
+    
+    # Get actual state from CR (what Kubernetes has)
+    if plan == "community":
+        cr_version = cr.get("spec", {}).get("version", "")
+        cr_replicas = cr.get("spec", {}).get("members", 3)
+    else:
+        cr_version = cr.get("spec", {}).get("version", "")
+        cr_replicas = cr.get("spec", {}).get("members", 3)
+    
+    # Get pod/replica status
+    pods = k8s.get_deployment_pods(namespace, deployment_id)
+    replicas = []
+    ready_count = 0
+    
+    for pod in pods:
+        pod_name = pod.metadata.name
+        pod_phase = pod.status.phase
+        is_ready = False
+        
+        # Check if pod is ready
+        if pod.status.conditions:
+            for condition in pod.status.conditions:
+                if condition.type == "Ready" and condition.status == "True":
+                    is_ready = True
+                    ready_count += 1
+                    break
+        
+        # Get MongoDB version from pod (from image or container)
+        mongo_version = "unknown"
+        if pod.spec.containers:
+            for container in pod.spec.containers:
+                if "mongo" in container.image.lower():
+                    # Extract version from image tag
+                    image_parts = container.image.split(":")
+                    if len(image_parts) > 1:
+                        mongo_version = image_parts[1]
+                    break
+        
+        replicas.append({
+            "name": pod_name,
+            "version": mongo_version,
+            "status": pod_phase,
+            "ready": is_ready
+        })
+    
+    total_replicas = len(replicas)
+    
+    # Detect operation type and calculate progress
+    operation = "running"
+    progress = 100
+    operation_message = "All replicas running"
+    
+    # Check for version upgrade
+    unique_versions = set([r["version"] for r in replicas if r["version"] != "unknown"])
+    if len(unique_versions) > 1:
+        # Multiple versions = upgrade in progress
+        operation = "upgrading"
+        upgraded_count = sum(1 for r in replicas if r["ready"] and r["version"] == cr_version)
+        progress = int((upgraded_count / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Upgrading from {min(unique_versions)} to {max(unique_versions)}"
+    elif cr_version != target_version:
+        # CR version doesn't match target = upgrade starting
+        operation = "upgrading"
+        progress = 0
+        operation_message = f"Starting upgrade to {target_version}"
+    
+    # Check for scaling
+    elif total_replicas != target_replicas:
+        operation = "scaling"
+        if total_replicas < target_replicas:
+            # Scaling up
+            progress = int((total_replicas / target_replicas) * 100)
+            operation_message = f"Scaling up from {total_replicas} to {target_replicas} members"
+        else:
+            # Scaling down
+            progress = int((target_replicas / total_replicas) * 100)
+            operation_message = f"Scaling down from {total_replicas} to {target_replicas} members"
+    
+    # Check for stabilizing (replicas exist but not all ready)
+    elif ready_count < total_replicas:
+        operation = "stabilizing"
+        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Waiting for {total_replicas - ready_count} replica(s) to become ready"
+    
     # Ensure external NodePort service exists
     try:
         external_service_name, node_port = k8s.ensure_external_service(namespace, deployment_id)
@@ -92,7 +179,17 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "replicaSet": replica_set_name,
             "internalUri": internal_uri,
             "externalHostPort": external_host_port,
-            "externalUri": external_uri
+            "externalUri": external_uri,
+            "operation": operation,
+            "progress": progress,
+            "operationMessage": operation_message,
+            "targetVersion": target_version,
+            "targetReplicas": target_replicas,
+            "currentVersion": cr_version,
+            "currentReplicas": cr_replicas,
+            "readyReplicas": ready_count,
+            "totalReplicas": total_replicas,
+            "replicas": replicas
         }
         
     except Exception as e:
@@ -104,6 +201,16 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "internalUri": internal_uri,
             "externalHostPort": None,
             "externalUri": None,
+            "operation": operation,
+            "progress": progress,
+            "operationMessage": operation_message,
+            "targetVersion": target_version,
+            "targetReplicas": target_replicas,
+            "currentVersion": cr_version,
+            "currentReplicas": cr_replicas,
+            "readyReplicas": ready_count,
+            "totalReplicas": total_replicas,
+            "replicas": replicas,
             "error": f"Failed to create external service: {str(e)}"
         }
 
