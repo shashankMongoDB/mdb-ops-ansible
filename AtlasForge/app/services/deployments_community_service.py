@@ -181,15 +181,18 @@ def delete_deployment_community(namespace: str, deployment_id: str) -> bool:
 def scale_deployment_community(
     namespace: str,
     deployment_id: str,
-    new_members: int
+    new_members: int,
+    force_restart: bool = True
 ) -> None:
     """
     Scale a community MongoDB ReplicaSet by patching the CR.
+    If force_restart=True, deletes pods to force operator to reconcile.
     """
     k8s = get_k8s_client()
     
-    logger.info(f"Scaling community deployment: {namespace}/{deployment_id} to {new_members} members")
+    logger.info(f"[COMMUNITY_SCALE] Scaling {namespace}/{deployment_id} to {new_members} members")
     
+    # Patch CR
     patch = {
         "spec": {
             "members": new_members
@@ -197,18 +200,34 @@ def scale_deployment_community(
     }
     
     k8s.patch_mongodb_community_cr(namespace, deployment_id, patch)
-    logger.info(f"Patched community MongoDB CR with members={new_members}")
+    logger.info(f"[COMMUNITY_SCALE] Patched CR with members={new_members}")
+    
+    # Force restart pods to trigger operator reconciliation
+    if force_restart:
+        logger.info(f"[COMMUNITY_SCALE] Force restarting pods to trigger reconciliation")
+        try:
+            pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
+            for pod in pods:
+                pod_name = pod.metadata.name if pod.metadata else None
+                if pod_name:
+                    logger.info(f"[COMMUNITY_SCALE] Deleting pod {pod_name}")
+                    k8s.delete_pod(namespace, pod_name)
+            logger.info(f"[COMMUNITY_SCALE] All pods deleted, operator will recreate with new scale")
+        except Exception as e:
+            logger.warning(f"[COMMUNITY_SCALE] Failed to delete pods: {e}, scale may be slow")
 
 
 def upgrade_version_community(
     namespace: str,
     deployment_id: str,
-    new_version: str
+    new_version: str,
+    force_restart: bool = True
 ) -> None:
     """
     Upgrade MongoDB version for a community deployment by patching the CR.
     
     Community MongoDB doesn't use -ent suffix, so strip it if present.
+    If force_restart=True, deletes pods to force operator to reconcile.
     """
     k8s = get_k8s_client()
     
@@ -227,6 +246,7 @@ def upgrade_version_community(
     current_cr_version = cr.get("spec", {}).get("version", "unknown")
     logger.info(f"[COMMUNITY_UPGRADE] Current CR version: {current_cr_version}")
     
+    # Patch CR
     patch = {
         "spec": {
             "version": clean_version
@@ -236,6 +256,20 @@ def upgrade_version_community(
     logger.info(f"[COMMUNITY_UPGRADE] Patching CR with: {patch}")
     k8s.patch_mongodb_community_cr(namespace, deployment_id, patch)
     logger.info(f"[COMMUNITY_UPGRADE] Successfully patched CR to version {clean_version}")
+    
+    # Force restart pods to trigger operator reconciliation
+    if force_restart:
+        logger.info(f"[COMMUNITY_UPGRADE] Force restarting pods to trigger reconciliation")
+        try:
+            pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
+            for pod in pods:
+                pod_name = pod.metadata.name if pod.metadata else None
+                if pod_name:
+                    logger.info(f"[COMMUNITY_UPGRADE] Deleting pod {pod_name}")
+                    k8s.delete_pod(namespace, pod_name)
+            logger.info(f"[COMMUNITY_UPGRADE] All pods deleted, operator will recreate with new version")
+        except Exception as e:
+            logger.warning(f"[COMMUNITY_UPGRADE] Failed to delete pods: {e}, upgrade may be slow")
 
 
 def shutdown_deployment_community(namespace: str, deployment_id: str) -> Dict[str, Any]:

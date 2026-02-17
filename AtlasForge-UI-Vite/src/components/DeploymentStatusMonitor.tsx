@@ -88,13 +88,21 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
     };
   }, [tenantId, deploymentId, onStatusChange]);
 
-  if (loading || !status) {
+  if (loading && !status) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center gap-3">
           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-mongodb-green"></div>
           <span className="text-mongodb-slate">Loading status...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (!status) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <p className="text-red-600">Failed to load deployment status</p>
       </div>
     );
   }
@@ -148,26 +156,45 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
   };
 
   const showProgress = status.operation !== 'running';
+  
+  // Status message based on operation
+  const statusMessage = 
+    status.operation === 'upgrading' ? 'Upgrading...' :
+    status.operation === 'scaling' ? 'Scaling...' :
+    status.operation === 'pending' ? 'Pending...' :
+    status.operation === 'stabilizing' ? (
+      status.readyReplicas === 0 ? 'Starting Up...' :
+      status.readyReplicas === 1 ? 'Initializing...' :
+      'Stabilizing...'
+    ) :
+    status.operation === 'failed' ? 'Failed' :
+    'Running';
+
+  // Show blue banner style when operation in progress
+  const bannerStyle = showProgress 
+    ? 'bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3'
+    : 'bg-white rounded-lg shadow-md p-6 space-y-4';
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
-      {/* Operation Status */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{getOperationIcon()}</span>
-          <div>
-            <h3 className={`text-lg font-semibold ${getOperationColor()}`}>
-              {status.operation.charAt(0).toUpperCase() + status.operation.slice(1)}
-            </h3>
-            <p className="text-sm text-mongodb-slate">
-              Replicas: {status.readyReplicas}/{status.totalReplicas} ready
-            </p>
+    <div className={bannerStyle}>
+      {/* Operation Status Header */}
+      <div className="flex items-center gap-3">
+        {showProgress && (
+          <div className="animate-spin">
+            <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
           </div>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-mongodb-forest">
-            {status.progress}%
-          </div>
+        )}
+        {!showProgress && <span className="text-2xl">{getOperationIcon()}</span>}
+        <div className="flex-1">
+          <h3 className={`font-semibold ${showProgress ? 'text-blue-900' : getOperationColor()}`}>
+            {statusMessage}
+          </h3>
+          <p className={`text-sm ${showProgress ? 'text-blue-700' : 'text-mongodb-slate'}`}>
+            Replicas: {status.readyReplicas}/{status.totalReplicas} ready
+          </p>
         </div>
       </div>
 
@@ -205,23 +232,27 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
       {/* Progress Bar */}
       {showProgress && (
         <div className="space-y-2">
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+          <div className="flex justify-between text-xs text-gray-600 mb-1">
+            <span>Progress</span>
+            <span>{status.progress}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
             <div
               className={`h-full transition-all duration-500 ${
                 status.operation === 'upgrading'
                   ? 'bg-blue-500'
                   : status.operation === 'scaling'
-                  ? 'bg-yellow-500'
+                  ? 'bg-blue-500'
                   : status.operation === 'pending'
                   ? 'bg-yellow-500'
                   : status.operation === 'failed'
                   ? 'bg-red-500'
-                  : 'bg-orange-500'
+                  : 'bg-blue-500'
               }`}
               style={{ width: `${status.progress}%` }}
             ></div>
           </div>
-          <p className="text-sm text-mongodb-slate">{status.operationMessage}</p>
+          <p className="text-sm text-gray-600">{status.operationMessage}</p>
         </div>
       )}
 
