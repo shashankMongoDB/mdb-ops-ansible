@@ -28,9 +28,10 @@ interface Props {
   tenantId: string;
   deploymentId: string;
   onStatusChange?: (status: StatusData) => void;
+  compact?: boolean;
 }
 
-export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange }: Props) {
+export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange, compact = false }: Props) {
   const [status, setStatus] = useState<StatusData | null>(null);
 
   useEffect(() => {
@@ -160,6 +161,30 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
   const bannerStyle = showProgress 
     ? 'bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3'
     : 'bg-white rounded-lg shadow-md p-6 space-y-4';
+
+  if (compact) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="animate-spin">
+              <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-blue-900 truncate">{statusMessage}</p>
+              <p className="text-sm text-blue-700 truncate">
+                Replicas: {status.readyReplicas}/{status.totalReplicas} • {status.operationMessage}
+              </p>
+            </div>
+          </div>
+          <div className="text-sm font-semibold text-blue-900 whitespace-nowrap">{status.progress}%</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={bannerStyle}>

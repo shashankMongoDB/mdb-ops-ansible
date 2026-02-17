@@ -129,19 +129,19 @@ def _get_replica_set_status(
         has_upgrade_signal = False
         upgrading = False
 
-    # If there is an upgrade signal from pod versions, prefer upgrade status over scaling.
-    if upgrading and has_upgrade_signal:
-        operation = "upgrading"
-        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
-        operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
-        status = "partial" if ready_count < total_replicas else "running"
-        phase = "Upgrading"
-    elif actual_replicas != total_replicas:
+    # During replica-count changes, always show scaling (even if versions are mixed).
+    if actual_replicas != total_replicas:
         operation = "scaling"
         progress = int((actual_replicas / total_replicas) * 100) if total_replicas > 0 else 0
         operation_message = f"Scaling replicas ({actual_replicas}/{total_replicas} created)"
         status = "partial" if ready_count > 0 else "pending"
         phase = "Scaling"
+    elif upgrading and has_upgrade_signal:
+        operation = "upgrading"
+        progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+        operation_message = f"Upgrading MongoDB version ({ready_count}/{total_replicas} ready)"
+        status = "partial" if ready_count < total_replicas else "running"
+        phase = "Upgrading"
     elif ready_count == 0:
         operation = "pending"
         progress = 0

@@ -298,10 +298,11 @@ export function DeploymentDetailsPage() {
 
       {/* Real-time Status Monitor - show during operations */}
       {deployment.status !== 'shutdown' && tenantId && deploymentId && (
-        <div className="mb-6 relative z-10">
+        <div className="mb-6 sticky top-2 z-20">
           <DeploymentStatusMonitor
             tenantId={tenantId}
             deploymentId={deploymentId}
+            compact
             onStatusChange={(status) => {
               setConnectionInfo((prev: any) => ({
                 ...prev,
