@@ -107,8 +107,8 @@ def _get_replica_set_status(
         if pod_status["ready"]:
             ready_count += 1
     
-    # Determine overall status
-    total_replicas = deployment.get("members", 3)
+    # Determine target replicas from CR spec first (source of truth), fallback to DB
+    total_replicas = _get_target_members_from_cr(namespace, deployment_id, plan, deployment)
     if ready_count == 0:
         status = "pending"
         phase = "Pending"
@@ -135,6 +135,30 @@ def _get_replica_set_status(
         },
         "lastUpdated": datetime.now(timezone.utc).isoformat()
     }
+
+
+def _get_target_members_from_cr(
+    namespace: str,
+    deployment_id: str,
+    plan: str,
+    deployment: Dict[str, Any]
+) -> int:
+    """Get target member count from CR spec; fallback to DB deployment value."""
+    k8s = get_k8s_client()
+    fallback_members = deployment.get("members", 3)
+
+    try:
+        if plan == "community":
+            cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+        else:
+            cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
+
+        if cr:
+            return cr.get("spec", {}).get("members", fallback_members) or fallback_members
+    except Exception:
+        pass
+
+    return fallback_members
 
 
 def _get_sharded_cluster_status(

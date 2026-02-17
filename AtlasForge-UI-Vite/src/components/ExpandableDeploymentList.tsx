@@ -150,9 +150,9 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                 <div className="flex-1 min-w-0">
                   <button
                     onClick={() => {
-                      // Block only for brand-new pending deployments with zero ready replicas
-                      const isBrandNewPending = status && status.status === 'pending' && status.readyReplicas === 0;
-                      if (!isBrandNewPending) {
+                      // Block only for initial creation state, not scale/upgrade operations
+                      const isInitialCreate = status && deployment.status === 'pending' && status.readyReplicas === 0;
+                      if (!isInitialCreate) {
                         navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`);
                       } else {
                         // Just toggle expand to show status
@@ -160,11 +160,11 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                       }
                     }}
                     className={`font-medium transition-colors text-left ${
-                      !(status && status.status === 'pending' && status.readyReplicas === 0)
+                      !(status && deployment.status === 'pending' && status.readyReplicas === 0)
                         ? 'text-mongodb-forest hover:text-mongodb-green cursor-pointer'
                         : 'text-gray-600 cursor-default'
                     }`}
-                    title={status && status.status === 'pending' && status.readyReplicas === 0 ? 'Details available when first replica is ready' : ''}
+                    title={status && deployment.status === 'pending' && status.readyReplicas === 0 ? 'Details available when first replica is ready' : ''}
                   >
                     {deployment.displayName || deployment.deploymentId}
                   </button>
@@ -232,7 +232,7 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                     >
                       {startingDeployment === deployment.deploymentId ? 'Starting...' : 'Start'}
                     </button>
-                  ) : status && status.readyReplicas === 0 && status.status === 'pending' ? (
+                  ) : status && status.readyReplicas === 0 && deployment.status === 'pending' ? (
                     // Brand new deployment with 0 replicas and pending status - block access
                     <button
                       disabled
