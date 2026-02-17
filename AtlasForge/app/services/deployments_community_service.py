@@ -3,11 +3,89 @@ Community MongoDB deployments service.
 Handles MongoDBCommunity CRs (mongodbcommunity.mongodb.com/v1) without Ops Manager.
 """
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from app.services.k8s_client import get_k8s_client
 
 logger = logging.getLogger(__name__)
+
+
+def _is_pod_ready(pod: Any) -> bool:
+    if not pod or not getattr(pod, "status", None):
+        return False
+    conditions = getattr(pod.status, "conditions", None) or []
+    for condition in conditions:
+        if getattr(condition, "type", None) == "Ready" and getattr(condition, "status", None) == "True":
+            return True
+    return False
+
+
+def _wait_for_pod_ready(namespace: str, deployment_id: str, pod_name: str, timeout_seconds: int = 600) -> bool:
+    k8s = get_k8s_client()
+    deadline = time.time() + timeout_seconds
+
+    while time.time() < deadline:
+        try:
+            pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
+            for pod in pods:
+                if pod.metadata and pod.metadata.name == pod_name and _is_pod_ready(pod):
+                    return True
+        except Exception:
+            pass
+        time.sleep(5)
+
+    return False
+
+
+def _wait_for_any_ready_pod(namespace: str, deployment_id: str, timeout_seconds: int = 300) -> bool:
+    k8s = get_k8s_client()
+    deadline = time.time() + timeout_seconds
+
+    while time.time() < deadline:
+        try:
+            pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
+            if any(_is_pod_ready(pod) for pod in pods):
+                return True
+        except Exception:
+            pass
+        time.sleep(5)
+
+    return False
+
+
+def _rolling_restart_for_reconcile(namespace: str, deployment_id: str, action: str, max_pods_to_restart: Optional[int] = None) -> None:
+    """
+    Restart pods one-by-one to preserve connectivity while forcing reconciliation.
+    """
+    k8s = get_k8s_client()
+    pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
+
+    pod_names = [pod.metadata.name for pod in pods if pod.metadata and pod.metadata.name]
+    # Restart higher ordinals first to reduce PRIMARY disruption risk.
+    pod_names = sorted(pod_names, reverse=True)
+
+    if max_pods_to_restart is not None:
+        pod_names = pod_names[:max_pods_to_restart]
+
+    if not pod_names:
+        logger.info(f"[{action}] No pods found for rolling restart")
+        return
+
+    logger.info(f"[{action}] Rolling restart for reconcile: {pod_names}")
+
+    for pod_name in pod_names:
+        if not _wait_for_any_ready_pod(namespace, deployment_id):
+            logger.warning(f"[{action}] No ready pod before deleting {pod_name}; skipping to avoid full outage")
+            continue
+
+        logger.info(f"[{action}] Deleting pod {pod_name}")
+        k8s.delete_pod(namespace, pod_name)
+
+        if _wait_for_pod_ready(namespace, deployment_id, pod_name):
+            logger.info(f"[{action}] Pod {pod_name} is ready; continuing rolling restart")
+        else:
+            logger.warning(f"[{action}] Timed out waiting for {pod_name} to become ready")
 
 
 def create_community_replicaset_cr(
@@ -204,15 +282,11 @@ def scale_deployment_community(
     
     # Force restart pods to trigger operator reconciliation
     if force_restart:
-        logger.info(f"[COMMUNITY_SCALE] Force restarting pods to trigger reconciliation")
+        logger.info(f"[COMMUNITY_SCALE] Force restarting pods (rolling) to trigger reconciliation")
         try:
-            pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
-            for pod in pods:
-                pod_name = pod.metadata.name if pod.metadata else None
-                if pod_name:
-                    logger.info(f"[COMMUNITY_SCALE] Deleting pod {pod_name}")
-                    k8s.delete_pod(namespace, pod_name)
-            logger.info(f"[COMMUNITY_SCALE] All pods deleted, operator will recreate with new scale")
+            # For scale, restarting one pod is enough to trigger reconcile while minimizing disruption.
+            _rolling_restart_for_reconcile(namespace, deployment_id, "COMMUNITY_SCALE", max_pods_to_restart=1)
+            logger.info(f"[COMMUNITY_SCALE] Rolling restart trigger complete")
         except Exception as e:
             logger.warning(f"[COMMUNITY_SCALE] Failed to delete pods: {e}, scale may be slow")
 
@@ -259,15 +333,10 @@ def upgrade_version_community(
     
     # Force restart pods to trigger operator reconciliation
     if force_restart:
-        logger.info(f"[COMMUNITY_UPGRADE] Force restarting pods to trigger reconciliation")
+        logger.info(f"[COMMUNITY_UPGRADE] Force restarting pods (rolling) to trigger reconciliation")
         try:
-            pods = k8s.list_pods_for_statefulset(namespace, deployment_id)
-            for pod in pods:
-                pod_name = pod.metadata.name if pod.metadata else None
-                if pod_name:
-                    logger.info(f"[COMMUNITY_UPGRADE] Deleting pod {pod_name}")
-                    k8s.delete_pod(namespace, pod_name)
-            logger.info(f"[COMMUNITY_UPGRADE] All pods deleted, operator will recreate with new version")
+            _rolling_restart_for_reconcile(namespace, deployment_id, "COMMUNITY_UPGRADE")
+            logger.info(f"[COMMUNITY_UPGRADE] Rolling restart complete, operator reconciled new version")
         except Exception as e:
             logger.warning(f"[COMMUNITY_UPGRADE] Failed to delete pods: {e}, upgrade may be slow")
 

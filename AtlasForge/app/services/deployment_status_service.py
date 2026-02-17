@@ -111,7 +111,8 @@ def _get_replica_set_status(
     # Determine overall status and operation state
     total_replicas = _get_target_members_from_cr(namespace, deployment_id, plan, deployment)
     actual_replicas = len(pod_list)
-    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "") or deployment.get("mongoVersion", "")
+    # Use CR spec version as source of truth for upgrade detection
+    target_version = _get_target_version_from_cr(namespace, deployment_id, plan, deployment)
     pod_versions = [
         pod.get("version")
         for pod in pod_list
@@ -202,6 +203,30 @@ def _get_target_members_from_cr(
         pass
 
     return fallback_members
+
+
+def _get_target_version_from_cr(
+    namespace: str,
+    deployment_id: str,
+    plan: str,
+    deployment: Dict[str, Any]
+) -> str:
+    """Get target MongoDB version from CR spec; fallback to DB deployment value."""
+    k8s = get_k8s_client()
+    fallback_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "") or deployment.get("mongoVersion", "")
+
+    try:
+        if plan == "community":
+            cr = k8s.get_mongodb_community_cr(namespace, deployment_id)
+        else:
+            cr = k8s.get_mongodb_enterprise_cr(namespace, deployment_id)
+
+        if cr:
+            return cr.get("spec", {}).get("version", fallback_version) or fallback_version
+    except Exception:
+        pass
+
+    return fallback_version
 
 
 def _get_sharded_cluster_status(
