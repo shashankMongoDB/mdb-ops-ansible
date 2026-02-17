@@ -150,8 +150,9 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                 <div className="flex-1 min-w-0">
                   <button
                     onClick={() => {
-                      // Allow navigation if at least 1 replica is ready
-                      if (status && status.readyReplicas >= 1) {
+                      // Block only for brand-new pending deployments with zero ready replicas
+                      const isBrandNewPending = status && status.status === 'pending' && status.readyReplicas === 0;
+                      if (!isBrandNewPending) {
                         navigate(`/tenants/${tenantId}/deployments/${deployment.deploymentId}`);
                       } else {
                         // Just toggle expand to show status
@@ -159,11 +160,11 @@ export function ExpandableDeploymentList({ tenantId, deployments, tenantPlan }: 
                       }
                     }}
                     className={`font-medium transition-colors text-left ${
-                      status && status.readyReplicas >= 1
+                      !(status && status.status === 'pending' && status.readyReplicas === 0)
                         ? 'text-mongodb-forest hover:text-mongodb-green cursor-pointer'
                         : 'text-gray-600 cursor-default'
                     }`}
-                    title={status && status.readyReplicas === 0 ? 'Details available when first replica is ready' : ''}
+                    title={status && status.status === 'pending' && status.readyReplicas === 0 ? 'Details available when first replica is ready' : ''}
                   >
                     {deployment.displayName || deployment.deploymentId}
                   </button>

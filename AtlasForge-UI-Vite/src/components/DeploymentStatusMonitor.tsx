@@ -32,7 +32,6 @@ interface Props {
 
 export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange }: Props) {
   const [status, setStatus] = useState<StatusData | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -41,10 +40,9 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
     const pollStatus = async () => {
       try {
         const info = await deploymentsApi.getConnectionInfo(tenantId, deploymentId);
-        
-        if (isMounted && info.operation) {
+        if (isMounted) {
           const statusData: StatusData = {
-            operation: info.operation,
+            operation: info.operation || 'running',
             progress: info.progress || 0,
             operationMessage: info.operationMessage || '',
             targetVersion: info.targetVersion || '',
@@ -60,7 +58,6 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
           };
           
           setStatus(statusData);
-          setLoading(false);
           
           if (onStatusChange) {
             onStatusChange(statusData);
@@ -72,7 +69,6 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
         }
       } catch (error) {
         console.error('Failed to poll deployment status:', error);
-        setLoading(false);
         // Retry after 10 seconds on error
         timeoutId = setTimeout(pollStatus, 10000);
       }
@@ -88,23 +84,8 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
     };
   }, [tenantId, deploymentId, onStatusChange]);
 
-  if (loading && !status) {
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center gap-3">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-mongodb-green"></div>
-          <span className="text-mongodb-slate">Loading status...</span>
-        </div>
-      </div>
-    );
-  }
-
   if (!status) {
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <p className="text-red-600">Failed to load deployment status</p>
-      </div>
-    );
+    return null;
   }
 
   const getOperationColor = () => {
