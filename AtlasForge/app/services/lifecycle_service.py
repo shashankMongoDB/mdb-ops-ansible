@@ -82,8 +82,13 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     internal_uri = f"mongodb://{internal_host_port}"
     
     # Get target state from DB (what user requested)
-    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "") or ""
-    target_replicas = deployment.get("lastRequestedSpec", {}).get("replicas", 3) or 3
+    target_version = deployment.get("lastRequestedSpec", {}).get("mongoVersion", "") or deployment.get("mongoVersion", "") or ""
+    target_replicas = (
+        deployment.get("lastRequestedSpec", {}).get("members")
+        or deployment.get("lastRequestedSpec", {}).get("replicas")
+        or deployment.get("members")
+        or 3
+    )
     
     # Get actual state from CR (what Kubernetes has)
     try:
@@ -157,9 +162,8 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             logger.warning(f"Error processing pod in {namespace}/{deployment_id}: {e}")
             continue
     
-    # Use target replicas from CR spec, not actual pod count
-    # This ensures we track progress toward the desired state
-    total_replicas = cr_replicas or len(replicas)
+    # Use target replicas from CR spec as source of truth
+    total_replicas = cr_replicas or target_replicas or len(replicas)
     actual_pod_count = len(replicas)
     
     # Detect operation type and calculate progress
@@ -197,22 +201,22 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
                 operation_message = f"Upgrading pods from {min(unique_versions)} to {max(unique_versions)}"
             
             # Check for scaling (actual pod count vs target)
-            elif actual_pod_count != target_replicas:
+            elif actual_pod_count != total_replicas:
                 operation = "scaling"
-                if actual_pod_count < target_replicas:
+                if actual_pod_count < total_replicas:
                     # Scaling up - base progress on actual pods created
-                    progress = int((actual_pod_count / target_replicas) * 100) if target_replicas > 0 else 0
-                    operation_message = f"Scaling up: {actual_pod_count}/{target_replicas} replicas created"
+                    progress = int((actual_pod_count / total_replicas) * 100) if total_replicas > 0 else 0
+                    operation_message = f"Scaling up: {actual_pod_count}/{total_replicas} replicas created"
                 else:
                     # Scaling down
-                    progress = int((target_replicas / actual_pod_count) * 100) if actual_pod_count > 0 else 100
-                    operation_message = f"Scaling down: removing {actual_pod_count - target_replicas} replica(s)"
+                    progress = int((total_replicas / actual_pod_count) * 100) if actual_pod_count > 0 else 100
+                    operation_message = f"Scaling down: removing {actual_pod_count - total_replicas} replica(s)"
             
             # Check for stabilizing (not all replicas ready yet)
-            elif ready_count < target_replicas:
+            elif ready_count < total_replicas:
                 operation = "stabilizing"
-                progress = int((ready_count / target_replicas) * 100) if target_replicas > 0 else 0
-                operation_message = f"Stabilizing: {ready_count}/{target_replicas} replicas ready"
+                progress = int((ready_count / total_replicas) * 100) if total_replicas > 0 else 0
+                operation_message = f"Stabilizing: {ready_count}/{total_replicas} replicas ready"
     except Exception as e:
         logger.warning(f"Error detecting operation status: {e}")
         # Keep defaults: running, 100%, "All replicas running"
@@ -236,7 +240,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "progress": progress,
             "operationMessage": operation_message,
             "targetVersion": target_version,
-            "targetReplicas": target_replicas,
+            "targetReplicas": total_replicas,
             "currentVersion": cr_version,
             "currentReplicas": cr_replicas,
             "readyReplicas": ready_count,
@@ -260,7 +264,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "progress": progress,
             "operationMessage": operation_message,
             "targetVersion": target_version,
-            "targetReplicas": target_replicas,
+            "targetReplicas": total_replicas,
             "currentVersion": cr_version,
             "currentReplicas": cr_replicas,
             "readyReplicas": ready_count,
