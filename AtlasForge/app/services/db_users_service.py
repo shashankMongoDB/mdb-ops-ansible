@@ -376,6 +376,15 @@ def get_user_connection(
     external_primary_host_port = conn_info.get("externalPrimaryHostPort")
     external_secondary_host_port = conn_info.get("externalSecondaryHostPort")
     internal_uri_base = conn_info.get("internalUri", "")
+
+    # Hard fallback: ensure generic external endpoint even if connection info response missed it.
+    if not external_host_port:
+        try:
+            _, node_port = k8s.ensure_external_service(namespace, deployment_id)
+            worker_node_ip = k8s.get_worker_node_ip()
+            external_host_port = f"{worker_node_ip}:{node_port}"
+        except Exception:
+            external_host_port = None
     
     # Extract internal host from base URI
     # mongodb://host:port -> host:port

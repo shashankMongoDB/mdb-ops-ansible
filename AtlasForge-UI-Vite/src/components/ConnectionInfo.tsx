@@ -78,6 +78,13 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
     <div className="card">
       <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Connection Information</h3>
 
+      <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+        <p className="text-xs text-yellow-800">
+          <span className="font-semibold">Note:</span> Use these connection strings mainly to test connectivity.
+          For application operations, create a dedicated DB user with appropriate roles from the <span className="font-semibold">DB Users</span> tab.
+        </p>
+      </div>
+
       <div className="mb-4">
         <label className="text-sm font-medium text-gray-700 block mb-2">Connection Target</label>
         <div className="flex gap-3">
