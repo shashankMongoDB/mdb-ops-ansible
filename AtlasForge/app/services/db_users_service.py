@@ -641,8 +641,8 @@ def delete_user(
         try:
             pod_name = _get_primary_pod_name(k8s, namespace, deployment_id)
             admin_password = _get_admin_password(k8s, namespace, deployment_id)
-                
-                drop_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
+            
+            drop_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
 db = db.getSiblingDB('{user_db}');
 try {{
     db.dropUser('{username}');
@@ -653,19 +653,19 @@ try {{
 MONGOEOF
 """
 
-                resp = stream(
-                    k8s.core_v1.connect_get_namespaced_pod_exec,
-                    pod_name,
-                    namespace,
-                    container='mongod',  # Specify the mongod container
-                    command=['/bin/bash', '-c', drop_user_script],
-                    stderr=True,
-                    stdin=False,
-                    stdout=True,
-                    tty=False
-                )
-                
-                print(f"[DB_USER] Drop user response: {resp}")
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container='mongod',  # Specify the mongod container
+                command=['/bin/bash', '-c', drop_user_script],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+            
+            print(f"[DB_USER] Drop user response: {resp}")
                 
         except Exception as e:
             print(f"[DB_USER] Warning: Could not drop user from MongoDB: {e}")
