@@ -568,9 +568,10 @@ def deploy_backup_cronjob(
             raise
     
     # Create CronJob
-    # S3 path format: s3://bucket/prefix/snapshots/
+    snapshots_prefix = _resolve_snapshots_prefix({"s3Prefix": s3_prefix}, s3_bucket)
+    # S3 path format: s3://bucket/<snapshots_prefix>/
     # Files will be named: dump-YYYYMMDD-HHMMSS.tar.gz
-    s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots"
+    s3_path = f"s3://{s3_bucket}/{snapshots_prefix}"
     
     cronjob = {
         "apiVersion": "batch/v1",
@@ -946,7 +947,8 @@ def enable_community_backup(
             if e.status != 404:
                 print(f"[COMMUNITY_BACKUP] Warning: Could not unsuspend CronJob: {e}")
         
-        s3_path = f"s3://{s3_bucket}/{s3_prefix}/snapshots"
+        snapshots_prefix = _resolve_snapshots_prefix({"s3Prefix": s3_prefix}, s3_bucket)
+        s3_path = f"s3://{s3_bucket}/{snapshots_prefix}"
         
         # Store config in deployment metadata
         repo.update_deployment_metadata(tenant_id, deployment_id, {
@@ -1051,7 +1053,7 @@ def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[
         s3_client = boto3.client('s3', **boto_kwargs)
         
         # List objects in the snapshots directory
-        prefix = f"{s3_prefix}/snapshots/"
+        prefix = _resolve_snapshots_prefix(deployment, s3_bucket) + "/"
         
         response = s3_client.list_objects_v2(
             Bucket=s3_bucket,
@@ -1106,6 +1108,21 @@ def format_bytes(size_bytes: int) -> str:
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024.0
     return f"{size_bytes:.1f} PB"
+
+
+def _resolve_snapshots_prefix(deployment: Dict[str, Any], s3_bucket: Optional[str] = None) -> str:
+    """Return S3 key prefix that points to snapshot directory (without leading slash)."""
+    s3_path = (deployment.get("s3Path") or "").strip()
+    if s3_path.startswith("s3://"):
+        without_scheme = s3_path.replace("s3://", "", 1)
+        bucket_part, _, key_part = without_scheme.partition("/")
+        if (not s3_bucket or bucket_part == s3_bucket) and key_part:
+            return key_part.strip("/")
+
+    s3_prefix = (deployment.get("s3Prefix") or "").strip("/")
+    if s3_prefix.endswith("/snapshots") or s3_prefix.endswith("snapshots"):
+        return s3_prefix
+    return f"{s3_prefix}/snapshots" if s3_prefix else "snapshots"
 
 
 def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
@@ -1186,7 +1203,8 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
         result["s3Bucket"] = deployment.get("s3Bucket")
         result["s3Prefix"] = deployment.get("s3Prefix")
         result["s3Region"] = deployment.get("s3Region")
-        result["s3Path"] = f"s3://{deployment.get('s3Bucket')}/{deployment.get('s3Prefix')}/snapshots"
+        snapshots_prefix = _resolve_snapshots_prefix(deployment, deployment.get("s3Bucket"))
+        result["s3Path"] = f"s3://{deployment.get('s3Bucket')}/{snapshots_prefix}"
         
         # List snapshots from S3
         try:
@@ -1324,8 +1342,9 @@ def restore_community_backup(
     if is_restore_in_progress(tenant_id, deployment_id):
         current = get_restore_state(tenant_id, deployment_id) or {}
         job_name = current.get("jobName", "unknown")
+        job_status = current.get("status", "RUNNING")
         raise ValueError(
-            f"A restore job is already running for this deployment (job: {job_name}). "
+            f"A restore job is already in progress for this deployment (job: {job_name}, status: {job_status}). "
             f"Cancel it first via: POST /tenants/{tenant_id}/deployments/{deployment_id}/community-backup/restore/{job_name}/cancel"
         )
     
@@ -1334,7 +1353,10 @@ def restore_community_backup(
     
     try:
         connection_info = lifecycle_service.get_connection_info(tenant_id, deployment_id)
-        external_uri = connection_info.get("externalUri", "")
+        external_uri = (
+            connection_info.get("externalPrimaryUri")
+            or connection_info.get("externalUri", "")
+        )
         
         if not external_uri:
             raise ValueError("External connection URI not available")
@@ -1383,9 +1405,9 @@ def restore_community_backup(
     # Build restore command based on backup type
     if backup_type == "s3":
         s3_bucket = deployment.get("s3Bucket")
-        s3_prefix = deployment.get("s3Prefix")
         s3_region = deployment.get("s3Region", "us-east-1")
-        s3_key = f"{s3_prefix}/snapshots/{snapshot_filename}"
+        snapshots_prefix = _resolve_snapshots_prefix(deployment, s3_bucket)
+        s3_key = f"{snapshots_prefix}/{snapshot_filename}"
         
         restore_command = [
             "/bin/sh",

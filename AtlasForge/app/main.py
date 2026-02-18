@@ -1272,7 +1272,8 @@ def restore_community_backup(
         )
         return result
     except ValueError as e:
-        logger.warning(f"Community restore rejected for {tenantId}/{deploymentId}: {str(e)}")
+        logger.error(f"Community restore rejected for {tenantId}/{deploymentId}: {str(e)}")
+        print(f"[RESTORE][REJECTED] {tenantId}/{deploymentId}: {str(e)}")
         if "not found" in str(e):
             raise HTTPException(status_code=404, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))

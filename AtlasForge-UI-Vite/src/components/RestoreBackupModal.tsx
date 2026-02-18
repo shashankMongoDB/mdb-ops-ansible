@@ -43,7 +43,7 @@ export function RestoreBackupModal({
       onRestoreStarted();
       onClose();
     } catch (error: any) {
-      showError(error.message || 'Failed to start restore');
+      showError(error?.detail || error?.message || 'Failed to start restore');
     } finally {
       setLoading(false);
     }
