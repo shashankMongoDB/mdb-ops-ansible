@@ -15,6 +15,7 @@ class K8sClient:
         self.core_v1 = client.CoreV1Api()
         self.custom_objects = client.CustomObjectsApi()
         self.apps_v1 = client.AppsV1Api()
+        self.batch_v1 = client.BatchV1Api()
 
     def ensure_namespace(self, name: str, labels: Optional[Dict[str, str]] = None) -> None:
         try:
