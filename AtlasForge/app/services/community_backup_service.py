@@ -1233,7 +1233,7 @@ def get_restore_state(tenant_id: str, deployment_id: str) -> Optional[Dict[str, 
                 repo.update_deployment_metadata(
                     tenant_id=tenant_id,
                     deployment_id=deployment_id,
-                    updates={
+                    metadata={
                         "lastRestoreStatus": "COMPLETED",
                         "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
                         "lastRestoreError": None
@@ -1244,7 +1244,7 @@ def get_restore_state(tenant_id: str, deployment_id: str) -> Optional[Dict[str, 
                 repo.update_deployment_metadata(
                     tenant_id=tenant_id,
                     deployment_id=deployment_id,
-                    updates={
+                    metadata={
                         "lastRestoreStatus": "FAILED",
                         "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
                         "lastRestoreError": "Restore job failed"
@@ -1529,7 +1529,7 @@ def restore_community_backup(
     repo.update_deployment_metadata(
         tenant_id=tenant_id,
         deployment_id=deployment_id,
-        updates={
+        metadata={
             "lastRestoreJob": job_name,
             "lastRestoreSnapshot": snapshot_filename,
             "lastRestoreTime": datetime.now(timezone.utc).isoformat(),
@@ -1632,7 +1632,7 @@ def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) ->
         repo.update_deployment_metadata(
             tenant_id=tenant_id,
             deployment_id=deployment_id,
-            updates=updates
+            metadata=updates
         )
 
     return result
