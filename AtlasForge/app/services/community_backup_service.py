@@ -1571,6 +1571,9 @@ def restore_community_backup(
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     job_name = f"{deployment_id}-restore-{timestamp}"
     
+    restore_init_containers = []
+    restore_volumes = []
+
     # Build restore command based on backup type
     if backup_type == "s3":
         s3_bucket = deployment.get("s3Bucket")
@@ -1586,15 +1589,12 @@ def restore_community_backup(
         s3_key_candidates = [k for k in s3_key_candidates if k]
         s3_key = s3_key_candidates[0]
         
-        restore_command = [
+        init_download_command = [
             "/bin/sh",
             "-c",
             f"""
             set -e
-            echo "[RESTORE] Starting restore from S3: s3://{s3_bucket}/{s3_key}"
-            
-            # Download from S3
-            echo "[RESTORE] Downloading backup..."
+            echo "[RESTORE] Downloading backup from S3..."
             FOUND_KEY=""
             for KEY in {' '.join([f'"{k}"' for k in s3_key_candidates])}; do
               if aws s3 ls s3://{s3_bucket}/$KEY --region {s3_region} >/dev/null 2>&1; then
@@ -1614,17 +1614,31 @@ def restore_community_backup(
             fi
 
             echo "[RESTORE] Using key: $FOUND_KEY"
-            aws s3 cp s3://{s3_bucket}/$FOUND_KEY /tmp/{snapshot_filename} --region {s3_region}
-            
+            aws s3 cp s3://{s3_bucket}/$FOUND_KEY /work/{snapshot_filename} --region {s3_region}
+            """
+        ]
+
+        restore_command = [
+            "/bin/sh",
+            "-c",
+            f"""
+            set -e
+            echo "[RESTORE] Starting restore from /work/{snapshot_filename}"
+
+            if [ ! -f "/work/{snapshot_filename}" ]; then
+                echo "[RESTORE] ERROR: Snapshot file missing in /work"
+                exit 1
+            fi
+
             # Extract
             echo "[RESTORE] Extracting backup..."
-            cd /tmp
+            cd /work
             tar -xzf {snapshot_filename}
             
             # Find dump directory
-            DUMP_DIR=$(find /tmp -type d -name "dump-*" | head -n 1)
+            DUMP_DIR=$(find /work -type d -name "dump-*" | head -n 1)
             if [ -z "$DUMP_DIR" ]; then
-                DUMP_DIR="/tmp/dump"
+                DUMP_DIR="/work/dump"
             fi
             
             echo "[RESTORE] Found dump directory: $DUMP_DIR"
@@ -1639,12 +1653,34 @@ def restore_community_backup(
             echo "[RESTORE] Restore completed successfully!"
             """
         ]
+
+        restore_init_containers = [
+            client.V1Container(
+                name="s3-download",
+                image=config.COMMUNITY_BACKUP_AWS_CLI_IMAGE,
+                command=init_download_command,
+                env=[
+                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value_from=client.V1EnvVarSource(
+                        secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_ACCESS_KEY_ID", optional=True)
+                    )),
+                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value_from=client.V1EnvVarSource(
+                        secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_SECRET_ACCESS_KEY", optional=True)
+                    )),
+                    client.V1EnvVar(name="AWS_DEFAULT_REGION", value_from=client.V1EnvVarSource(
+                        secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_DEFAULT_REGION", optional=True)
+                    ))
+                ],
+                volume_mounts=[client.V1VolumeMount(name="restore-work", mount_path="/work")]
+            )
+        ]
+        restore_volumes = [client.V1Volume(name="restore-work", empty_dir=client.V1EmptyDirVolumeSource())]
         
         # Container for S3 restore (uses AWS CLI + mongodump image)
         container = client.V1Container(
             name="restore",
             image=config.COMMUNITY_BACKUP_MONGODUMP_IMAGE,
             command=restore_command,
+            volume_mounts=[client.V1VolumeMount(name="restore-work", mount_path="/work")],
             env=[
                 client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value_from=client.V1EnvVarSource(
                     secret_key_ref=client.V1SecretKeySelector(name="aws-backup-credentials", key="AWS_ACCESS_KEY_ID", optional=True)
@@ -1710,6 +1746,15 @@ def restore_community_backup(
                 limits={"cpu": "2", "memory": "2Gi"}
             )
         )
+        restore_volumes = [
+            client.V1Volume(
+                name="backup-volume",
+                nfs=client.V1NFSVolumeSource(
+                    server=backup_host,
+                    path=f"{backup_path}/{sub_directory}"
+                )
+            )
+        ]
     
     # Create Job
     job = client.V1Job(
@@ -1735,16 +1780,9 @@ def restore_community_backup(
                 spec=client.V1PodSpec(
                     restart_policy="Never",
                     service_account_name=f"{deployment_id}-backup",
+                    init_containers=restore_init_containers,
                     containers=[container],
-                    volumes=[
-                        client.V1Volume(
-                            name="backup-volume",
-                            nfs=client.V1NFSVolumeSource(
-                                server=backup_host,
-                                path=f"{backup_path}/{sub_directory}"
-                            )
-                        )
-                    ] if backup_type == "filesystem" else []
+                    volumes=restore_volumes
                 )
             ),
             backoff_limit=2,
