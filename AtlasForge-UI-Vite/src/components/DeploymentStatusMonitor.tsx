@@ -9,7 +9,7 @@ interface Replica {
 }
 
 interface StatusData {
-  operation: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'restarting' | 'starting' | 'pending' | 'failed';
+  operation: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'restarting' | 'starting' | 'restoring' | 'pending' | 'failed';
   progress: number;
   operationMessage: string;
   targetVersion: string;
@@ -103,6 +103,8 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
         return 'text-blue-600';
       case 'starting':
         return 'text-blue-600';
+      case 'restoring':
+        return 'text-indigo-600';
       case 'pending':
         return 'text-yellow-600';
       case 'failed':
@@ -126,6 +128,8 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
         return '🔄';
       case 'starting':
         return '⏳';
+      case 'restoring':
+        return '♻️';
       case 'pending':
         return '⏸️';
       case 'failed':
@@ -158,6 +162,7 @@ export function DeploymentStatusMonitor({ tenantId, deploymentId, onStatusChange
     status.operation === 'scaling' ? 'Scaling...' :
     status.operation === 'restarting' ? 'Restarting...' :
     status.operation === 'starting' ? 'Starting...' :
+    status.operation === 'restoring' ? 'Restoring...' :
     status.operation === 'pending' ? 'Pending...' :
     status.operation === 'stabilizing' ? (
       status.readyReplicas === 0 ? 'Starting Up...' :

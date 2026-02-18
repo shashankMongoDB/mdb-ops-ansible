@@ -30,6 +30,14 @@ interface BackupStatus {
   target?: string | null;  // For filesystem: "host:/path"
   retentionDays?: number | null;
   snapshots?: BackupSnapshot[];
+  restore?: {
+    jobName: string;
+    status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | string;
+    snapshot?: string;
+    startedAt?: string;
+    completedAt?: string;
+    error?: string;
+  };
   message?: string | null;
 }
 
@@ -49,6 +57,16 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   useEffect(() => {
     loadStatus();
   }, [tenantId, deploymentId]);
+
+  useEffect(() => {
+    if (!status?.restore || !['PENDING', 'RUNNING'].includes(status.restore.status)) return;
+
+    const interval = setInterval(() => {
+      loadStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [status?.restore?.jobName, status?.restore?.status]);
 
   const loadStatus = async () => {
     try {
@@ -347,6 +365,16 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         </div>
       </div>
 
+      {status.restore && (
+        <div className={`card border ${status.restore.status === 'FAILED' ? 'border-red-200 bg-red-50' : status.restore.status === 'COMPLETED' ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
+          <h4 className="text-sm font-semibold mb-2">Restore Status</h4>
+          <p className="text-sm">Status: <span className="font-semibold">{status.restore.status}</span></p>
+          <p className="text-xs text-gray-600">Job: {status.restore.jobName}</p>
+          {status.restore.snapshot && <p className="text-xs text-gray-600">Snapshot: {status.restore.snapshot}</p>}
+          {status.restore.error && <p className="text-xs text-red-700 mt-1">Error: {status.restore.error}</p>}
+        </div>
+      )}
+
       {/* Message */}
       {status.message && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
@@ -406,6 +434,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
                             setSelectedSnapshot(snapshot);
                             setShowRestoreModal(true);
                           }}
+                          disabled={!!status.restore && ['PENDING', 'RUNNING'].includes(status.restore.status)}
                           className="text-mongodb-green hover:text-mongodb-green-dark text-sm font-medium"
                           title="Restore from this snapshot"
                         >

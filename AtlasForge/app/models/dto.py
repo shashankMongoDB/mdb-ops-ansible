@@ -315,6 +315,7 @@ class CommunityBackupStatusResponse(BaseModel):
     target: Optional[str] = None  # For filesystem: "host:/path"
     retentionDays: Optional[int] = None
     snapshots: Optional[list] = None
+    restore: Optional[dict] = None
     message: Optional[str] = None
 
 

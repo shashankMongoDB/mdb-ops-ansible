@@ -10,7 +10,7 @@ interface DeploymentStatus {
   type: string;
   status: 'running' | 'pending' | 'partial' | 'shutdown' | 'error';
   phase: string;
-  operation?: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'restarting' | 'starting' | 'pending' | 'failed';
+  operation?: 'running' | 'upgrading' | 'scaling' | 'stabilizing' | 'restarting' | 'starting' | 'restoring' | 'pending' | 'failed';
   progress?: number;
   operationMessage?: string;
   readyReplicas: number;
@@ -299,6 +299,8 @@ function DeploymentTopology({ deployment, status, tenantPlan }: { deployment: De
       ? 'Starting Deployment...'
       : status.operation === 'restarting'
       ? 'Restarting Members...'
+      : status.operation === 'restoring'
+      ? 'Restoring Backup...'
       : status.operation === 'upgrading'
       ? 'Upgrading Version...'
       : status.operation === 'scaling'

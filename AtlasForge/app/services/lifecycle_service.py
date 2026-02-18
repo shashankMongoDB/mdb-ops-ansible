@@ -9,6 +9,7 @@ from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
 from app.services import deployments_community_service
 from app.services import backup_service
+from app.services import community_backup_service
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +273,11 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     operation = "running"
     progress = 100
     operation_message = "All replicas running"
+
+    restore_state = None
+    restore_in_progress = plan == "community" and community_backup_service.is_restore_in_progress(tenant_id, deployment_id)
+    if restore_in_progress:
+        restore_state = community_backup_service.get_restore_state(tenant_id, deployment_id) or {}
     
     try:
         # Check CR phase first - only force failed state
@@ -372,6 +378,11 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(f"Error detecting operation status: {e}")
         # Keep defaults: running, 100%, "All replicas running"
+
+    if restore_in_progress:
+        operation = "restoring"
+        progress = 0
+        operation_message = "Restore in progress. Lifecycle actions are temporarily blocked."
     
     # Ensure external NodePort service exists
     try:
@@ -425,7 +436,8 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "replicas": replicas,
             "crPhase": cr_phase,
             "crMessage": cr_message,
-            "crActualVersion": cr_actual_version
+            "crActualVersion": cr_actual_version,
+            "restore": restore_state
         }
         
     except Exception as e:
@@ -454,6 +466,7 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "crPhase": cr_phase,
             "crMessage": cr_message,
             "crActualVersion": cr_actual_version,
+            "restore": restore_state,
             "error": f"Failed to create external service: {str(e)}"
         }
 
@@ -631,6 +644,9 @@ def shutdown_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+
+    if plan == "community" and community_backup_service.is_restore_in_progress(tenant_id, deployment_id):
+        raise ValueError("Restore is in progress. Shutdown action is blocked until restore completes")
     
     # Route to community service if needed
     if plan == "community":
@@ -924,6 +940,9 @@ def start_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
 
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+
+    if plan == "community" and community_backup_service.is_restore_in_progress(tenant_id, deployment_id):
+        raise ValueError("Restore is in progress. Start action is blocked until restore completes")
     
     # Get shutdown info (CR spec saved during shutdown)
     shutdown_info = deployment.get("lastRequestedSpec", {}).get("shutdownInfo", {})
@@ -1107,6 +1126,9 @@ def restart_deployment(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+
+    if plan == "community" and community_backup_service.is_restore_in_progress(tenant_id, deployment_id):
+        raise ValueError("Restore is in progress. Restart action is blocked until restore completes")
     
     # Route to community service if needed
     if plan == "community":

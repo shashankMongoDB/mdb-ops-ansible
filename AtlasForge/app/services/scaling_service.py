@@ -3,6 +3,7 @@ from packaging import version
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import deployments_community_service
+from app.services import community_backup_service
 
 
 def scale_deployment(tenant_id: str, deployment_id: str, members: int) -> Dict[str, Any]:
@@ -24,6 +25,9 @@ def scale_deployment(tenant_id: str, deployment_id: str, members: int) -> Dict[s
     
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+
+    if plan == "community" and community_backup_service.is_restore_in_progress(tenant_id, deployment_id):
+        raise ValueError("Restore is in progress. Scale action is blocked until restore completes")
 
     # Validate members count
     if members < 3:
@@ -154,6 +158,9 @@ def upgrade_version(tenant_id: str, deployment_id: str, mongo_version: str) -> D
     
     namespace = tenant["namespace"]
     plan = tenant.get("plan", "enterprise")
+
+    if plan == "community" and community_backup_service.is_restore_in_progress(tenant_id, deployment_id):
+        raise ValueError("Restore is in progress. Upgrade action is blocked until restore completes")
 
     # Get current version from deployment doc
     current_version = str(

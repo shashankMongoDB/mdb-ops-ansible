@@ -1169,6 +1169,10 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
         "lastSuccessfulTime": last_successful_time,
         "retentionDays": deployment.get("backupRetentionDays", 7)
     }
+
+    restore_state = get_restore_state(tenant_id, deployment_id)
+    if restore_state:
+        result["restore"] = restore_state
     
     # Add type-specific fields
     if backup_type == "filesystem":
@@ -1188,6 +1192,73 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
             result["snapshots"] = []
     
     return result
+
+
+def get_restore_state(tenant_id: str, deployment_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Return current restore state from metadata and live K8s job status (if available).
+    """
+    repo = get_repo()
+    deployment = repo.get_deployment(tenant_id, deployment_id)
+    if not deployment:
+        return None
+
+    last_job = deployment.get("lastRestoreJob")
+    if not last_job:
+        return None
+
+    status = deployment.get("lastRestoreStatus", "UNKNOWN")
+    state: Dict[str, Any] = {
+        "jobName": last_job,
+        "status": status,
+        "snapshot": deployment.get("lastRestoreSnapshot"),
+        "startedAt": deployment.get("lastRestoreStartedAt") or deployment.get("lastRestoreTime"),
+        "completedAt": deployment.get("lastRestoreCompletedAt"),
+        "error": deployment.get("lastRestoreError")
+    }
+
+    if status in {"RUNNING", "PENDING", "UNKNOWN"}:
+        try:
+            job_status = get_restore_job_status(tenant_id, deployment_id, last_job)
+            state["status"] = job_status.get("status", status)
+            state["active"] = job_status.get("active", 0)
+            state["succeeded"] = job_status.get("succeeded", 0)
+            state["failed"] = job_status.get("failed", 0)
+
+            if job_status.get("status") == "COMPLETED":
+                repo.update_deployment_metadata(
+                    tenant_id=tenant_id,
+                    deployment_id=deployment_id,
+                    updates={
+                        "lastRestoreStatus": "COMPLETED",
+                        "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+                        "lastRestoreError": None
+                    }
+                )
+                state["completedAt"] = datetime.now(timezone.utc).isoformat()
+            elif job_status.get("status") == "FAILED":
+                repo.update_deployment_metadata(
+                    tenant_id=tenant_id,
+                    deployment_id=deployment_id,
+                    updates={
+                        "lastRestoreStatus": "FAILED",
+                        "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+                        "lastRestoreError": "Restore job failed"
+                    }
+                )
+                state["error"] = "Restore job failed"
+                state["completedAt"] = datetime.now(timezone.utc).isoformat()
+        except Exception:
+            pass
+
+    return state
+
+
+def is_restore_in_progress(tenant_id: str, deployment_id: str) -> bool:
+    state = get_restore_state(tenant_id, deployment_id)
+    if not state:
+        return False
+    return state.get("status") in {"RUNNING", "PENDING"}
 
 
 def restore_community_backup(
@@ -1232,6 +1303,11 @@ def restore_community_backup(
         raise ValueError(f"Deployment {deployment_id} not found")
     
     backup_type = deployment.get("backupType", "s3")
+    if backup_type != "s3":
+        raise ValueError("Restore is currently supported only for S3 backups")
+
+    if is_restore_in_progress(tenant_id, deployment_id):
+        raise ValueError("A restore job is already running for this deployment")
     
     # Get external connection info (same as backup uses)
     from app.services import lifecycle_service
@@ -1282,10 +1358,12 @@ def restore_community_backup(
     mongodb_uri = base_uri.replace("mongodb://", f"mongodb://{backup_user}:{encoded_password}@")
     
     # Ensure /admin database
-    if "/" not in mongodb_uri.split("@")[1]:
+    mongodb_uri = mongodb_uri.split("?", 1)[0]
+    host_and_path = mongodb_uri.split("@", 1)[1] if "@" in mongodb_uri else mongodb_uri.replace("mongodb://", "")
+    if "/" not in host_and_path:
         mongodb_uri = f"{mongodb_uri}/admin"
     elif not mongodb_uri.endswith("/admin"):
-        mongodb_uri = mongodb_uri.split("/")[0] + "//admin"
+        mongodb_uri = mongodb_uri.rsplit("/", 1)[0] + "/admin"
     
     # Generate unique job name
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -1460,7 +1538,11 @@ def restore_community_backup(
             "lastRestoreJob": job_name,
             "lastRestoreSnapshot": snapshot_filename,
             "lastRestoreTime": datetime.now(timezone.utc).isoformat(),
-            "lastRestoreDropExisting": drop_existing
+            "lastRestoreDropExisting": drop_existing,
+            "lastRestoreStatus": "RUNNING",
+            "lastRestoreStartedAt": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreCompletedAt": None,
+            "lastRestoreError": None
         }
     )
     
@@ -1534,7 +1616,7 @@ def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) ->
     except:
         logs = "Could not retrieve logs"
     
-    return {
+    result = {
         "jobName": job_name,
         "namespace": namespace,
         "status": job_status,
@@ -1545,3 +1627,17 @@ def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) ->
         "completionTime": status.completion_time.isoformat() if status.completion_time else None,
         "logs": logs
     }
+
+    if job_status in {"COMPLETED", "FAILED"}:
+        updates = {
+            "lastRestoreStatus": job_status,
+            "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreError": None if job_status == "COMPLETED" else "Restore job failed"
+        }
+        repo.update_deployment_metadata(
+            tenant_id=tenant_id,
+            deployment_id=deployment_id,
+            updates=updates
+        )
+
+    return result

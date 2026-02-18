@@ -446,10 +446,20 @@ export function DeploymentDetailsPage() {
                   <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Syncing...' : 'Sync State'}
                 </button>
-                <button onClick={() => setConfirmAction('restart')} className="btn-secondary">
+                <button 
+                  onClick={() => setConfirmAction('restart')} 
+                  disabled={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running'}
+                  className={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'btn-secondary opacity-50 cursor-not-allowed' : 'btn-secondary'}
+                  title={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'Operation in progress. Please wait.' : ''}
+                >
                   Restart
                 </button>
-                <button onClick={() => setConfirmAction('shutdown')} className="btn-danger">
+                <button 
+                  onClick={() => setConfirmAction('shutdown')} 
+                  disabled={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running'}
+                  className={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'btn-danger opacity-50 cursor-not-allowed' : 'btn-danger'}
+                  title={connectionInfo && connectionInfo.operation && connectionInfo.operation !== 'running' ? 'Operation in progress. Please wait.' : ''}
+                >
                   Shutdown
                 </button>
               </div>
