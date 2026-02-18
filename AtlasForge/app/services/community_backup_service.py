@@ -658,7 +658,7 @@ def deploy_backup_cronjob(
                                           echo "ERROR: mongodump completed but produced no files"
                                           exit 1
                                         fi
-                                        dump_size_bytes=$(du -sk "$dump_path" | awk '{print $1}')
+                                        dump_size_bytes=$(du -sk "$dump_path" | awk '{{print $1}}')
                                         if [ "${dump_size_bytes:-0}" -lt 50 ]; then
                                           echo "ERROR: dump size too small (${dump_size_bytes}KB), refusing to upload"
                                           exit 1
