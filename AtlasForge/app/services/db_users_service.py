@@ -83,6 +83,18 @@ def _get_primary_pod_name(k8s: K8sClient, namespace: str, deployment_id: str) ->
     return pod_names[0]
 
 
+def _get_secondary_pod_name(k8s: K8sClient, namespace: str, deployment_id: str, primary_pod: str) -> str | None:
+    pods = k8s.core_v1.list_namespaced_pod(
+        namespace=namespace,
+        label_selector=f"app={deployment_id}-svc"
+    )
+    pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
+    for pod_name in sorted(pod_names, reverse=True):
+        if pod_name != primary_pod:
+            return pod_name
+    return None
+
+
 def create_db_user(
     tenant_id: str,
     deployment_id: str,
@@ -403,6 +415,24 @@ def get_user_connection(
             external_host_port = f"{worker_node_ip}:{node_port}"
         except Exception:
             external_host_port = None
+
+    # Hard fallback for role-specific endpoints (match overview behavior)
+    if plan == "community" and (not external_primary_host_port or not external_secondary_host_port):
+        try:
+            worker_node_ip = k8s.get_worker_node_ip()
+            primary_pod = _get_primary_pod_name(k8s, namespace, deployment_id)
+
+            if not external_primary_host_port and primary_pod:
+                _, primary_node_port = k8s.ensure_external_service_for_pod(namespace, deployment_id, primary_pod, "primary")
+                external_primary_host_port = f"{worker_node_ip}:{primary_node_port}"
+
+            if not external_secondary_host_port:
+                secondary_pod = _get_secondary_pod_name(k8s, namespace, deployment_id, primary_pod)
+                if secondary_pod:
+                    _, secondary_node_port = k8s.ensure_external_service_for_pod(namespace, deployment_id, secondary_pod, "secondary")
+                    external_secondary_host_port = f"{worker_node_ip}:{secondary_node_port}"
+        except Exception:
+            pass
     
     # Extract internal host from base URI
     # mongodb://host:port -> host:port
