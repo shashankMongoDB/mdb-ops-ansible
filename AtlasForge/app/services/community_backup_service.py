@@ -787,7 +787,11 @@ def enable_community_backup(
         print(f"[COMMUNITY_BACKUP] Getting connection info from lifecycle service...")
         connection_info = lifecycle_service.get_connection_info(tenant_id, deployment_id)
         
-        external_uri = connection_info.get("externalUri", "")
+        # Prefer role-specific PRIMARY endpoint to avoid random pod routing
+        external_uri = (
+            connection_info.get("externalPrimaryUri")
+            or connection_info.get("externalUri", "")
+        )
         print(f"[COMMUNITY_BACKUP] External URI from lifecycle: {external_uri}")
         
         if external_uri and "://" in external_uri:
@@ -1334,28 +1338,19 @@ def restore_community_backup(
     except Exception as e:
         raise ValueError(f"Could not get external connection info: {e}")
     
-    # Get backup user credentials from secret
+    # Get backup credentials from secret
     backup_creds_secret_name = f"{deployment_id}-backup-credentials"
-    try:
-        backup_user = k8s.get_secret_data(namespace, backup_creds_secret_name, "username")
-        backup_password = k8s.get_secret_data(namespace, backup_creds_secret_name, "password")
-        
-        if not backup_user or not backup_password:
-            raise ValueError("Backup credentials not found in secret")
-    except client.exceptions.ApiException:
-        raise ValueError(f"Backup credentials secret not found. Is backup enabled?")
-    
-    # Build MongoDB URI with backup user credentials
-    # Format: mongodb://user:password@host:port/admin
-    if "@" in base_uri:
-        # Remove any existing credentials
-        base_uri = "mongodb://" + base_uri.split("@")[1]
-    
-    # URL encode password
-    import urllib.parse
-    encoded_password = urllib.parse.quote_plus(backup_password)
-    
-    mongodb_uri = base_uri.replace("mongodb://", f"mongodb://{backup_user}:{encoded_password}@")
+    stored_mongodb_uri = k8s.get_secret_data(namespace, backup_creds_secret_name, "MONGODB_URI")
+    if not stored_mongodb_uri:
+        raise ValueError(f"Backup credentials secret not found or invalid ({backup_creds_secret_name}). Is backup enabled?")
+
+    stored_base = stored_mongodb_uri.split("?", 1)[0]
+    if "@" not in stored_base:
+        raise ValueError("Backup credentials URI does not contain auth info")
+
+    auth_part = stored_base.replace("mongodb://", "").split("@", 1)[0]
+    target_host = base_uri.replace("mongodb://", "").split("/", 1)[0]
+    mongodb_uri = f"mongodb://{auth_part}@{target_host}/admin"
     
     # Ensure /admin database
     mongodb_uri = mongodb_uri.split("?", 1)[0]
