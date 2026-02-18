@@ -1,9 +1,11 @@
 import secrets
 import string
+import json
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 from urllib.parse import quote_plus
 from kubernetes import client
+from kubernetes.stream import stream
 
 from app.services.mongo_repo import MongoRepository
 from app.services.k8s_client import K8sClient
@@ -22,6 +24,63 @@ def generate_password(length: int = 24) -> str:
     """Generate a strong random password"""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _get_admin_password(k8s: K8sClient, namespace: str, deployment_id: str) -> str:
+    admin_secret_names = [f"{deployment_id}-admin-admin", f"{deployment_id}-admin"]
+    for secret_name in admin_secret_names:
+        try:
+            secret = k8s.core_v1.read_namespaced_secret(secret_name, namespace)
+            encoded = (secret.data or {}).get("password")
+            if not encoded:
+                continue
+            import base64
+            return base64.b64decode(encoded).decode("utf-8")
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+            continue
+    raise ValueError(f"Could not find admin credentials secret. Tried: {', '.join(admin_secret_names)}")
+
+
+def _get_primary_pod_name(k8s: K8sClient, namespace: str, deployment_id: str) -> str:
+    pods = k8s.core_v1.list_namespaced_pod(
+        namespace=namespace,
+        label_selector=f"app={deployment_id}-svc"
+    )
+    if not pods.items:
+        raise ValueError(f"No pods found for deployment {deployment_id}")
+
+    pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
+    for pod_name in pod_names:
+        try:
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container='mongod',
+                command=['/bin/bash', '-c', "mongosh --quiet --eval 'JSON.stringify(db.hello())'"],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+            payload = None
+            for line in str(resp).splitlines()[::-1]:
+                line = line.strip()
+                if line.startswith('{') and line.endswith('}'):
+                    payload = line
+                    break
+            if not payload:
+                continue
+            hello = json.loads(payload)
+            if hello.get("isWritablePrimary"):
+                return pod_name
+        except Exception:
+            continue
+
+    # Fallback if we couldn't resolve role yet
+    return pod_names[0]
 
 
 def create_db_user(
@@ -115,57 +174,16 @@ def create_db_user(
         print(f"[DB_USER] Creating Community MongoDB user via mongosh...")
         
         try:
-            # Get first pod
-            pods = k8s.core_v1.list_namespaced_pod(
-                namespace=namespace,
-                label_selector=f"app={deployment_id}-svc"
-            )
-            
-            if not pods.items:
-                k8s.core_v1.delete_namespaced_secret(secret_name, namespace)
-                raise ValueError(f"No pods found for deployment {deployment_id}")
-            
-            pod_name = pods.items[0].metadata.name
-            
-            # Get admin credentials from MongoDB Community secret
-            # Community operator stores admin credentials in a secret
-            admin_secret_name = f"{deployment_id}-admin-admin"  # Common pattern
-            try:
-                admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
-                admin_password = admin_secret.data.get("password")
-                if admin_password:
-                    import base64
-                    admin_password = base64.b64decode(admin_password).decode('utf-8')
-                else:
-                    raise ValueError("Admin password not found in secret")
-            except client.exceptions.ApiException as e:
-                if e.status == 404:
-                    # Try alternative secret name
-                    admin_secret_name = f"{deployment_id}-admin"
-                    try:
-                        admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
-                        admin_password = admin_secret.data.get("password")
-                        if admin_password:
-                            import base64
-                            admin_password = base64.b64decode(admin_password).decode('utf-8')
-                        else:
-                            raise ValueError("Admin password not found in secret")
-                    except:
-                        raise ValueError(f"Could not find admin credentials secret. Tried: {deployment_id}-admin-admin, {deployment_id}-admin")
-                else:
-                    raise
-            
-            print(f"[DB_USER] Found admin credentials in secret: {admin_secret_name}")
-            
+            pod_name = _get_primary_pod_name(k8s, namespace, deployment_id)
+            admin_password = _get_admin_password(k8s, namespace, deployment_id)
+            print(f"[DB_USER] Using primary pod for user creation: {pod_name}")
+
             # Build roles for MongoDB
-            import json
             roles_list = [{"role": role["name"], "db": role["db"]} for role in roles]
             roles_json = json.dumps(roles_list)
             
             # Create user command using here-doc to avoid escaping issues
             # Connect as admin to create the user
-            from kubernetes.stream import stream
-            
             create_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
 db = db.getSiblingDB('{db}');
 try {{
@@ -484,39 +502,76 @@ def update_user_roles(
 
     namespace = tenant["namespace"]
     mongodb_user_name = f"{deployment_id}-{username}"
+    plan = tenant.get("plan", "enterprise")
 
-    # Update MongoDBUser CR
-    try:
-        # Get existing CR
-        existing_cr = k8s.custom_objects.get_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodbusers",
-            name=mongodb_user_name
-        )
+    if plan == "community":
+        try:
+            pod_name = _get_primary_pod_name(k8s, namespace, deployment_id)
+            admin_password = _get_admin_password(k8s, namespace, deployment_id)
+            user_db = user.get("db", "admin")
+            roles_json = json.dumps([{"role": role["name"], "db": role["db"]} for role in roles])
 
-        # Update roles in spec
-        existing_cr["spec"]["roles"] = [
-            {"name": role["name"], "db": role["db"]}
-            for role in roles
-        ]
+            update_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
+db = db.getSiblingDB('{user_db}');
+try {{
+    db.updateUser('{username}', {{ roles: {roles_json} }});
+    print('USER_UPDATED');
+}} catch(e) {{
+    print('ERROR: ' + e.message);
+    throw e;
+}}
+MONGOEOF
+"""
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container='mongod',
+                command=['/bin/bash', '-c', update_user_script],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+            print(f"[DB_USER] Community update user response: {resp}")
+            if 'USER_UPDATED' not in str(resp):
+                raise ValueError(f"Failed to update Community MongoDB user roles. Output: {resp}")
+        except Exception as e:
+            raise ValueError(f"Failed to update Community MongoDB user roles: {str(e)}")
+    else:
 
-        # Patch the CR
-        k8s.custom_objects.patch_namespaced_custom_object(
-            group="mongodb.com",
-            version="v1",
-            namespace=namespace,
-            plural="mongodbusers",
-            name=mongodb_user_name,
-            body=existing_cr
-        )
-        print(f"[DB_USER] Updated MongoDBUser CR roles: {mongodb_user_name}")
+        # Update MongoDBUser CR
+        try:
+            # Get existing CR
+            existing_cr = k8s.custom_objects.get_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbusers",
+                name=mongodb_user_name
+            )
 
-    except client.exceptions.ApiException as e:
-        if e.status == 404:
-            raise ValueError(f"MongoDBUser CR {mongodb_user_name} not found")
-        raise
+            # Update roles in spec
+            existing_cr["spec"]["roles"] = [
+                {"name": role["name"], "db": role["db"]}
+                for role in roles
+            ]
+
+            # Patch the CR
+            k8s.custom_objects.patch_namespaced_custom_object(
+                group="mongodb.com",
+                version="v1",
+                namespace=namespace,
+                plural="mongodbusers",
+                name=mongodb_user_name,
+                body=existing_cr
+            )
+            print(f"[DB_USER] Updated MongoDBUser CR roles: {mongodb_user_name}")
+
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                raise ValueError(f"MongoDBUser CR {mongodb_user_name} not found")
+            raise
 
     # Update metadata
     updated_at = datetime.now(timezone.utc).isoformat()
@@ -584,40 +639,8 @@ def delete_user(
         print(f"[DB_USER] Deleting Community MongoDB user via mongosh...")
         
         try:
-            # Get first pod
-            pods = k8s.core_v1.list_namespaced_pod(
-                namespace=namespace,
-                label_selector=f"app={deployment_id}-svc"
-            )
-            
-            if pods.items:
-                pod_name = pods.items[0].metadata.name
-                
-                # Get admin credentials
-                admin_secret_name = f"{deployment_id}-admin-admin"
-                try:
-                    admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
-                    admin_password = admin_secret.data.get("password")
-                    if admin_password:
-                        import base64
-                        admin_password = base64.b64decode(admin_password).decode('utf-8')
-                    else:
-                        raise ValueError("Admin password not found")
-                except client.exceptions.ApiException as e:
-                    if e.status == 404:
-                        admin_secret_name = f"{deployment_id}-admin"
-                        admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
-                        admin_password = admin_secret.data.get("password")
-                        if admin_password:
-                            import base64
-                            admin_password = base64.b64decode(admin_password).decode('utf-8')
-                        else:
-                            raise ValueError("Admin password not found")
-                    else:
-                        raise
-                
-                # Drop user command using here-doc
-                from kubernetes.stream import stream
+            pod_name = _get_primary_pod_name(k8s, namespace, deployment_id)
+            admin_password = _get_admin_password(k8s, namespace, deployment_id)
                 
                 drop_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
 db = db.getSiblingDB('{user_db}');
@@ -629,15 +652,13 @@ try {{
 }}
 MONGOEOF
 """
-                
-                command = ['/bin/bash', '-c', drop_user_script]
-                
+
                 resp = stream(
                     k8s.core_v1.connect_get_namespaced_pod_exec,
                     pod_name,
                     namespace,
                     container='mongod',  # Specify the mongod container
-                    command=command,
+                    command=['/bin/bash', '-c', drop_user_script],
                     stderr=True,
                     stdin=False,
                     stdout=True,
@@ -645,8 +666,6 @@ MONGOEOF
                 )
                 
                 print(f"[DB_USER] Drop user response: {resp}")
-            else:
-                print(f"[DB_USER] No pods found, skipping user deletion from MongoDB")
                 
         except Exception as e:
             print(f"[DB_USER] Warning: Could not drop user from MongoDB: {e}")
