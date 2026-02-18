@@ -161,72 +161,85 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     
     print(f"[COMMUNITY_BACKUP] Found admin credentials in secret: {admin_secret_name}")
     
-    # Create user via mongosh using here-doc to avoid escaping issues
+    # Create/update backup user via non-interactive mongosh eval
     from kubernetes.stream import stream
-    
-    create_user_script = f"""mongosh --quiet -u admin -p '{admin_password}' --authenticationDatabase admin <<'MONGOEOF'
-db = db.getSiblingDB('admin');
-try {{
-    db.createUser({{
-        user: 'backupuser',
-        pwd: '{backup_password}',
-        roles: [
-            {{ role: 'backup', db: 'admin' }},
-            {{ role: 'clusterMonitor', db: 'admin' }},
-            {{ role: 'readAnyDatabase', db: 'admin' }}
-        ]
-    }});
-    print('BACKUP_USER_CREATED');
-}} catch(e) {{
-    if (e.code === 51003) {{
-        db.updateUser('backupuser', {{
-            pwd: '{backup_password}',
-            roles: [
-                {{ role: 'backup', db: 'admin' }},
-                {{ role: 'clusterMonitor', db: 'admin' }},
-                {{ role: 'readAnyDatabase', db: 'admin' }}
-            ]
-        }});
-        print('BACKUP_USER_UPDATED');
-    }} else {{
-        throw e;
-    }}
-}}
-MONGOEOF
-"""
-    
-    command = ['/bin/bash', '-c', create_user_script]
+
+    js_eval = (
+        "db = db.getSiblingDB('admin');"
+        "try {"
+        f"db.createUser({{user:'backupuser',pwd:'{backup_password}',roles:[{{role:'backup',db:'admin'}},{{role:'clusterMonitor',db:'admin'}},{{role:'readAnyDatabase',db:'admin'}}]}});"
+        "print('BACKUP_USER_CREATED');"
+        "} catch(e) {"
+        "if (e.code === 51003) {"
+        f"db.updateUser('backupuser', {{pwd:'{backup_password}',roles:[{{role:'backup',db:'admin'}},{{role:'clusterMonitor',db:'admin'}},{{role:'readAnyDatabase',db:'admin'}}]}});"
+        "print('BACKUP_USER_UPDATED');"
+        "} else {"
+        "print('ERROR: ' + e.message);"
+        "throw e;"
+        "}"
+        "}"
+    )
+
+    command = [
+        'env',
+        'HOME=/tmp',
+        'mongosh',
+        '--quiet',
+        '--norc',
+        '-u',
+        'admin',
+        '-p',
+        admin_password,
+        '--authenticationDatabase',
+        'admin',
+        '--eval',
+        js_eval
+    ]
 
     creation_success = False
     last_error = None
     for pod_name in pod_names:
-        try:
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container='mongod',
-                command=command,
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
-            )
+        for attempt in range(1, 4):
+            try:
+                resp = stream(
+                    k8s.core_v1.connect_get_namespaced_pod_exec,
+                    pod_name,
+                    namespace,
+                    container='mongod',
+                    command=command,
+                    stderr=True,
+                    stdin=False,
+                    stdout=True,
+                    tty=False
+                )
 
-            print(f"[COMMUNITY_BACKUP] MongoDB user creation response from {pod_name}: {resp}")
+                print(f"[COMMUNITY_BACKUP] MongoDB user creation response from {pod_name} (attempt {attempt}): {resp}")
 
-            if 'BACKUP_USER_CREATED' in resp or 'BACKUP_USER_UPDATED' in resp:
-                print(f"[COMMUNITY_BACKUP] Successfully created/updated backup user in pod {pod_name}")
-                creation_success = True
+                if 'BACKUP_USER_CREATED' in resp or 'BACKUP_USER_UPDATED' in resp:
+                    print(f"[COMMUNITY_BACKUP] Successfully created/updated backup user in pod {pod_name}")
+                    creation_success = True
+                    break
+
+                lower_resp = str(resp).lower()
+                if (
+                    'notwritableprimary' in lower_resp
+                    or 'not primary' in lower_resp
+                    or 'interrupteddue' in lower_resp
+                    or 'operation was interrupted' in lower_resp
+                    or 'primary stepped down' in lower_resp
+                ):
+                    last_error = f"Transient/secondary response on {pod_name}: {resp}"
+                    time.sleep(2)
+                    continue
+
+                last_error = f"Unexpected mongosh response on {pod_name}: {resp}"
                 break
+            except Exception as e:
+                last_error = str(e)
+                time.sleep(1)
 
-            if 'NotWritablePrimary' in resp or 'not primary' in resp:
-                last_error = f"Pod {pod_name} is not primary"
-                continue
-
-            last_error = f"Unexpected mongosh response on {pod_name}: {resp}"
-        except Exception as e:
-            last_error = str(e)
+        if creation_success:
+            break
 
     if not creation_success:
         raise ValueError(f"Failed to create backup MongoDB user on any pod: {last_error}")
