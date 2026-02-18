@@ -278,9 +278,12 @@ class DBUserConnectionResponse(BaseModel):
     username: str
     db: str
     roles: list[dict]
+    externalHostPort: Optional[str] = None
     externalUri: Optional[str] = None
+    externalPrimaryHostPort: Optional[str] = None
     internalUri: Optional[str] = None
     externalPrimaryUri: Optional[str] = None
+    externalSecondaryHostPort: Optional[str] = None
     externalSecondaryUri: Optional[str] = None
 
 

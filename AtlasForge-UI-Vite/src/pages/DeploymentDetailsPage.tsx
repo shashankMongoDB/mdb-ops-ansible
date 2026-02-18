@@ -711,8 +711,11 @@ export function DeploymentDetailsPage() {
           setSelectedUserConnection(null);
         }}
         username={selectedUserConnection?.username || ''}
+        externalHostPort={selectedUserConnection?.externalHostPort}
         externalUri={selectedUserConnection?.externalUri}
+        externalPrimaryHostPort={selectedUserConnection?.externalPrimaryHostPort}
         externalPrimaryUri={selectedUserConnection?.externalPrimaryUri}
+        externalSecondaryHostPort={selectedUserConnection?.externalSecondaryHostPort}
         externalSecondaryUri={selectedUserConnection?.externalSecondaryUri}
         internalUri={selectedUserConnection?.internalUri}
       />

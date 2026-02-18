@@ -6,8 +6,11 @@ interface UserConnectionModalProps {
   open: boolean;
   onClose: () => void;
   username: string;
+  externalHostPort?: string | null;
   externalUri?: string | null;
+  externalPrimaryHostPort?: string | null;
   externalPrimaryUri?: string | null;
+  externalSecondaryHostPort?: string | null;
   externalSecondaryUri?: string | null;
   internalUri?: string | null;
 }
@@ -16,8 +19,11 @@ export function UserConnectionModal({
   open, 
   onClose, 
   username,
+  externalHostPort,
   externalUri,
+  externalPrimaryHostPort,
   externalPrimaryUri,
+  externalSecondaryHostPort,
   externalSecondaryUri,
   internalUri
 }: UserConnectionModalProps) {
@@ -74,6 +80,9 @@ export function UserConnectionModal({
   const selectedExternalUri = connectionMode === 'primary'
     ? (externalPrimaryUri || (externalUri ? withReadPreference(externalUri, 'primary') : null))
     : (externalSecondaryUri || (externalUri ? withReadPreference(externalUri, 'secondary') : null));
+  const selectedExternalHostPort = connectionMode === 'primary'
+    ? (externalPrimaryHostPort || externalHostPort || null)
+    : (externalSecondaryHostPort || externalHostPort || null);
   const selectedInternalUri = internalUri ? withReadPreference(internalUri, connectionMode) : null;
 
   return (
@@ -148,6 +157,15 @@ export function UserConnectionModal({
                       </h3>
                       
                       {/* External URI */}
+                      {selectedExternalHostPort && (
+                        <div className="mb-3">
+                          <label className="text-xs font-medium text-gray-600 block mb-2">Host:Port</label>
+                          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all">
+                            {selectedExternalHostPort}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mb-3">
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-medium text-gray-600">Connection String</label>

@@ -453,9 +453,12 @@ def get_user_connection(
         "username": username,
         "db": db,
         "roles": user["roles"],
+        "externalHostPort": external_host_port,
         "externalUri": external_uri,
+        "externalPrimaryHostPort": external_primary_host_port,
         "internalUri": internal_uri,
         "externalPrimaryUri": external_primary_uri,
+        "externalSecondaryHostPort": external_secondary_host_port,
         "externalSecondaryUri": external_secondary_uri
     }
 
