@@ -1202,7 +1202,7 @@ def update_community_backup(
                 deployment_id=deploymentId,
                 backup_type=backup_type,
                 s3_bucket=request.s3Bucket,
-                s3_prefix=request.s3Prefix or f"community-mongodb-backup/{deploymentId}/snapshots",
+                s3_prefix=request.s3Prefix,
                 s3_region=request.s3Region or "us-east-1",
                 filesystem_config=filesystem_config,
                 schedule=request.schedule or "0 */4 * * *",

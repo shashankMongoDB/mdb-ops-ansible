@@ -918,6 +918,9 @@ def enable_community_backup(
     else:  # S3 backup
         if not s3_bucket:
             raise ValueError("s3_bucket is required for S3 backup")
+
+        # Tenant-isolated default prefix: <namespace>/<deployment>
+        effective_s3_prefix = (s3_prefix or f"{namespace}/{deployment_id}").strip("/")
         
         # Deploy S3 CronJob with user-provided parameters
         deploy_backup_cronjob(
@@ -926,7 +929,7 @@ def enable_community_backup(
             schedule=schedule,
             retention_days=retention_days,
             s3_bucket=s3_bucket,
-            s3_prefix=s3_prefix,
+            s3_prefix=effective_s3_prefix,
             s3_region=s3_region
         )
         
@@ -947,7 +950,7 @@ def enable_community_backup(
             if e.status != 404:
                 print(f"[COMMUNITY_BACKUP] Warning: Could not unsuspend CronJob: {e}")
         
-        snapshots_prefix = _resolve_snapshots_prefix({"s3Prefix": s3_prefix}, s3_bucket)
+        snapshots_prefix = _resolve_snapshots_prefix({"s3Prefix": effective_s3_prefix}, s3_bucket)
         s3_path = f"s3://{s3_bucket}/{snapshots_prefix}"
         
         # Store config in deployment metadata
@@ -955,7 +958,7 @@ def enable_community_backup(
             "backupEnabled": True,  # Mark backup as enabled
             "backupType": backup_type,
             "s3Bucket": s3_bucket,
-            "s3Prefix": s3_prefix,
+            "s3Prefix": effective_s3_prefix,
             "s3Region": s3_region,
             "backupSchedule": schedule,
             "backupRetentionDays": retention_days
@@ -967,7 +970,7 @@ def enable_community_backup(
             "schedule": schedule,
             "s3Path": s3_path,
             "s3Bucket": s3_bucket,
-            "s3Prefix": s3_prefix,
+            "s3Prefix": effective_s3_prefix,
             "s3Region": s3_region,
             "retentionDays": retention_days
         }
@@ -1109,6 +1112,24 @@ def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[
             if snapshots:
                 break
         
+        if not snapshots:
+            # Fallback for legacy/mismatched prefixes: scan bucket and include dump archives.
+            response_all = s3_client.list_objects_v2(Bucket=s3_bucket)
+            if 'Contents' in response_all:
+                for obj in response_all['Contents']:
+                    key = obj['Key']
+                    if key.endswith('.tar.gz') and '/dump-' in key:
+                        filename = key.split('/')[-1]
+                        snapshots.append({
+                            'filename': filename,
+                            'size': obj['Size'],
+                            'sizeFormatted': format_bytes(obj['Size']),
+                            'lastModified': obj['LastModified'].isoformat(),
+                            'timestamp': filename.replace('dump-', '').replace('.tar.gz', ''),
+                            's3Key': key,
+                            's3Uri': f"s3://{s3_bucket}/{key}"
+                        })
+
         # Sort by lastModified descending (newest first)
         snapshots.sort(key=lambda x: x['lastModified'], reverse=True)
         
@@ -1451,6 +1472,11 @@ def restore_community_backup(
                 break
               fi
             done
+
+            if [ -z "$FOUND_KEY" ]; then
+              echo "[RESTORE] Direct key lookup failed. Trying recursive bucket search for filename..."
+              FOUND_KEY=$(aws s3 ls s3://{s3_bucket} --recursive --region {s3_region} | awk '$4 ~ /{snapshot_filename}$/ {{print $4; exit}}')
+            fi
 
             if [ -z "$FOUND_KEY" ]; then
               echo "[RESTORE] ERROR: Snapshot not found in S3. Tried keys: {' | '.join(s3_key_candidates)}"
