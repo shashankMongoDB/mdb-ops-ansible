@@ -1686,7 +1686,7 @@ def restore_community_backup(
 
             if [ "{drop_existing}" = "True" ]; then
                 echo "[RESTORE] dropExisting=true, dropping non-system databases before restore..."
-                mongosh "{mongodb_uri}" --quiet --eval 'const skip = new Set(["admin","config","local"]); db.getMongo().getDBNames().filter(n => !skip.has(n)).forEach(n => { print("[RESTORE] Dropping database: " + n); db.getSiblingDB(n).dropDatabase(); });'
+                mongosh "{mongodb_uri}" --quiet --eval 'const skip = new Set(["admin","config","local"]); db.getMongo().getDBNames().filter(n => !skip.has(n)).forEach(n => {{ print("[RESTORE] Dropping database: " + n); db.getSiblingDB(n).dropDatabase(); }});'
             fi
 
             # Restore to MongoDB
@@ -1769,7 +1769,7 @@ def restore_community_backup(
 
             if [ "{drop_existing}" = "True" ]; then
                 echo "[RESTORE] dropExisting=true, dropping non-system databases before restore..."
-                mongosh "{mongodb_uri}" --quiet --eval 'const skip = new Set(["admin","config","local"]); db.getMongo().getDBNames().filter(n => !skip.has(n)).forEach(n => { print("[RESTORE] Dropping database: " + n); db.getSiblingDB(n).dropDatabase(); });'
+                mongosh "{mongodb_uri}" --quiet --eval 'const skip = new Set(["admin","config","local"]); db.getMongo().getDBNames().filter(n => !skip.has(n)).forEach(n => {{ print("[RESTORE] Dropping database: " + n); db.getSiblingDB(n).dropDatabase(); }});'
             fi
 
             echo "[RESTORE] Running mongorestore..."
