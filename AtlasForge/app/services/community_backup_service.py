@@ -1036,9 +1036,10 @@ def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[
     
     s3_bucket = deployment.get("s3Bucket")
     s3_prefix = deployment.get("s3Prefix")
+    s3_path = deployment.get("s3Path")
     s3_region = deployment.get("s3Region", "us-east-1")
     
-    if not s3_bucket or not s3_prefix:
+    if not s3_bucket or (not s3_prefix and not s3_path):
         return []
     
     try:
@@ -1052,17 +1053,31 @@ def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[
             boto_kwargs["verify"] = False
         s3_client = boto3.client('s3', **boto_kwargs)
         
-        # List objects in the snapshots directory
-        prefix = _resolve_snapshots_prefix(deployment, s3_bucket) + "/"
-        
-        response = s3_client.list_objects_v2(
-            Bucket=s3_bucket,
-            Prefix=prefix
-        )
-        
+        # List objects in snapshot directory. Try multiple compatible prefixes.
+        resolved = _resolve_snapshots_prefix(deployment, s3_bucket).strip("/")
+        raw_prefix = (s3_prefix or "").strip("/")
+        candidates = [p for p in [
+            resolved,
+            raw_prefix,
+            f"{raw_prefix}/snapshots" if raw_prefix else None,
+            f"{raw_prefix}/snapshots/snapshots" if raw_prefix else None,
+        ] if p]
+
+        seen = set()
         snapshots = []
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+
+            response = s3_client.list_objects_v2(
+                Bucket=s3_bucket,
+                Prefix=candidate + "/"
+            )
+
+            if 'Contents' not in response:
+                continue
         
-        if 'Contents' in response:
             for obj in response['Contents']:
                 key = obj['Key']
                 
@@ -1090,6 +1105,9 @@ def list_community_backup_snapshots(tenant_id: str, deployment_id: str) -> List[
                         's3Key': key,
                         's3Uri': f"s3://{s3_bucket}/{key}"
                     })
+
+            if snapshots:
+                break
         
         # Sort by lastModified descending (newest first)
         snapshots.sort(key=lambda x: x['lastModified'], reverse=True)
@@ -1407,7 +1425,15 @@ def restore_community_backup(
         s3_bucket = deployment.get("s3Bucket")
         s3_region = deployment.get("s3Region", "us-east-1")
         snapshots_prefix = _resolve_snapshots_prefix(deployment, s3_bucket)
-        s3_key = f"{snapshots_prefix}/{snapshot_filename}"
+        raw_prefix = (deployment.get("s3Prefix") or "").strip("/")
+        s3_key_candidates = [
+            f"{snapshots_prefix}/{snapshot_filename}",
+            f"{raw_prefix}/{snapshot_filename}" if raw_prefix else None,
+            f"{raw_prefix}/snapshots/{snapshot_filename}" if raw_prefix else None,
+            f"{raw_prefix}/snapshots/snapshots/{snapshot_filename}" if raw_prefix else None,
+        ]
+        s3_key_candidates = [k for k in s3_key_candidates if k]
+        s3_key = s3_key_candidates[0]
         
         restore_command = [
             "/bin/sh",
@@ -1418,7 +1444,21 @@ def restore_community_backup(
             
             # Download from S3
             echo "[RESTORE] Downloading backup..."
-            aws s3 cp s3://{s3_bucket}/{s3_key} /tmp/{snapshot_filename} --region {s3_region}
+            FOUND_KEY=""
+            for KEY in {' '.join([f'"{k}"' for k in s3_key_candidates])}; do
+              if aws s3 ls s3://{s3_bucket}/$KEY --region {s3_region} >/dev/null 2>&1; then
+                FOUND_KEY="$KEY"
+                break
+              fi
+            done
+
+            if [ -z "$FOUND_KEY" ]; then
+              echo "[RESTORE] ERROR: Snapshot not found in S3. Tried keys: {' | '.join(s3_key_candidates)}"
+              exit 1
+            fi
+
+            echo "[RESTORE] Using key: $FOUND_KEY"
+            aws s3 cp s3://{s3_bucket}/$FOUND_KEY /tmp/{snapshot_filename} --region {s3_region}
             
             # Extract
             echo "[RESTORE] Extracting backup..."
