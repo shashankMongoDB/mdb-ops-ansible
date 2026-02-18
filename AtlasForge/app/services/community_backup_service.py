@@ -1545,17 +1545,23 @@ def restore_community_backup(
     except Exception as e:
         raise ValueError(f"Could not get external connection info: {e}")
     
-    # Get backup credentials from secret
-    backup_creds_secret_name = f"{deployment_id}-backup-credentials"
-    stored_mongodb_uri = k8s.get_secret_data(namespace, backup_creds_secret_name, "MONGODB_URI")
-    if not stored_mongodb_uri:
-        raise ValueError(f"Backup credentials secret not found or invalid ({backup_creds_secret_name}). Is backup enabled?")
+    # Use admin credentials for restore to ensure drop/create privileges across all DBs
+    admin_password = None
+    for admin_secret_name in [f"{deployment_id}-admin-admin", f"{deployment_id}-admin"]:
+        try:
+            admin_secret = k8s.core_v1.read_namespaced_secret(admin_secret_name, namespace)
+            encoded = (admin_secret.data or {}).get("password")
+            if encoded:
+                import base64
+                admin_password = base64.b64decode(encoded).decode("utf-8")
+                break
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+    if not admin_password:
+        raise ValueError("Could not read admin credentials for restore")
 
-    stored_base = stored_mongodb_uri.split("?", 1)[0]
-    if "@" not in stored_base:
-        raise ValueError("Backup credentials URI does not contain auth info")
-
-    auth_part = stored_base.replace("mongodb://", "").split("@", 1)[0]
+    auth_part = f"admin:{quote_plus(admin_password)}"
     target_host = base_uri.replace("mongodb://", "").split("/", 1)[0]
     # Keep DB path empty for full multi-database restore.
     mongodb_uri = f"mongodb://{auth_part}@{target_host}/?authSource=admin&directConnection=true"
