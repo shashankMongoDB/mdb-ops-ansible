@@ -292,17 +292,11 @@ def create_backup_credentials_secret(
     """
     k8s = get_k8s_client()
     
-    # Use external NodePort connection if available, otherwise fall back to internal
-    if external_host and external_port:
-        # External connection via NodePort (no TLS for Community)
-        mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin?authSource=admin&directConnection=true"
-        print(f"[COMMUNITY_BACKUP] ✅ Using EXTERNAL connection: {external_host}:{external_port}")
-    else:
-        # Fall back to internal DNS (with TLS)
-        first_host = mongodb_hosts.split(',')[0]
-        mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?authSource=admin&tls=true&tlsInsecure=true"
-        print(f"[COMMUNITY_BACKUP] ⚠️  WARNING: Using INTERNAL connection: {first_host}")
-        print(f"[COMMUNITY_BACKUP] ⚠️  This may not work from backup pods. Please check external service.")
+    if not external_host or not external_port:
+        raise ValueError("External primary NodePort connection is required for backups")
+
+    mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin?authSource=admin&directConnection=true"
+    print(f"[COMMUNITY_BACKUP] ✅ Using EXTERNAL PRIMARY connection: {external_host}:{external_port}")
     
     secret_name = f"{deployment_id}-backup-credentials"
     secret = client.V1Secret(
@@ -883,6 +877,50 @@ def enable_community_backup(
                 external_port = 27017
         else:
             print(f"[COMMUNITY_BACKUP] ⚠️  External URI not available")
+
+        # Hard fallback: resolve/create PRIMARY NodePort directly when lifecycle response is empty
+        if not external_host or not external_port:
+            k8s = get_k8s_client()
+            worker_node_ip = k8s.get_worker_node_ip()
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={deployment_id}-svc"
+            )
+            pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
+            primary_pod = pod_names[0] if pod_names else None
+
+            from kubernetes.stream import stream
+            import json
+            for pod_name in pod_names:
+                try:
+                    resp = stream(
+                        k8s.core_v1.connect_get_namespaced_pod_exec,
+                        pod_name,
+                        namespace,
+                        container='mongod',
+                        command=['/bin/bash', '-c', "mongosh --quiet --norc --eval 'JSON.stringify(db.hello())'"],
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    payload = None
+                    for line in str(resp).splitlines()[::-1]:
+                        line = line.strip()
+                        if line.startswith('{') and line.endswith('}'):
+                            payload = line
+                            break
+                    if payload and json.loads(payload).get("isWritablePrimary"):
+                        primary_pod = pod_name
+                        break
+                except Exception:
+                    continue
+
+            if primary_pod:
+                _, node_port = k8s.ensure_external_service_for_pod(namespace, deployment_id, primary_pod, "primary")
+                external_host = worker_node_ip
+                external_port = node_port
+                print(f"[COMMUNITY_BACKUP] ✅ Resolved PRIMARY NodePort fallback: {external_host}:{external_port}")
             
     except Exception as e:
         print(f"[COMMUNITY_BACKUP] ❌ ERROR getting external connection: {e}")
@@ -895,8 +933,7 @@ def enable_community_backup(
     print(f"[COMMUNITY_BACKUP] ========== END EXTERNAL CONNECTION ==========")
     
     if not external_host or not external_port:
-        print(f"[COMMUNITY_BACKUP] ⚠️  ⚠️  ⚠️  WARNING: External connection not available!")
-        print(f"[COMMUNITY_BACKUP] ⚠️  ⚠️  ⚠️  Will fall back to internal DNS (may not work!)")
+        raise ValueError("External primary endpoint is unavailable. Please wait for deployment readiness and retry.")
     
     # Step 2: Create backup user
     backup_password = create_backup_mongodb_user(namespace, deployment_id, external_host, external_port)
