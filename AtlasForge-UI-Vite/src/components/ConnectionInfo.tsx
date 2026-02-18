@@ -66,9 +66,9 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
     return null;
   }
 
-  const selectedExternalUri = connectionInfo.externalUri
-    ? withReadPreference(connectionInfo.externalUri, connectionMode)
-    : null;
+  const selectedExternalUri = connectionMode === 'primary'
+    ? (connectionInfo.externalPrimaryUri || (connectionInfo.externalUri ? withReadPreference(connectionInfo.externalUri, 'primary') : null))
+    : (connectionInfo.externalSecondaryUri || (connectionInfo.externalUri ? withReadPreference(connectionInfo.externalUri, 'secondary') : null));
 
   const selectedInternalUri = connectionInfo.internalUri
     ? withReadPreference(connectionInfo.internalUri, connectionMode)

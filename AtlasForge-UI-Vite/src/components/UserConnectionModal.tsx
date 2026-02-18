@@ -7,6 +7,8 @@ interface UserConnectionModalProps {
   onClose: () => void;
   username: string;
   externalUri?: string | null;
+  externalPrimaryUri?: string | null;
+  externalSecondaryUri?: string | null;
   internalUri?: string | null;
 }
 
@@ -15,6 +17,8 @@ export function UserConnectionModal({
   onClose, 
   username,
   externalUri,
+  externalPrimaryUri,
+  externalSecondaryUri,
   internalUri
 }: UserConnectionModalProps) {
   const [connectionMode, setConnectionMode] = useState<'primary' | 'secondary'>('primary');
@@ -67,7 +71,9 @@ export function UserConnectionModal({
     return uri.includes('?') ? `${uri}&readPreference=${pref}` : `${uri}?readPreference=${pref}`;
   };
 
-  const selectedExternalUri = externalUri ? withReadPreference(externalUri, connectionMode) : null;
+  const selectedExternalUri = connectionMode === 'primary'
+    ? (externalPrimaryUri || (externalUri ? withReadPreference(externalUri, 'primary') : null))
+    : (externalSecondaryUri || (externalUri ? withReadPreference(externalUri, 'secondary') : null));
   const selectedInternalUri = internalUri ? withReadPreference(internalUri, connectionMode) : null;
 
   return (

@@ -1,7 +1,9 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional, Tuple
 import logging
 import re
+import json
 from datetime import datetime, timezone
+from kubernetes.stream import stream
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
@@ -32,6 +34,71 @@ def _normalize_version(version: str) -> str:
 def _is_recent_restart_marker(restart_requested_at: str) -> bool:
     if not restart_requested_at:
         return False
+
+
+def _resolve_primary_secondary_pods(k8s, namespace: str, deployment_id: str, pod_names: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    if not pod_names:
+        return (None, None)
+
+    primary_pod = None
+    secondary_pod = None
+
+    for pod_name in pod_names:
+        try:
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container='mongod',
+                command=['/bin/bash', '-c', "mongosh --quiet --eval 'JSON.stringify(db.hello())'"],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+
+            payload = None
+            for line in str(resp).splitlines()[::-1]:
+                line = line.strip()
+                if line.startswith('{') and line.endswith('}'):
+                    payload = line
+                    break
+            if not payload:
+                continue
+
+            hello = json.loads(payload)
+            primary_host = hello.get('primary')
+            if primary_host:
+                primary_candidate = primary_host.split(':')[0].split('.')[0]
+                if primary_candidate in pod_names:
+                    primary_pod = primary_candidate
+
+            hosts = hello.get('hosts') or []
+            secondary_candidates = [
+                h.split(':')[0].split('.')[0]
+                for h in hosts
+                if h and h.split(':')[0].split('.')[0] != primary_pod
+            ]
+            for candidate in secondary_candidates:
+                if candidate in pod_names:
+                    secondary_pod = candidate
+                    break
+
+            if primary_pod:
+                break
+        except Exception:
+            continue
+
+    if not primary_pod:
+        primary_pod = sorted(pod_names)[0]
+
+    if not secondary_pod:
+        for candidate in sorted(pod_names, reverse=True):
+            if candidate != primary_pod:
+                secondary_pod = candidate
+                break
+
+    return (primary_pod, secondary_pod)
     try:
         marker_time = datetime.fromisoformat(str(restart_requested_at).replace("Z", "+00:00"))
         if marker_time.tzinfo is None:
@@ -313,6 +380,27 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
         
         external_host_port = f"{worker_node_ip}:{node_port}"
         external_uri = f"mongodb://{external_host_port}"
+
+        external_primary_host_port = None
+        external_primary_uri = None
+        external_secondary_host_port = None
+        external_secondary_uri = None
+
+        try:
+            pod_names = [r.get("name") for r in replicas if r.get("name")]
+            primary_pod, secondary_pod = _resolve_primary_secondary_pods(k8s, namespace, deployment_id, pod_names)
+
+            if primary_pod:
+                _, primary_node_port = k8s.ensure_external_service_for_pod(namespace, deployment_id, primary_pod, "primary")
+                external_primary_host_port = f"{worker_node_ip}:{primary_node_port}"
+                external_primary_uri = f"mongodb://{external_primary_host_port}"
+
+            if secondary_pod:
+                _, secondary_node_port = k8s.ensure_external_service_for_pod(namespace, deployment_id, secondary_pod, "secondary")
+                external_secondary_host_port = f"{worker_node_ip}:{secondary_node_port}"
+                external_secondary_uri = f"mongodb://{external_secondary_host_port}"
+        except Exception as e:
+            logger.warning(f"Failed to resolve role-specific external endpoints for {namespace}/{deployment_id}: {e}")
         
         return {
             "namespace": namespace,
@@ -321,6 +409,10 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "internalUri": internal_uri,
             "externalHostPort": external_host_port,
             "externalUri": external_uri,
+            "externalPrimaryHostPort": external_primary_host_port,
+            "externalPrimaryUri": external_primary_uri,
+            "externalSecondaryHostPort": external_secondary_host_port,
+            "externalSecondaryUri": external_secondary_uri,
             "operation": operation,
             "progress": progress,
             "operationMessage": operation_message,
@@ -345,6 +437,10 @@ def get_connection_info(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
             "internalUri": internal_uri,
             "externalHostPort": None,
             "externalUri": None,
+            "externalPrimaryHostPort": None,
+            "externalPrimaryUri": None,
+            "externalSecondaryHostPort": None,
+            "externalSecondaryUri": None,
             "operation": operation,
             "progress": progress,
             "operationMessage": operation_message,

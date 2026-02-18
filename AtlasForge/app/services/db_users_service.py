@@ -373,6 +373,8 @@ def get_user_connection(
     # Get connection info
     conn_info = get_connection_info(tenant_id, deployment_id)
     external_host_port = conn_info.get("externalHostPort")
+    external_primary_host_port = conn_info.get("externalPrimaryHostPort")
+    external_secondary_host_port = conn_info.get("externalSecondaryHostPort")
     internal_uri_base = conn_info.get("internalUri", "")
     
     # Extract internal host from base URI
@@ -406,12 +408,28 @@ def get_user_connection(
             # Enterprise MongoDB
             internal_uri = f"mongodb://{username}:{encoded_password}@{internal_host}/{db}"
 
+    external_primary_uri = None
+    if external_primary_host_port:
+        if plan == "community":
+            external_primary_uri = f"mongodb://{username}:{encoded_password}@{external_primary_host_port}/{db}?authSource={db}"
+        else:
+            external_primary_uri = f"mongodb://{username}:{encoded_password}@{external_primary_host_port}/{db}"
+
+    external_secondary_uri = None
+    if external_secondary_host_port:
+        if plan == "community":
+            external_secondary_uri = f"mongodb://{username}:{encoded_password}@{external_secondary_host_port}/{db}?authSource={db}"
+        else:
+            external_secondary_uri = f"mongodb://{username}:{encoded_password}@{external_secondary_host_port}/{db}"
+
     return {
         "username": username,
         "db": db,
         "roles": user["roles"],
         "externalUri": external_uri,
-        "internalUri": internal_uri
+        "internalUri": internal_uri,
+        "externalPrimaryUri": external_primary_uri,
+        "externalSecondaryUri": external_secondary_uri
     }
 
 

@@ -38,6 +38,10 @@ export interface ConnectionInfo {
   internalUri: string;
   externalHostPort?: string | null;
   externalUri?: string | null;
+  externalPrimaryHostPort?: string | null;
+  externalPrimaryUri?: string | null;
+  externalSecondaryHostPort?: string | null;
+  externalSecondaryUri?: string | null;
   error?: string | null;
 }
 

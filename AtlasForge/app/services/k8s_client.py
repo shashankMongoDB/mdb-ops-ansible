@@ -258,6 +258,73 @@ class K8sClient:
         
         return (service_name, node_port)
 
+    def ensure_external_service_for_pod(self, namespace: str, deployment_id: str, pod_name: str, role: str) -> tuple[str, int]:
+        """
+        Ensure a NodePort service exists targeting a specific pod (via pod-name selector).
+        Returns (service_name, node_port).
+        """
+        service_name = f"{deployment_id}-{role}-external"
+        selector = {
+            "statefulset.kubernetes.io/pod-name": pod_name
+        }
+
+        try:
+            existing_svc = self.core_v1.read_namespaced_service(service_name, namespace)
+            existing_selector = existing_svc.spec.selector or {}
+
+            # If selector drifted (e.g. new primary), patch it and keep same NodePort.
+            if existing_selector != selector:
+                patch = {
+                    "spec": {
+                        "selector": selector
+                    }
+                }
+                self.core_v1.patch_namespaced_service(service_name, namespace, patch)
+                existing_svc = self.core_v1.read_namespaced_service(service_name, namespace)
+
+            for port in existing_svc.spec.ports:
+                if port.name == "mongodb":
+                    return (service_name, port.node_port)
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                raise
+
+        service = client.V1Service(
+            api_version="v1",
+            kind="Service",
+            metadata=client.V1ObjectMeta(
+                name=service_name,
+                namespace=namespace,
+                labels={
+                    "app": deployment_id,
+                    "mdb.example.com/external": "true",
+                    "mdb.example.com/role": role
+                }
+            ),
+            spec=client.V1ServiceSpec(
+                type="NodePort",
+                selector=selector,
+                ports=[
+                    client.V1ServicePort(
+                        name="mongodb",
+                        port=27017,
+                        target_port=27017,
+                        protocol="TCP"
+                    )
+                ]
+            )
+        )
+
+        created_svc = self.core_v1.create_namespaced_service(namespace, service)
+
+        node_port = None
+        for port in created_svc.spec.ports:
+            if port.name == "mongodb":
+                node_port = port.node_port
+                break
+
+        return (service_name, node_port)
+
     def get_worker_node_ip(self) -> str:
         """
         Get the InternalIP of the first worker node.

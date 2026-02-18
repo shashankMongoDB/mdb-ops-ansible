@@ -702,6 +702,8 @@ export function DeploymentDetailsPage() {
         }}
         username={selectedUserConnection?.username || ''}
         externalUri={selectedUserConnection?.externalUri}
+        externalPrimaryUri={selectedUserConnection?.externalPrimaryUri}
+        externalSecondaryUri={selectedUserConnection?.externalSecondaryUri}
         internalUri={selectedUserConnection?.internalUri}
       />
     </div>

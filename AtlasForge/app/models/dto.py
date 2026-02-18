@@ -98,6 +98,10 @@ class ConnectionInfoResponse(BaseModel):
     internalUri: Optional[str] = None
     externalHostPort: Optional[str] = None
     externalUri: Optional[str] = None
+    externalPrimaryHostPort: Optional[str] = None
+    externalPrimaryUri: Optional[str] = None
+    externalSecondaryHostPort: Optional[str] = None
+    externalSecondaryUri: Optional[str] = None
     error: Optional[str] = None
     status: Optional[str] = None  # "shutdown" or "running"
     message: Optional[str] = None  # Human-readable message
@@ -276,6 +280,8 @@ class DBUserConnectionResponse(BaseModel):
     roles: list[dict]
     externalUri: Optional[str] = None
     internalUri: Optional[str] = None
+    externalPrimaryUri: Optional[str] = None
+    externalSecondaryUri: Optional[str] = None
 
 
 # Community Backup
