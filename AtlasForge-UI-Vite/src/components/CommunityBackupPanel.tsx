@@ -57,6 +57,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const [copiedS3, setCopiedS3] = useState(false);
   const [showEnableModal, setShowEnableModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showRestoreHistoryModal, setShowRestoreHistoryModal] = useState(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState<BackupSnapshot | null>(null);
   const [cancellingRestore, setCancellingRestore] = useState(false);
   const [dismissedRestoreKey, setDismissedRestoreKey] = useState<string | null>(null);
@@ -68,16 +69,6 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   useEffect(() => {
     loadStatus();
   }, [tenantId, deploymentId]);
-
-  useEffect(() => {
-    if (!status?.restore || !['PENDING', 'RUNNING'].includes(status.restore.status)) return;
-
-    const interval = setInterval(() => {
-      loadStatus();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [status?.restore?.jobName, status?.restore?.status]);
 
   useEffect(() => {
     const currentKey = status?.restore ? `${status.restore.jobName}:${status.restore.status}` : null;
@@ -401,7 +392,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         </div>
       </div>
 
-      {status.enabled && status.restore && dismissedRestoreKey !== `${status.restore.jobName}:${status.restore.status}` && (
+      {status.enabled && status.restore && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status.restore.status) && dismissedRestoreKey !== `${status.restore.jobName}:${status.restore.status}` && (
         <div className={`card border ${status.restore.status === 'FAILED' ? 'border-red-200 bg-red-50' : status.restore.status === 'COMPLETED' ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-semibold">Last Restore Status</h4>
@@ -430,19 +421,17 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         </div>
       )}
 
-      {status.enabled && status.restoreHistory && status.restoreHistory.length > 0 && (
+      {status.enabled && (
         <div className="card">
-          <h4 className="text-sm font-semibold mb-3">Restore History (Last 25)</h4>
-          <div className="space-y-2">
-            {status.restoreHistory.slice(0, 25).map((item) => (
-              <div key={item.jobName} className="border rounded p-2 text-xs">
-                <p><span className="font-semibold">{item.status}</span> • {item.snapshot || 'N/A'}</p>
-                <p className="text-gray-600">Job: {item.jobName}</p>
-                {item.startedAt && <p className="text-gray-600">Started: {formatDateTime(item.startedAt)}</p>}
-                {item.completedAt && <p className="text-gray-600">Completed: {formatDateTime(item.completedAt)}</p>}
-                {item.error && <p className="text-red-700">Error: {item.error}</p>}
-              </div>
-            ))}
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">Restore History</h4>
+            <button
+              onClick={() => setShowRestoreHistoryModal(true)}
+              disabled={!status.restoreHistory || status.restoreHistory.length === 0}
+              className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              View History
+            </button>
           </div>
         </div>
       )}
@@ -598,6 +587,30 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
             loadStatus();
           }}
         />
+      )}
+
+      {showRestoreHistoryModal && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Restore History (Last 25)</h3>
+              <button onClick={() => setShowRestoreHistoryModal(false)} className="text-gray-500 hover:text-gray-700">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[70vh] space-y-2">
+              {(status?.restoreHistory || []).map((item) => (
+                <div key={item.jobName} className="border rounded p-3 text-xs">
+                  <p><span className="font-semibold">{item.status}</span> • {item.snapshot || 'N/A'}</p>
+                  <p className="text-gray-600">Job: {item.jobName}</p>
+                  {item.startedAt && <p className="text-gray-600">Started: {formatDateTime(item.startedAt)}</p>}
+                  {item.completedAt && <p className="text-gray-600">Completed: {formatDateTime(item.completedAt)}</p>}
+                  {item.error && <p className="text-red-700 mt-1">Error: {item.error}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
