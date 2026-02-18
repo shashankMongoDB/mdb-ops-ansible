@@ -12,6 +12,7 @@ interface ConnectionInfoProps {
 
 export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) {
   const [connectionInfo, setConnectionInfo] = useState<ConnectionInfoType | null>(null);
+  const [connectionMode, setConnectionMode] = useState<'primary' | 'secondary'>('primary');
   const [loading, setLoading] = useState(true);
   const [copiedUri, setCopiedUri] = useState(false);
   const [copiedMongosh, setCopiedMongosh] = useState(false);
@@ -49,6 +50,14 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
     }
   };
 
+  const withReadPreference = (uri: string, mode: 'primary' | 'secondary') => {
+    const pref = mode === 'primary' ? 'primary' : 'secondaryPreferred';
+    if (uri.includes('readPreference=')) {
+      return uri.replace(/readPreference=[^&]*/g, `readPreference=${pref}`);
+    }
+    return uri.includes('?') ? `${uri}&readPreference=${pref}` : `${uri}?readPreference=${pref}`;
+  };
+
   if (loading) {
     return <div className="text-gray-500">Loading connection info...</div>;
   }
@@ -57,9 +66,41 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
     return null;
   }
 
+  const selectedExternalUri = connectionInfo.externalUri
+    ? withReadPreference(connectionInfo.externalUri, connectionMode)
+    : null;
+
+  const selectedInternalUri = connectionInfo.internalUri
+    ? withReadPreference(connectionInfo.internalUri, connectionMode)
+    : null;
+
   return (
     <div className="card">
       <h3 className="text-xl font-semibold text-mongodb-forest mb-4">Connection Information</h3>
+
+      <div className="mb-4">
+        <label className="text-sm font-medium text-gray-700 block mb-2">Connection Target</label>
+        <div className="flex gap-3">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="connection-mode-main"
+              checked={connectionMode === 'primary'}
+              onChange={() => setConnectionMode('primary')}
+            />
+            Primary (read/write)
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="connection-mode-main"
+              checked={connectionMode === 'secondary'}
+              onChange={() => setConnectionMode('secondary')}
+            />
+            Secondary preferred (reads)
+          </label>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {/* Error Message */}
@@ -88,12 +129,12 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
         </div>
 
         {/* External MongoDB URI */}
-        {connectionInfo.externalUri && (
+        {selectedExternalUri && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700">External MongoDB URI</label>
               <button
-                onClick={() => handleCopy(connectionInfo.externalUri!, 'uri')}
+                onClick={() => handleCopy(selectedExternalUri, 'uri')}
                 className="flex items-center gap-1 text-sm text-mongodb-green hover:text-mongodb-green-dark"
               >
                 {copiedUri ? (
@@ -110,7 +151,7 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
               </button>
             </div>
             <div className="bg-mongodb-green bg-opacity-5 p-3 rounded-md border border-mongodb-green font-mono text-sm break-all">
-              {connectionInfo.externalUri}
+              {selectedExternalUri}
             </div>
             
             {/* Access Method Explanation */}
@@ -128,10 +169,10 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
               <label className="text-xs text-gray-500 block mb-1">mongosh Connection Example:</label>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200 font-mono text-xs break-all">
-                  mongosh "{connectionInfo.externalUri}"
+                  mongosh "{selectedExternalUri}"
                 </div>
                 <button
-                  onClick={() => handleCopy(`mongosh "${connectionInfo.externalUri}"`, 'mongosh')}
+                  onClick={() => handleCopy(`mongosh "${selectedExternalUri}"`, 'mongosh')}
                   className="flex-shrink-0 text-mongodb-green hover:text-mongodb-green-dark"
                   title="Copy mongosh command"
                 >
@@ -154,7 +195,7 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
               <span className="text-xs text-gray-400 ml-2">(K8s cluster only)</span>
             </label>
             <button
-              onClick={() => handleCopy(connectionInfo.internalUri, 'uri')}
+              onClick={() => handleCopy(selectedInternalUri || connectionInfo.internalUri, 'uri')}
               className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
             >
               {copiedUri ? (
@@ -171,7 +212,7 @@ export function ConnectionInfo({ tenantId, deploymentId }: ConnectionInfoProps) 
             </button>
           </div>
           <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all">
-            {connectionInfo.internalUri}
+            {selectedInternalUri || connectionInfo.internalUri}
           </div>
         </div>
       </div>

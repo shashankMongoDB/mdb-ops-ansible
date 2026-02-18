@@ -17,6 +17,7 @@ export function UserConnectionModal({
   externalUri,
   internalUri
 }: UserConnectionModalProps) {
+  const [connectionMode, setConnectionMode] = useState<'primary' | 'secondary'>('primary');
   const [copiedExternal, setCopiedExternal] = useState(false);
   const [copiedInternal, setCopiedInternal] = useState(false);
   const [copiedExternalMongosh, setCopiedExternalMongosh] = useState(false);
@@ -58,6 +59,17 @@ export function UserConnectionModal({
     }
   };
 
+  const withReadPreference = (uri: string, mode: 'primary' | 'secondary') => {
+    const pref = mode === 'primary' ? 'primary' : 'secondaryPreferred';
+    if (uri.includes('readPreference=')) {
+      return uri.replace(/readPreference=[^&]*/g, `readPreference=${pref}`);
+    }
+    return uri.includes('?') ? `${uri}&readPreference=${pref}` : `${uri}?readPreference=${pref}`;
+  };
+
+  const selectedExternalUri = externalUri ? withReadPreference(externalUri, connectionMode) : null;
+  const selectedInternalUri = internalUri ? withReadPreference(internalUri, connectionMode) : null;
+
   return (
     <Transition appear show={open} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -98,8 +110,32 @@ export function UserConnectionModal({
                 </div>
 
                 <div className="space-y-6">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Connection Target</label>
+                    <div className="flex gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="connection-mode"
+                          checked={connectionMode === 'primary'}
+                          onChange={() => setConnectionMode('primary')}
+                        />
+                        Primary (read/write)
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="connection-mode"
+                          checked={connectionMode === 'secondary'}
+                          onChange={() => setConnectionMode('secondary')}
+                        />
+                        Secondary preferred (reads)
+                      </label>
+                    </div>
+                  </div>
+
                   {/* External Connection */}
-                  {externalUri && (
+                  {selectedExternalUri && (
                     <div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-3">
                         External Connection <span className="text-xs text-gray-500 font-normal">(from VPC clients)</span>
@@ -110,7 +146,7 @@ export function UserConnectionModal({
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-medium text-gray-600">Connection String</label>
                           <button
-                            onClick={() => handleCopy(externalUri, 'external')}
+                            onClick={() => handleCopy(selectedExternalUri, 'external')}
                             className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
                           >
                             {copiedExternal ? (
@@ -127,7 +163,7 @@ export function UserConnectionModal({
                           </button>
                         </div>
                         <div className="bg-mongodb-green bg-opacity-5 p-3 rounded-md border border-mongodb-green font-mono text-xs break-all">
-                          {externalUri}
+                          {selectedExternalUri}
                         </div>
                       </div>
 
@@ -136,7 +172,7 @@ export function UserConnectionModal({
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-medium text-gray-600">mongosh Command</label>
                           <button
-                            onClick={() => handleCopy(`mongosh "${externalUri}"`, 'externalMongosh')}
+                            onClick={() => handleCopy(`mongosh "${selectedExternalUri}"`, 'externalMongosh')}
                             className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
                           >
                             {copiedExternalMongosh ? (
@@ -153,14 +189,14 @@ export function UserConnectionModal({
                           </button>
                         </div>
                         <div className="bg-gray-900 p-3 rounded-md font-mono text-xs text-green-400 break-all">
-                          mongosh "{externalUri}"
+                          mongosh "{selectedExternalUri}"
                         </div>
                       </div>
                     </div>
                   )}
 
                   {/* Internal Connection */}
-                  {internalUri && (
+                  {selectedInternalUri && (
                     <div className="pt-4 border-t">
                       <h3 className="text-sm font-semibold text-gray-900 mb-3">
                         Internal Connection <span className="text-xs text-gray-500 font-normal">(from inside K8s cluster)</span>
@@ -171,7 +207,7 @@ export function UserConnectionModal({
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-medium text-gray-600">Connection String</label>
                           <button
-                            onClick={() => handleCopy(internalUri, 'internal')}
+                            onClick={() => handleCopy(selectedInternalUri, 'internal')}
                             className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
                           >
                             {copiedInternal ? (
@@ -188,7 +224,7 @@ export function UserConnectionModal({
                           </button>
                         </div>
                         <div className="bg-gray-50 p-3 rounded-md border border-gray-200 font-mono text-xs break-all">
-                          {internalUri}
+                          {selectedInternalUri}
                         </div>
                       </div>
 
@@ -197,7 +233,7 @@ export function UserConnectionModal({
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-medium text-gray-600">mongosh Command</label>
                           <button
-                            onClick={() => handleCopy(`mongosh "${internalUri}"`, 'internalMongosh')}
+                            onClick={() => handleCopy(`mongosh "${selectedInternalUri}"`, 'internalMongosh')}
                             className="flex items-center gap-1 text-xs text-mongodb-green hover:text-mongodb-green-dark"
                           >
                             {copiedInternalMongosh ? (
@@ -214,13 +250,13 @@ export function UserConnectionModal({
                           </button>
                         </div>
                         <div className="bg-gray-900 p-3 rounded-md font-mono text-xs text-green-400 break-all">
-                          mongosh "{internalUri}"
+                          mongosh "{selectedInternalUri}"
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {!externalUri && !internalUri && (
+                  {!selectedExternalUri && !selectedInternalUri && (
                     <div className="text-center py-8 text-gray-500">
                       No connection URIs available
                     </div>
