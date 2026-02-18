@@ -32,6 +32,40 @@ def generate_password(length: int = 24) -> str:
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
+def _build_s3_client(region: Optional[str]):
+    if not BOTO3_AVAILABLE:
+        raise ValueError("boto3 is not installed on the backend. Install boto3 to validate S3 buckets.")
+
+    boto_kwargs = {"region_name": region or "us-east-1"}
+    if config.COMMUNITY_BACKUP_S3_ENDPOINT_URL:
+        boto_kwargs["endpoint_url"] = config.COMMUNITY_BACKUP_S3_ENDPOINT_URL
+    if config.COMMUNITY_BACKUP_S3_NO_VERIFY_SSL:
+        boto_kwargs["verify"] = False
+    return boto3.client("s3", **boto_kwargs)
+
+
+def validate_s3_bucket_access(s3_bucket: str, s3_region: Optional[str], test_prefix: str) -> None:
+    """Validate bucket exists and is accessible (head + put/delete probe)."""
+    s3_client = _build_s3_client(s3_region)
+
+    try:
+        s3_client.head_bucket(Bucket=s3_bucket)
+    except ClientError as e:
+        code = (e.response.get("Error") or {}).get("Code", "Unknown")
+        raise ValueError(f"S3 bucket '{s3_bucket}' is not accessible or does not exist (head_bucket failed: {code})")
+
+    probe_key = f"{test_prefix.strip('/')}/.mdbaas-write-check-{int(time.time())}".strip("/")
+    try:
+        s3_client.put_object(Bucket=s3_bucket, Key=probe_key, Body=b"mdbaas-check")
+        s3_client.delete_object(Bucket=s3_bucket, Key=probe_key)
+    except ClientError as e:
+        code = (e.response.get("Error") or {}).get("Code", "Unknown")
+        raise ValueError(
+            f"S3 bucket '{s3_bucket}' is reachable but write/delete validation failed at prefix '{test_prefix}' ({code}). "
+            "Ensure IAM permissions include s3:PutObject and s3:DeleteObject for this prefix."
+        )
+
+
 def discover_mongodb_connection(namespace: str, deployment_id: str) -> Dict[str, str]:
     """
     Discover MongoDB connection details for Community deployment.
@@ -921,6 +955,13 @@ def enable_community_backup(
 
         # Tenant-isolated default prefix: <namespace>/<deployment>
         effective_s3_prefix = (s3_prefix or f"{namespace}/{deployment_id}").strip("/")
+
+        # Preflight validation: bucket exists + credentials can write/delete under tenant prefix
+        validate_s3_bucket_access(
+            s3_bucket=s3_bucket,
+            s3_region=s3_region or "us-east-1",
+            test_prefix=effective_s3_prefix
+        )
         
         # Deploy S3 CronJob with user-provided parameters
         deploy_backup_cronjob(
