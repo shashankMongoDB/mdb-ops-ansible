@@ -49,6 +49,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const [showEnableModal, setShowEnableModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState<BackupSnapshot | null>(null);
+  const [cancellingRestore, setCancellingRestore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const snapshotsPerPage = 10;
   
@@ -159,6 +160,23 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const formatDateTime = (isoString: string | null) => {
     if (!isoString) return 'Never';
     return new Date(isoString).toLocaleString();
+  };
+
+  const handleCancelRestore = async () => {
+    if (!status?.restore?.jobName) return;
+    const confirmed = window.confirm(`Cancel restore job ${status.restore.jobName}?`);
+    if (!confirmed) return;
+
+    try {
+      setCancellingRestore(true);
+      await deploymentsApi.cancelRestoreJob(tenantId, deploymentId, status.restore.jobName);
+      showSuccess('Restore cancelled', `Job ${status.restore.jobName} cancelled`);
+      await loadStatus();
+    } catch (error: any) {
+      showError('Failed to cancel restore job', error.detail || error.message);
+    } finally {
+      setCancellingRestore(false);
+    }
   };
 
   if (loading) {
@@ -372,6 +390,15 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
           <p className="text-xs text-gray-600">Job: {status.restore.jobName}</p>
           {status.restore.snapshot && <p className="text-xs text-gray-600">Snapshot: {status.restore.snapshot}</p>}
           {status.restore.error && <p className="text-xs text-red-700 mt-1">Error: {status.restore.error}</p>}
+          {['PENDING', 'RUNNING'].includes(status.restore.status) && (
+            <button
+              onClick={handleCancelRestore}
+              disabled={cancellingRestore}
+              className="btn-danger mt-3"
+            >
+              {cancellingRestore ? 'Cancelling...' : 'Cancel Restore Job'}
+            </button>
+          )}
         </div>
       )}
 

@@ -1272,6 +1272,7 @@ def restore_community_backup(
         )
         return result
     except ValueError as e:
+        logger.warning(f"Community restore rejected for {tenantId}/{deploymentId}: {str(e)}")
         if "not found" in str(e):
             raise HTTPException(status_code=404, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))
@@ -1303,6 +1304,28 @@ def get_restore_job_status(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Error getting restore job status")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post(
+    "/tenants/{tenantId}/deployments/{deploymentId}/community-backup/restore/{jobName}/cancel"
+)
+def cancel_restore_job(
+    tenantId: str = Path(..., description="Tenant identifier"),
+    deploymentId: str = Path(..., description="Deployment identifier"),
+    jobName: str = Path(..., description="Restore job name")
+):
+    """Cancel (delete) a running restore job."""
+    try:
+        result = community_backup_service.cancel_restore_job(tenantId, deploymentId, jobName)
+        return result
+    except ValueError as e:
+        logger.warning(f"Cancel restore rejected for {tenantId}/{deploymentId}/{jobName}: {str(e)}")
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Error cancelling restore job")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 

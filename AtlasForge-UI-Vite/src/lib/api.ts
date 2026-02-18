@@ -403,6 +403,15 @@ export const deploymentsApi = {
     }
   },
 
+  async cancelRestoreJob(tenantId: string, deploymentId: string, jobName: string): Promise<any> {
+    try {
+      const response = await api.post(`/tenants/${tenantId}/deployments/${deploymentId}/community-backup/restore/${jobName}/cancel`);
+      return response.data;
+    } catch (error) {
+      return handleError(error);
+    }
+  },
+
   async getMongoDBVersions(): Promise<any> {
     try {
       const response = await api.get('/mongodb-versions');

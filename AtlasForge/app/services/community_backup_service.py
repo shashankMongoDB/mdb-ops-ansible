@@ -1252,8 +1252,19 @@ def get_restore_state(tenant_id: str, deployment_id: str) -> Optional[Dict[str, 
                 )
                 state["error"] = "Restore job failed"
                 state["completedAt"] = datetime.now(timezone.utc).isoformat()
-        except Exception:
-            pass
+        except Exception as e:
+            # If we cannot verify an in-progress job, mark it failed to avoid permanent lock.
+            repo.update_deployment_metadata(
+                tenant_id=tenant_id,
+                deployment_id=deployment_id,
+                metadata={
+                    "lastRestoreStatus": "FAILED",
+                    "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+                    "lastRestoreError": f"Could not read restore job status: {str(e)}"
+                }
+            )
+            state["status"] = "FAILED"
+            state["error"] = f"Could not read restore job status: {str(e)}"
 
     return state
 
@@ -1311,7 +1322,12 @@ def restore_community_backup(
         raise ValueError("Restore is currently supported only for S3 backups")
 
     if is_restore_in_progress(tenant_id, deployment_id):
-        raise ValueError("A restore job is already running for this deployment")
+        current = get_restore_state(tenant_id, deployment_id) or {}
+        job_name = current.get("jobName", "unknown")
+        raise ValueError(
+            f"A restore job is already running for this deployment (job: {job_name}). "
+            f"Cancel it first via: POST /tenants/{tenant_id}/deployments/{deployment_id}/community-backup/restore/{job_name}/cancel"
+        )
     
     # Get external connection info (same as backup uses)
     from app.services import lifecycle_service
@@ -1624,10 +1640,13 @@ def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) ->
     }
 
     if job_status in {"COMPLETED", "FAILED"}:
+        restore_error = None if job_status == "COMPLETED" else (
+            f"Restore job failed. Check logs for details. Last logs: {logs[-500:]}"
+        )
         updates = {
             "lastRestoreStatus": job_status,
             "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
-            "lastRestoreError": None if job_status == "COMPLETED" else "Restore job failed"
+            "lastRestoreError": restore_error
         }
         repo.update_deployment_metadata(
             tenant_id=tenant_id,
@@ -1636,3 +1655,41 @@ def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) ->
         )
 
     return result
+
+
+def cancel_restore_job(tenant_id: str, deployment_id: str, job_name: str) -> Dict[str, Any]:
+    """Cancel (delete) an active restore job and clear restore lock state."""
+    repo = get_repo()
+    k8s = get_k8s_client()
+
+    tenant = repo.get_tenant(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} not found")
+
+    namespace = tenant["namespace"]
+
+    try:
+        k8s.batch_v1.delete_namespaced_job(
+            name=job_name,
+            namespace=namespace,
+            propagation_policy="Foreground"
+        )
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            raise ValueError(f"Failed to cancel restore job: {e}")
+
+    repo.update_deployment_metadata(
+        tenant_id=tenant_id,
+        deployment_id=deployment_id,
+        metadata={
+            "lastRestoreStatus": "CANCELLED",
+            "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreError": "Restore job was cancelled by user"
+        }
+    )
+
+    return {
+        "message": "Restore job cancelled",
+        "jobName": job_name,
+        "status": "CANCELLED"
+    }
