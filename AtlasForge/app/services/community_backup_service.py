@@ -3,6 +3,7 @@ import string
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
+from urllib.parse import quote_plus
 from kubernetes import client
 
 try:
@@ -121,16 +122,16 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     # Generate password
     backup_password = generate_password(24)
     
-    # Get pods and try user creation on primary-capable pod
-    pods = k8s.core_v1.list_namespaced_pod(
-        namespace=namespace,
-        label_selector=f"app={deployment_id}-svc"
-    )
-    
+    if not external_host or not external_port:
+        raise ValueError("External primary host:port is required to create backup user")
+
+    # Use one pod only as an exec runner; mongosh connects to external primary endpoint.
+    pods = k8s.core_v1.list_namespaced_pod(namespace=namespace, label_selector=f"app={deployment_id}-svc")
     if not pods.items:
         raise ValueError(f"No pods found for deployment {deployment_id}")
-    
-    pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
+    exec_pod = next((p.metadata.name for p in pods.items if p.metadata and p.metadata.name), None)
+    if not exec_pod:
+        raise ValueError(f"No valid pod names found for deployment {deployment_id}")
     
     # Get admin credentials from MongoDB Community secret
     admin_secret_name = f"{deployment_id}-admin-admin"
@@ -180,54 +181,24 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
         "}"
     )
 
+    admin_password_encoded = quote_plus(admin_password)
+    primary_uri = f"mongodb://admin:{admin_password_encoded}@{external_host}:{external_port}/admin?authSource=admin&directConnection=true"
+
     command = [
         'env',
         'HOME=/tmp',
         'mongosh',
         '--quiet',
         '--norc',
-        '-u',
-        'admin',
-        '-p',
-        admin_password,
-        '--authenticationDatabase',
-        'admin',
+        primary_uri,
         '--eval',
         js_eval
     ]
 
-    # Resolve primary once and create user only on primary (no broad retry loop during enable)
-    primary_pod = pod_names[0]
-    try:
-        import json
-        for pod_name in pod_names:
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container='mongod',
-                command=['/bin/bash', '-c', "mongosh --quiet --norc --eval 'JSON.stringify(db.hello())'"],
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
-            )
-            payload = None
-            for line in str(resp).splitlines()[::-1]:
-                line = line.strip()
-                if line.startswith('{') and line.endswith('}'):
-                    payload = line
-                    break
-            if payload and json.loads(payload).get("isWritablePrimary"):
-                primary_pod = pod_name
-                break
-    except Exception:
-        pass
-
     try:
         resp = stream(
             k8s.core_v1.connect_get_namespaced_pod_exec,
-            primary_pod,
+            exec_pod,
             namespace,
             container='mongod',
             command=command,
@@ -236,11 +207,11 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
             stdout=True,
             tty=False
         )
-        print(f"[COMMUNITY_BACKUP] MongoDB user creation response from primary {primary_pod}: {resp}")
+        print(f"[COMMUNITY_BACKUP] MongoDB user creation response via external primary {external_host}:{external_port}: {resp}")
         if 'BACKUP_USER_CREATED' not in resp and 'BACKUP_USER_UPDATED' not in resp:
-            raise ValueError(f"Failed to create backup user on primary {primary_pod}: {resp}")
+            raise ValueError(f"Failed to create backup user via external primary {external_host}:{external_port}: {resp}")
     except Exception as e:
-        raise ValueError(f"Failed to create backup MongoDB user on primary pod {primary_pod}: {e}")
+        raise ValueError(f"Failed to create backup MongoDB user via external primary {external_host}:{external_port}: {e}")
     
     # Store password in secret for CronJob to use
     secret_name = f"{deployment_id}-backupuser-password"
