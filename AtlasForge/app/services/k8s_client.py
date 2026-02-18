@@ -2,6 +2,7 @@ import time
 from typing import Optional, Dict, Any, List
 from kubernetes import client, config as k8s_config
 from kubernetes.client.rest import ApiException
+from kubernetes.stream import stream
 from app import config
 
 
@@ -23,6 +24,32 @@ class K8sClient:
         Avoids issues where stream() exec mutates the shared API client's transport.
         """
         return client.CoreV1Api()
+
+    def exec_in_pod(
+        self,
+        pod_name: str,
+        namespace: str,
+        command: List[str],
+        container: Optional[str] = None,
+    ) -> str:
+        """Execute command in pod using a fresh CoreV1Api to avoid stream transport side-effects."""
+        core_v1 = self._fresh_core_v1()
+        kwargs: Dict[str, Any] = {
+            "command": command,
+            "stderr": True,
+            "stdin": False,
+            "stdout": True,
+            "tty": False,
+        }
+        if container:
+            kwargs["container"] = container
+
+        return stream(
+            core_v1.connect_get_namespaced_pod_exec,
+            pod_name,
+            namespace,
+            **kwargs,
+        )
 
     def ensure_namespace(self, name: str, labels: Optional[Dict[str, str]] = None) -> None:
         try:

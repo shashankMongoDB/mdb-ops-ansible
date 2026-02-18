@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List
 from urllib.parse import quote_plus
 from kubernetes import client
-from kubernetes.stream import stream
 
 from app.services.mongo_repo import MongoRepository
 from app.services.k8s_client import K8sClient
@@ -54,16 +53,11 @@ def _get_primary_pod_name(k8s: K8sClient, namespace: str, deployment_id: str) ->
     pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
     for pod_name in pod_names:
         try:
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
+            resp = k8s.exec_in_pod(
+                pod_name=pod_name,
+                namespace=namespace,
                 container='mongod',
                 command=['/bin/bash', '-c', "mongosh --quiet --eval 'JSON.stringify(db.hello())'"],
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
             )
             payload = None
             for line in str(resp).splitlines()[::-1]:
@@ -218,16 +212,11 @@ MONGOEOF
             
             command = ['/bin/bash', '-c', create_user_script]
             
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container='mongod',  # Specify the mongod container
+            resp = k8s.exec_in_pod(
+                pod_name=pod_name,
+                namespace=namespace,
+                container='mongod',
                 command=command,
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
             )
             
             print(f"[DB_USER] MongoDB user creation response: {resp}")
@@ -555,16 +544,11 @@ try {{
 }}
 MONGOEOF
 """
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
+            resp = k8s.exec_in_pod(
+                pod_name=pod_name,
+                namespace=namespace,
                 container='mongod',
                 command=['/bin/bash', '-c', update_user_script],
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
             )
             print(f"[DB_USER] Community update user response: {resp}")
             if 'USER_UPDATED' not in str(resp):
@@ -686,16 +670,11 @@ try {{
 MONGOEOF
 """
 
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container='mongod',  # Specify the mongod container
+            resp = k8s.exec_in_pod(
+                pod_name=pod_name,
+                namespace=namespace,
+                container='mongod',
                 command=['/bin/bash', '-c', drop_user_script],
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
             )
             
             print(f"[DB_USER] Drop user response: {resp}")

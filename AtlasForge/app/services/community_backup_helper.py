@@ -7,7 +7,6 @@ Community MongoDB doesn't use MongoDBUser CR, so we create users directly.
 import secrets
 import string
 from kubernetes import client
-from kubernetes.stream import stream
 
 
 def create_backup_user_directly(k8s_client, namespace: str, deployment_id: str, external_uri: str) -> str:
@@ -74,15 +73,10 @@ try {{
     command = ['/bin/bash', '-c', f'mongosh --quiet --eval \'{create_user_js}\'']
     
     try:
-        resp = stream(
-            k8s_client.core_v1.connect_get_namespaced_pod_exec,
-            pod_name,
-            namespace,
+        resp = k8s_client.exec_in_pod(
+            pod_name=pod_name,
+            namespace=namespace,
             command=command,
-            stderr=True,
-            stdin=False,
-            stdout=True,
-            tty=False
         )
         
         print(f"[COMMUNITY_BACKUP] MongoDB user creation response: {resp}")

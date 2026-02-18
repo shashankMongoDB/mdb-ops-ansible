@@ -3,7 +3,6 @@ import logging
 import re
 import json
 from datetime import datetime, timezone
-from kubernetes.stream import stream
 from app.services.mongo_repo import get_repo
 from app.services.k8s_client import get_k8s_client
 from app.services import monitoring_service
@@ -46,16 +45,11 @@ def _resolve_primary_secondary_pods(k8s, namespace: str, deployment_id: str, pod
 
     for pod_name in pod_names:
         try:
-            resp = stream(
-                k8s.core_v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
+            resp = k8s.exec_in_pod(
+                pod_name=pod_name,
+                namespace=namespace,
                 container='mongod',
                 command=['/bin/bash', '-c', "mongosh --quiet --eval 'JSON.stringify(db.hello())'"],
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False
             )
 
             payload = None

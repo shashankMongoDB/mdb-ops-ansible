@@ -163,7 +163,6 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     print(f"[COMMUNITY_BACKUP] Found admin credentials in secret: {admin_secret_name}")
     
     # Create/update backup user via non-interactive mongosh eval
-    from kubernetes.stream import stream
 
     js_eval = (
         "db = db.getSiblingDB('admin');"
@@ -196,16 +195,11 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     ]
 
     try:
-        resp = stream(
-            k8s.core_v1.connect_get_namespaced_pod_exec,
-            exec_pod,
-            namespace,
+        resp = k8s.exec_in_pod(
+            pod_name=exec_pod,
+            namespace=namespace,
             container='mongod',
             command=command,
-            stderr=True,
-            stdin=False,
-            stdout=True,
-            tty=False
         )
         print(f"[COMMUNITY_BACKUP] MongoDB user creation response via external primary {external_host}:{external_port}: {resp}")
         if 'BACKUP_USER_CREATED' not in resp and 'BACKUP_USER_UPDATED' not in resp:
@@ -863,20 +857,14 @@ def enable_community_backup(
             pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
             primary_pod = pod_names[0] if pod_names else None
 
-            from kubernetes.stream import stream
             import json
             for pod_name in pod_names:
                 try:
-                    resp = stream(
-                        k8s.core_v1.connect_get_namespaced_pod_exec,
-                        pod_name,
-                        namespace,
+                    resp = k8s.exec_in_pod(
+                        pod_name=pod_name,
+                        namespace=namespace,
                         container='mongod',
                         command=['/bin/bash', '-c', "mongosh --quiet --norc --eval 'JSON.stringify(db.hello())'"],
-                        stderr=True,
-                        stdin=False,
-                        stdout=True,
-                        tty=False
                     )
                     payload = None
                     for line in str(resp).splitlines()[::-1]:
@@ -1538,20 +1526,14 @@ def restore_community_backup(
             pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
             primary_pod = pod_names[0] if pod_names else None
 
-            from kubernetes.stream import stream
             import json
             for pod_name in pod_names:
                 try:
-                    resp = stream(
-                        k8s.core_v1.connect_get_namespaced_pod_exec,
-                        pod_name,
-                        namespace,
+                    resp = k8s.exec_in_pod(
+                        pod_name=pod_name,
+                        namespace=namespace,
                         container='mongod',
                         command=['/bin/bash', '-c', "mongosh --quiet --norc --eval 'JSON.stringify(db.hello())'"],
-                        stderr=True,
-                        stdin=False,
-                        stdout=True,
-                        tty=False
                     )
                     payload = None
                     for line in str(resp).splitlines()[::-1]:
