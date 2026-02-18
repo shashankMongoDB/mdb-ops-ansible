@@ -631,7 +631,7 @@ def deploy_backup_cronjob(
                                         fi
                                         dump_size_bytes=$(du -sk "$dump_path" | awk '{{print $1}}')
                                         if [ "${{dump_size_bytes:-0}}" -lt 50 ]; then
-                                          echo "ERROR: dump size too small (${dump_size_bytes}KB), refusing to upload"
+                                          echo "ERROR: dump size too small (${{dump_size_bytes}}KB), refusing to upload"
                                           exit 1
                                         fi
                                         cd /backup && tar -czf "dump-$timestamp.tar.gz" "dump-$timestamp"
