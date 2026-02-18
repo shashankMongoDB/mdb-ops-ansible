@@ -196,53 +196,51 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
         js_eval
     ]
 
-    creation_success = False
-    last_error = None
-    for pod_name in pod_names:
-        for attempt in range(1, 4):
-            try:
-                resp = stream(
-                    k8s.core_v1.connect_get_namespaced_pod_exec,
-                    pod_name,
-                    namespace,
-                    container='mongod',
-                    command=command,
-                    stderr=True,
-                    stdin=False,
-                    stdout=True,
-                    tty=False
-                )
-
-                print(f"[COMMUNITY_BACKUP] MongoDB user creation response from {pod_name} (attempt {attempt}): {resp}")
-
-                if 'BACKUP_USER_CREATED' in resp or 'BACKUP_USER_UPDATED' in resp:
-                    print(f"[COMMUNITY_BACKUP] Successfully created/updated backup user in pod {pod_name}")
-                    creation_success = True
+    # Resolve primary once and create user only on primary (no broad retry loop during enable)
+    primary_pod = pod_names[0]
+    try:
+        import json
+        for pod_name in pod_names:
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container='mongod',
+                command=['/bin/bash', '-c', "mongosh --quiet --norc --eval 'JSON.stringify(db.hello())'"],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+            payload = None
+            for line in str(resp).splitlines()[::-1]:
+                line = line.strip()
+                if line.startswith('{') and line.endswith('}'):
+                    payload = line
                     break
-
-                lower_resp = str(resp).lower()
-                if (
-                    'notwritableprimary' in lower_resp
-                    or 'not primary' in lower_resp
-                    or 'interrupteddue' in lower_resp
-                    or 'operation was interrupted' in lower_resp
-                    or 'primary stepped down' in lower_resp
-                ):
-                    last_error = f"Transient/secondary response on {pod_name}: {resp}"
-                    time.sleep(2)
-                    continue
-
-                last_error = f"Unexpected mongosh response on {pod_name}: {resp}"
+            if payload and json.loads(payload).get("isWritablePrimary"):
+                primary_pod = pod_name
                 break
-            except Exception as e:
-                last_error = str(e)
-                time.sleep(1)
+    except Exception:
+        pass
 
-        if creation_success:
-            break
-
-    if not creation_success:
-        raise ValueError(f"Failed to create backup MongoDB user on any pod: {last_error}")
+    try:
+        resp = stream(
+            k8s.core_v1.connect_get_namespaced_pod_exec,
+            primary_pod,
+            namespace,
+            container='mongod',
+            command=command,
+            stderr=True,
+            stdin=False,
+            stdout=True,
+            tty=False
+        )
+        print(f"[COMMUNITY_BACKUP] MongoDB user creation response from primary {primary_pod}: {resp}")
+        if 'BACKUP_USER_CREATED' not in resp and 'BACKUP_USER_UPDATED' not in resp:
+            raise ValueError(f"Failed to create backup user on primary {primary_pod}: {resp}")
+    except Exception as e:
+        raise ValueError(f"Failed to create backup MongoDB user on primary pod {primary_pod}: {e}")
     
     # Store password in secret for CronJob to use
     secret_name = f"{deployment_id}-backupuser-password"
@@ -295,7 +293,7 @@ def create_backup_credentials_secret(
     if not external_host or not external_port:
         raise ValueError("External primary NodePort connection is required for backups")
 
-    mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin?authSource=admin&directConnection=true"
+    mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/?authSource=admin&directConnection=true"
     print(f"[COMMUNITY_BACKUP] ✅ Using EXTERNAL PRIMARY connection: {external_host}:{external_port}")
     
     secret_name = f"{deployment_id}-backup-credentials"
@@ -658,6 +656,11 @@ def deploy_backup_cronjob(
                                         dump_files=$(find "$dump_path" -type f | wc -l | tr -d ' ')
                                         if [ "$dump_files" -eq 0 ]; then
                                           echo "ERROR: mongodump completed but produced no files"
+                                          exit 1
+                                        fi
+                                        dump_size_bytes=$(du -sk "$dump_path" | awk '{print $1}')
+                                        if [ "${dump_size_bytes:-0}" -lt 50 ]; then
+                                          echo "ERROR: dump size too small (${dump_size_bytes}KB), refusing to upload"
                                           exit 1
                                         fi
                                         cd /backup && tar -czf "dump-$timestamp.tar.gz" "dump-$timestamp"
