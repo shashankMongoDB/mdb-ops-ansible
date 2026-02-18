@@ -121,7 +121,7 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     # Generate password
     backup_password = generate_password(24)
     
-    # Get the first pod to exec into
+    # Get pods and try user creation on primary-capable pod
     pods = k8s.core_v1.list_namespaced_pod(
         namespace=namespace,
         label_selector=f"app={deployment_id}-svc"
@@ -130,7 +130,7 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     if not pods.items:
         raise ValueError(f"No pods found for deployment {deployment_id}")
     
-    pod_name = pods.items[0].metadata.name
+    pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
     
     # Get admin credentials from MongoDB Community secret
     admin_secret_name = f"{deployment_id}-admin-admin"
@@ -196,31 +196,40 @@ MONGOEOF
 """
     
     command = ['/bin/bash', '-c', create_user_script]
-    
-    try:
-        resp = stream(
-            k8s.core_v1.connect_get_namespaced_pod_exec,
-            pod_name,
-            namespace,
-            container='mongod',  # Specify the mongod container for Community MongoDB
-            command=command,
-            stderr=True,
-            stdin=False,
-            stdout=True,
-            tty=False
-        )
-        
-        print(f"[COMMUNITY_BACKUP] MongoDB user creation response: {resp}")
-        
-        if 'BACKUP_USER_CREATED' in resp or 'BACKUP_USER_UPDATED' in resp:
-            print(f"[COMMUNITY_BACKUP] Successfully created/updated backup user in pod {pod_name}")
-        else:
-            print(f"[COMMUNITY_BACKUP] Warning: Unexpected response: {resp}")
-            
-    except Exception as e:
-        print(f"[COMMUNITY_BACKUP] Error executing mongosh command: {e}")
-        # Don't fail if user creation fails - password secret will still be created
-        print(f"[COMMUNITY_BACKUP] Continuing with password generation...")
+
+    creation_success = False
+    last_error = None
+    for pod_name in pod_names:
+        try:
+            resp = stream(
+                k8s.core_v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container='mongod',
+                command=command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False
+            )
+
+            print(f"[COMMUNITY_BACKUP] MongoDB user creation response from {pod_name}: {resp}")
+
+            if 'BACKUP_USER_CREATED' in resp or 'BACKUP_USER_UPDATED' in resp:
+                print(f"[COMMUNITY_BACKUP] Successfully created/updated backup user in pod {pod_name}")
+                creation_success = True
+                break
+
+            if 'NotWritablePrimary' in resp or 'not primary' in resp:
+                last_error = f"Pod {pod_name} is not primary"
+                continue
+
+            last_error = f"Unexpected mongosh response on {pod_name}: {resp}"
+        except Exception as e:
+            last_error = str(e)
+
+    if not creation_success:
+        raise ValueError(f"Failed to create backup MongoDB user on any pod: {last_error}")
     
     # Store password in secret for CronJob to use
     secret_name = f"{deployment_id}-backupuser-password"
@@ -273,12 +282,12 @@ def create_backup_credentials_secret(
     # Use external NodePort connection if available, otherwise fall back to internal
     if external_host and external_port:
         # External connection via NodePort (no TLS for Community)
-        mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin"
+        mongodb_uri = f"mongodb://backupuser:{password}@{external_host}:{external_port}/admin?authSource=admin&directConnection=true"
         print(f"[COMMUNITY_BACKUP] ✅ Using EXTERNAL connection: {external_host}:{external_port}")
     else:
         # Fall back to internal DNS (with TLS)
         first_host = mongodb_hosts.split(',')[0]
-        mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?tls=true&tlsInsecure=true"
+        mongodb_uri = f"mongodb://backupuser:{password}@{first_host}/admin?authSource=admin&tls=true&tlsInsecure=true"
         print(f"[COMMUNITY_BACKUP] ⚠️  WARNING: Using INTERNAL connection: {first_host}")
         print(f"[COMMUNITY_BACKUP] ⚠️  This may not work from backup pods. Please check external service.")
     
@@ -635,9 +644,15 @@ def deploy_backup_cronjob(
                                     "command": ["/bin/bash", "-c"],
                                     "args": [
                                         f"""
+                                        set -euo pipefail
                                         timestamp=$(date +%Y%m%d-%H%M%S)
                                         dump_path="/backup/dump-$timestamp"
                                         mongodump --uri="$MONGODB_URI" --out="$dump_path" --gzip
+                                        dump_files=$(find "$dump_path" -type f | wc -l | tr -d ' ')
+                                        if [ "$dump_files" -eq 0 ]; then
+                                          echo "ERROR: mongodump completed but produced no files"
+                                          exit 1
+                                        fi
                                         cd /backup && tar -czf "dump-$timestamp.tar.gz" "dump-$timestamp"
                                         rm -rf "$dump_path"
                                         echo "Backup created: dump-$timestamp.tar.gz"
