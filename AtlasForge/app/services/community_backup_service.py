@@ -1477,6 +1477,55 @@ def restore_community_backup(
             connection_info.get("externalPrimaryUri")
             or connection_info.get("externalUri", "")
         )
+
+        if not external_uri:
+            external_host_port = (
+                connection_info.get("externalPrimaryHostPort")
+                or connection_info.get("externalHostPort")
+            )
+            if external_host_port:
+                external_uri = f"mongodb://{external_host_port}"
+
+        # Hard fallback: resolve/create PRIMARY NodePort directly
+        if not external_uri:
+            worker_node_ip = k8s.get_worker_node_ip()
+            pods = k8s.core_v1.list_namespaced_pod(
+                namespace=namespace,
+                label_selector=f"app={deployment_id}-svc"
+            )
+            pod_names = [p.metadata.name for p in pods.items if p.metadata and p.metadata.name]
+            primary_pod = pod_names[0] if pod_names else None
+
+            from kubernetes.stream import stream
+            import json
+            for pod_name in pod_names:
+                try:
+                    resp = stream(
+                        k8s.core_v1.connect_get_namespaced_pod_exec,
+                        pod_name,
+                        namespace,
+                        container='mongod',
+                        command=['/bin/bash', '-c', "mongosh --quiet --norc --eval 'JSON.stringify(db.hello())'"],
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    payload = None
+                    for line in str(resp).splitlines()[::-1]:
+                        line = line.strip()
+                        if line.startswith('{') and line.endswith('}'):
+                            payload = line
+                            break
+                    if payload and json.loads(payload).get("isWritablePrimary"):
+                        primary_pod = pod_name
+                        break
+                except Exception:
+                    continue
+
+            if primary_pod:
+                _, node_port = k8s.ensure_external_service_for_pod(namespace, deployment_id, primary_pod, "primary")
+                external_uri = f"mongodb://{worker_node_ip}:{node_port}"
         
         if not external_uri:
             raise ValueError("External connection URI not available")
@@ -1508,15 +1557,15 @@ def restore_community_backup(
 
     auth_part = stored_base.replace("mongodb://", "").split("@", 1)[0]
     target_host = base_uri.replace("mongodb://", "").split("/", 1)[0]
-    mongodb_uri = f"mongodb://{auth_part}@{target_host}/admin"
+    mongodb_uri = f"mongodb://{auth_part}@{target_host}/admin?authSource=admin&directConnection=true"
     
     # Ensure /admin database
-    mongodb_uri = mongodb_uri.split("?", 1)[0]
-    host_and_path = mongodb_uri.split("@", 1)[1] if "@" in mongodb_uri else mongodb_uri.replace("mongodb://", "")
+    mongodb_uri_no_qs = mongodb_uri.split("?", 1)[0]
+    host_and_path = mongodb_uri_no_qs.split("@", 1)[1] if "@" in mongodb_uri_no_qs else mongodb_uri_no_qs.replace("mongodb://", "")
     if "/" not in host_and_path:
-        mongodb_uri = f"{mongodb_uri}/admin"
-    elif not mongodb_uri.endswith("/admin"):
-        mongodb_uri = mongodb_uri.rsplit("/", 1)[0] + "/admin"
+        mongodb_uri = f"{mongodb_uri_no_qs}/admin?authSource=admin&directConnection=true"
+    elif not mongodb_uri_no_qs.endswith("/admin"):
+        mongodb_uri = mongodb_uri_no_qs.rsplit("/", 1)[0] + "/admin?authSource=admin&directConnection=true"
     
     # Generate unique job name
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
