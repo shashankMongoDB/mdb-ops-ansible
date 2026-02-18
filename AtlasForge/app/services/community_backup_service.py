@@ -168,11 +168,11 @@ def create_backup_mongodb_user(namespace: str, deployment_id: str, external_host
     js_eval = (
         "db = db.getSiblingDB('admin');"
         "try {"
-        f"db.createUser({{user:'backupuser',pwd:'{backup_password}',roles:[{{role:'backup',db:'admin'}},{{role:'clusterMonitor',db:'admin'}},{{role:'readAnyDatabase',db:'admin'}}]}});"
+        f"db.createUser({{user:'backupuser',pwd:'{backup_password}',roles:[{{role:'backup',db:'admin'}},{{role:'restore',db:'admin'}},{{role:'readWriteAnyDatabase',db:'admin'}},{{role:'dbAdminAnyDatabase',db:'admin'}},{{role:'clusterMonitor',db:'admin'}}]}});"
         "print('BACKUP_USER_CREATED');"
         "} catch(e) {"
         "if (e.code === 51003) {"
-        f"db.updateUser('backupuser', {{pwd:'{backup_password}',roles:[{{role:'backup',db:'admin'}},{{role:'clusterMonitor',db:'admin'}},{{role:'readAnyDatabase',db:'admin'}}]}});"
+        f"db.updateUser('backupuser', {{pwd:'{backup_password}',roles:[{{role:'backup',db:'admin'}},{{role:'restore',db:'admin'}},{{role:'readWriteAnyDatabase',db:'admin'}},{{role:'dbAdminAnyDatabase',db:'admin'}},{{role:'clusterMonitor',db:'admin'}}]}});"
         "print('BACKUP_USER_UPDATED');"
         "} else {"
         "print('ERROR: ' + e.message);"
