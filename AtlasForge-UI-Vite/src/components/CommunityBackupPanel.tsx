@@ -78,17 +78,27 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
     }
   }, [status?.restore?.jobName, status?.restore?.status, dismissedRestoreKey]);
 
-  const loadStatus = async () => {
+  const loadStatus = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await deploymentsApi.getCommunityBackupStatus(tenantId, deploymentId);
       setStatus(data);
     } catch (error: any) {
       showError('Failed to load backup status', error.detail);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!status?.restore || !['PENDING', 'RUNNING'].includes(status.restore.status)) return;
+
+    const interval = setInterval(() => {
+      loadStatus(true);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [status?.restore?.jobName, status?.restore?.status, tenantId, deploymentId]);
 
   const handleEnableBackup = async (config: any) => {
     setUpdating(true);
@@ -421,21 +431,6 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         </div>
       )}
 
-      {status.enabled && (
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold">Restore History</h4>
-            <button
-              onClick={() => setShowRestoreHistoryModal(true)}
-              disabled={!status.restoreHistory || status.restoreHistory.length === 0}
-              className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              View History
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Message */}
       {status.message && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
@@ -540,25 +535,18 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         );
       })()}
 
-      {/* Restore Instructions */}
       {status.enabled && (
-        <div className="card bg-gray-50">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Restore Instructions</h4>
-          <p className="text-xs text-gray-600 mb-2">
-            To restore from a backup:
-          </p>
-          {status.type === 's3' ? (
-            <ol className="list-decimal list-inside text-xs text-gray-600 space-y-1">
-              <li>Download the backup archive from S3: <code className="bg-gray-200 px-1 py-0.5 rounded">aws s3 cp s3://... ./dump.gz</code></li>
-              <li>Restore with mongorestore: <code className="bg-gray-200 px-1 py-0.5 rounded">mongorestore --uri="..." --archive=./dump.gz --gzip</code></li>
-            </ol>
-          ) : (
-            <ol className="list-decimal list-inside text-xs text-gray-600 space-y-1">
-              <li>Access the filesystem backup location: <code className="bg-gray-200 px-1 py-0.5 rounded">{status.target}</code></li>
-              <li>Copy the backup file to your local machine</li>
-              <li>Restore with mongorestore: <code className="bg-gray-200 px-1 py-0.5 rounded">mongorestore --uri="..." --archive=./dump-YYYYMMDD-HHMMSS.gz --gzip</code></li>
-            </ol>
-          )}
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">Restore History</h4>
+            <button
+              onClick={() => setShowRestoreHistoryModal(true)}
+              disabled={!status.restoreHistory || status.restoreHistory.length === 0}
+              className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              View History
+            </button>
+          </div>
         </div>
       )}
 

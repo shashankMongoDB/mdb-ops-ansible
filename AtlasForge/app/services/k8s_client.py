@@ -17,6 +17,13 @@ class K8sClient:
         self.apps_v1 = client.AppsV1Api()
         self.batch_v1 = client.BatchV1Api()
 
+    def _fresh_core_v1(self) -> client.CoreV1Api:
+        """
+        Return a fresh CoreV1Api instance.
+        Avoids issues where stream() exec mutates the shared API client's transport.
+        """
+        return client.CoreV1Api()
+
     def ensure_namespace(self, name: str, labels: Optional[Dict[str, str]] = None) -> None:
         try:
             self.core_v1.read_namespace(name=name)
@@ -802,7 +809,7 @@ class K8sClient:
         import base64
         
         try:
-            secret = self.core_v1.read_namespaced_secret(name=name, namespace=namespace)
+            secret = self._fresh_core_v1().read_namespaced_secret(name=name, namespace=namespace)
             if secret.data and key in secret.data:
                 # Decode base64 data
                 return base64.b64decode(secret.data[key]).decode('utf-8')
@@ -820,7 +827,8 @@ class K8sClient:
         import base64
         
         try:
-            secret = self.core_v1.read_namespaced_secret(name=name, namespace=namespace)
+            core_v1 = self._fresh_core_v1()
+            secret = core_v1.read_namespaced_secret(name=name, namespace=namespace)
             
             # Encode the new value
             encoded_value = base64.b64encode(value.encode('utf-8')).decode('utf-8')
@@ -831,7 +839,7 @@ class K8sClient:
             secret.data[key] = encoded_value
             
             # Patch the secret
-            self.core_v1.replace_namespaced_secret(name=name, namespace=namespace, body=secret)
+            core_v1.replace_namespaced_secret(name=name, namespace=namespace, body=secret)
         except ApiException as e:
             if e.status == 404:
                 raise ValueError(f"Secret {name} not found in namespace {namespace}")
