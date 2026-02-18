@@ -1557,15 +1557,8 @@ def restore_community_backup(
 
     auth_part = stored_base.replace("mongodb://", "").split("@", 1)[0]
     target_host = base_uri.replace("mongodb://", "").split("/", 1)[0]
-    mongodb_uri = f"mongodb://{auth_part}@{target_host}/admin?authSource=admin&directConnection=true"
-    
-    # Ensure /admin database
-    mongodb_uri_no_qs = mongodb_uri.split("?", 1)[0]
-    host_and_path = mongodb_uri_no_qs.split("@", 1)[1] if "@" in mongodb_uri_no_qs else mongodb_uri_no_qs.replace("mongodb://", "")
-    if "/" not in host_and_path:
-        mongodb_uri = f"{mongodb_uri_no_qs}/admin?authSource=admin&directConnection=true"
-    elif not mongodb_uri_no_qs.endswith("/admin"):
-        mongodb_uri = mongodb_uri_no_qs.rsplit("/", 1)[0] + "/admin?authSource=admin&directConnection=true"
+    # Keep DB path empty for full multi-database restore.
+    mongodb_uri = f"mongodb://{auth_part}@{target_host}/?authSource=admin&directConnection=true"
     
     # Generate unique job name
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -1648,6 +1641,7 @@ def restore_community_backup(
             mongorestore \\
                 --uri="{mongodb_uri}" \\
                 {'--drop' if drop_existing else ''} \\
+                --gzip \\
                 --dir="$DUMP_DIR"
             
             echo "[RESTORE] Restore completed successfully!"
