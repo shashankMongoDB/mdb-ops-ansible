@@ -319,6 +319,7 @@ class CommunityBackupStatusResponse(BaseModel):
     retentionDays: Optional[int] = None
     snapshots: Optional[list] = None
     restore: Optional[dict] = None
+    restoreHistory: Optional[list] = None
     message: Optional[str] = None
 
 

@@ -1244,6 +1244,45 @@ def _resolve_snapshots_prefix(deployment: Dict[str, Any], s3_bucket: Optional[st
     return f"{s3_prefix}/snapshots" if s3_prefix else "snapshots"
 
 
+def _append_restore_history(repo: MongoRepository, tenant_id: str, deployment_id: str, entry: Dict[str, Any]) -> None:
+    deployment = repo.get_deployment(tenant_id, deployment_id) or {}
+    history = deployment.get("restoreHistory") or []
+    if not isinstance(history, list):
+        history = []
+
+    history = [entry] + [h for h in history if h.get("jobName") != entry.get("jobName")]
+    history = history[:25]
+
+    repo.update_deployment_metadata(
+        tenant_id=tenant_id,
+        deployment_id=deployment_id,
+        metadata={"restoreHistory": history}
+    )
+
+
+def _update_restore_history(repo: MongoRepository, tenant_id: str, deployment_id: str, job_name: str, updates: Dict[str, Any]) -> None:
+    deployment = repo.get_deployment(tenant_id, deployment_id) or {}
+    history = deployment.get("restoreHistory") or []
+    if not isinstance(history, list):
+        history = []
+
+    changed = False
+    for i, entry in enumerate(history):
+        if entry.get("jobName") == job_name:
+            merged = dict(entry)
+            merged.update(updates)
+            history[i] = merged
+            changed = True
+            break
+
+    if changed:
+        repo.update_deployment_metadata(
+            tenant_id=tenant_id,
+            deployment_id=deployment_id,
+            metadata={"restoreHistory": history[:25]}
+        )
+
+
 def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str, Any]:
     """
     Get Community MongoDB backup status.
@@ -1314,6 +1353,9 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
     restore_state = get_restore_state(tenant_id, deployment_id)
     if enabled and restore_state:
         result["restore"] = restore_state
+    if enabled:
+        restore_history = deployment.get("restoreHistory") or []
+        result["restoreHistory"] = restore_history[:25]
     
     # Add type-specific fields
     if backup_type == "filesystem":
@@ -1798,18 +1840,34 @@ def restore_community_backup(
         raise ValueError(f"Failed to create restore job: {e}")
     
     # Store restore metadata
+    started_at = datetime.now(timezone.utc).isoformat()
     repo.update_deployment_metadata(
         tenant_id=tenant_id,
         deployment_id=deployment_id,
         metadata={
             "lastRestoreJob": job_name,
             "lastRestoreSnapshot": snapshot_filename,
-            "lastRestoreTime": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreTime": started_at,
             "lastRestoreDropExisting": drop_existing,
             "lastRestoreStatus": "RUNNING",
-            "lastRestoreStartedAt": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreStartedAt": started_at,
             "lastRestoreCompletedAt": None,
             "lastRestoreError": None
+        }
+    )
+
+    _append_restore_history(
+        repo,
+        tenant_id,
+        deployment_id,
+        {
+            "jobName": job_name,
+            "snapshot": snapshot_filename,
+            "status": "RUNNING",
+            "startedAt": started_at,
+            "completedAt": None,
+            "error": None,
+            "dropExisting": drop_existing
         }
     )
     
@@ -1899,15 +1957,27 @@ def get_restore_job_status(tenant_id: str, deployment_id: str, job_name: str) ->
         restore_error = None if job_status == "COMPLETED" else (
             f"Restore job failed. Check logs for details. Last logs: {logs[-500:]}"
         )
+        completed_at = datetime.now(timezone.utc).isoformat()
         updates = {
             "lastRestoreStatus": job_status,
-            "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreCompletedAt": completed_at,
             "lastRestoreError": restore_error
         }
         repo.update_deployment_metadata(
             tenant_id=tenant_id,
             deployment_id=deployment_id,
             metadata=updates
+        )
+        _update_restore_history(
+            repo,
+            tenant_id,
+            deployment_id,
+            job_name,
+            {
+                "status": job_status,
+                "completedAt": completed_at,
+                "error": restore_error
+            }
         )
 
     return result
@@ -1934,13 +2004,26 @@ def cancel_restore_job(tenant_id: str, deployment_id: str, job_name: str) -> Dic
         if e.status != 404:
             raise ValueError(f"Failed to cancel restore job: {e}")
 
+    completed_at = datetime.now(timezone.utc).isoformat()
     repo.update_deployment_metadata(
         tenant_id=tenant_id,
         deployment_id=deployment_id,
         metadata={
             "lastRestoreStatus": "CANCELLED",
-            "lastRestoreCompletedAt": datetime.now(timezone.utc).isoformat(),
+            "lastRestoreCompletedAt": completed_at,
             "lastRestoreError": "Restore job was cancelled by user"
+        }
+    )
+
+    _update_restore_history(
+        repo,
+        tenant_id,
+        deployment_id,
+        job_name,
+        {
+            "status": "CANCELLED",
+            "completedAt": completed_at,
+            "error": "Restore job was cancelled by user"
         }
     )
 

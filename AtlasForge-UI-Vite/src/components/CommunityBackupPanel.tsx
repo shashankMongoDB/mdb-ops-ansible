@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowPathIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ClipboardDocumentIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { deploymentsApi } from '@/lib/api';
 import { useToast } from './Toast';
 import { EnableCommunityBackupModal } from './EnableCommunityBackupModal';
@@ -39,6 +39,14 @@ interface BackupStatus {
     completedAt?: string;
     error?: string;
   };
+  restoreHistory?: Array<{
+    jobName: string;
+    snapshot?: string;
+    status: string;
+    startedAt?: string;
+    completedAt?: string;
+    error?: string;
+  }>;
   message?: string | null;
 }
 
@@ -51,6 +59,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState<BackupSnapshot | null>(null);
   const [cancellingRestore, setCancellingRestore] = useState(false);
+  const [dismissedRestoreKey, setDismissedRestoreKey] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const snapshotsPerPage = 10;
   
@@ -69,6 +78,14 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
 
     return () => clearInterval(interval);
   }, [status?.restore?.jobName, status?.restore?.status]);
+
+  useEffect(() => {
+    const currentKey = status?.restore ? `${status.restore.jobName}:${status.restore.status}` : null;
+    if (!currentKey) return;
+    if (dismissedRestoreKey && dismissedRestoreKey !== currentKey) {
+      setDismissedRestoreKey(null);
+    }
+  }, [status?.restore?.jobName, status?.restore?.status, dismissedRestoreKey]);
 
   const loadStatus = async () => {
     try {
@@ -384,9 +401,19 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         </div>
       </div>
 
-      {status.enabled && status.restore && (
+      {status.enabled && status.restore && dismissedRestoreKey !== `${status.restore.jobName}:${status.restore.status}` && (
         <div className={`card border ${status.restore.status === 'FAILED' ? 'border-red-200 bg-red-50' : status.restore.status === 'COMPLETED' ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
-          <h4 className="text-sm font-semibold mb-2">Restore Status</h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-semibold">Last Restore Status</h4>
+            <button
+              type="button"
+              onClick={() => setDismissedRestoreKey(`${status.restore!.jobName}:${status.restore!.status}`)}
+              className="text-gray-500 hover:text-gray-700"
+              title="Dismiss"
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </div>
           <p className="text-sm">Status: <span className="font-semibold">{status.restore.status}</span></p>
           <p className="text-xs text-gray-600">Job: {status.restore.jobName}</p>
           {status.restore.snapshot && <p className="text-xs text-gray-600">Snapshot: {status.restore.snapshot}</p>}
@@ -400,6 +427,23 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
               {cancellingRestore ? 'Cancelling...' : 'Cancel Restore Job'}
             </button>
           )}
+        </div>
+      )}
+
+      {status.enabled && status.restoreHistory && status.restoreHistory.length > 0 && (
+        <div className="card">
+          <h4 className="text-sm font-semibold mb-3">Restore History (Last 25)</h4>
+          <div className="space-y-2">
+            {status.restoreHistory.slice(0, 25).map((item) => (
+              <div key={item.jobName} className="border rounded p-2 text-xs">
+                <p><span className="font-semibold">{item.status}</span> • {item.snapshot || 'N/A'}</p>
+                <p className="text-gray-600">Job: {item.jobName}</p>
+                {item.startedAt && <p className="text-gray-600">Started: {formatDateTime(item.startedAt)}</p>}
+                {item.completedAt && <p className="text-gray-600">Completed: {formatDateTime(item.completedAt)}</p>}
+                {item.error && <p className="text-red-700">Error: {item.error}</p>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
