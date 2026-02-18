@@ -29,6 +29,7 @@ interface BackupStatus {
   s3Path?: string | null;
   target?: string | null;  // For filesystem: "host:/path"
   retentionDays?: number | null;
+  defaultS3Prefix?: string | null;
   snapshots?: BackupSnapshot[];
   restore?: {
     jobName: string;
@@ -383,7 +384,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         </div>
       </div>
 
-      {status.restore && (
+      {status.enabled && status.restore && (
         <div className={`card border ${status.restore.status === 'FAILED' ? 'border-red-200 bg-red-50' : status.restore.status === 'COMPLETED' ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50'}`}>
           <h4 className="text-sm font-semibold mb-2">Restore Status</h4>
           <p className="text-sm">Status: <span className="font-semibold">{status.restore.status}</span></p>
@@ -535,6 +536,7 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         onSubmit={handleEnableBackup}
         loading={updating}
         deploymentId={deploymentId}
+        defaultS3Prefix={status?.defaultS3Prefix || `${deploymentId}`}
       />
 
       {/* Restore Backup Modal */}

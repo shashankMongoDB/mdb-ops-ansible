@@ -8,6 +8,7 @@ interface EnableCommunityBackupModalProps {
   onSubmit: (config: BackupConfig) => Promise<void>;
   loading?: boolean;
   deploymentId: string;
+  defaultS3Prefix?: string;
 }
 
 interface BackupConfig {
@@ -29,11 +30,12 @@ export function EnableCommunityBackupModal({
   onClose, 
   onSubmit, 
   loading = false,
-  deploymentId
+  deploymentId,
+  defaultS3Prefix
 }: EnableCommunityBackupModalProps) {
   const [backupType, setBackupType] = useState<'s3' | 'filesystem'>('s3');
   const [s3Bucket, setS3Bucket] = useState('');
-  const [s3Prefix, setS3Prefix] = useState(`community-mongodb-backup/${deploymentId}/snapshots`);
+  const [s3Prefix, setS3Prefix] = useState('');
   const [s3Region, setS3Region] = useState('us-east-1');
   const [fsBackupHost, setFsBackupHost] = useState('');
   const [fsBackupPath, setFsBackupPath] = useState('/mnt/backups');
@@ -220,11 +222,11 @@ export function EnableCommunityBackupModal({
                           value={s3Prefix}
                           onChange={(e) => setS3Prefix(e.target.value)}
                           className="input w-full"
-                          placeholder="community-mongodb-backup/my-deployment/snapshots"
+                          placeholder={defaultS3Prefix || `${deploymentId}`}
                           disabled={loading}
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          Optional folder path within the bucket. Default: <code className="bg-gray-100 px-1 rounded">community-mongodb-backup/{deploymentId}/snapshots</code>
+                          Optional folder path within the bucket. Leave empty to auto-use isolated default: <code className="bg-gray-100 px-1 rounded">{defaultS3Prefix || `<tenant-namespace>/${deploymentId}`}</code>
                         </p>
                       </div>
 

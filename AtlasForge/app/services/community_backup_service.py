@@ -1227,11 +1227,12 @@ def get_community_backup_status(tenant_id: str, deployment_id: str) -> Dict[str,
         "status": "ACTIVE" if enabled else "SUSPENDED",
         "schedule": schedule,
         "lastSuccessfulTime": last_successful_time,
-        "retentionDays": deployment.get("backupRetentionDays", 7)
+        "retentionDays": deployment.get("backupRetentionDays", 7),
+        "defaultS3Prefix": f"{namespace}/{deployment_id}"
     }
 
     restore_state = get_restore_state(tenant_id, deployment_id)
-    if restore_state:
+    if enabled and restore_state:
         result["restore"] = restore_state
     
     # Add type-specific fields
