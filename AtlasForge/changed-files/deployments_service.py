@@ -145,7 +145,7 @@ def create_deployment(
     logger.info(f"Using enterprise deployment for {tenant_id}/{deployment_id}")
     k8s = get_k8s_client()
 
-    # Defensive: ensure namespace exists before deployment operations.
+    # Ensure namespace exists before any K8s operations
     k8s.ensure_namespace(
         name=namespace,
         labels={
@@ -156,7 +156,7 @@ def create_deployment(
 
     # Note: omProjectId will be discovered lazily by backup_service, not required at creation
     om_project_id = None  # Will be populated later when backup is used
-    
+
     existing_deployment = repo.get_deployment(tenant_id, deployment_id)
     if existing_deployment:
         logger.error(f"Deployment already exists in DB - tenantId: {tenant_id}, deploymentId: {deployment_id}")

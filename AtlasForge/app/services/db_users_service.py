@@ -305,7 +305,10 @@ MONGOEOF
     connection_uri = None
     if external_host_port:
         encoded_password = quote_plus(password)
-        connection_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}"
+        if plan == "community":
+            connection_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}?authSource={db}&directConnection=true"
+        else:
+            connection_uri = f"mongodb://{username}:{encoded_password}@{external_host_port}/{db}"
 
     return {
         "username": username,

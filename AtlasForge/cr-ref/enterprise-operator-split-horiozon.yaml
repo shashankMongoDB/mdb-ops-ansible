@@ -1,0 +1,24 @@
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: my-rs
+  namespace: tenant-a
+spec:
+  members: 3
+  type: ReplicaSet
+  version: "8.0.0"
+
+  # Split horizon mapping (member -> external DNS names)
+  connectivity:
+    replicaSetHorizons:
+      - horizon: "external"
+        podName: "my-rs-0"
+        host: "rs0-0.db.example.com:27017"
+      - horizon: "external"
+        podName: "my-rs-1"
+        host: "rs0-1.db.example.com:27017"
+      - horizon: "external"
+        podName: "my-rs-2"
+        host: "rs0-2.db.example.com:27017"
+
+  # normal users/security omitted for brevity

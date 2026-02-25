@@ -1168,9 +1168,7 @@ def update_community_backup(
     Only available for Community plan deployments.
     
     When enabling, you must provide:
-    - s3Bucket: S3 bucket name (required)
-    - s3Prefix: S3 folder path (optional)
-    - s3Region: S3 region (optional, default: us-east-1)
+    - s3Bucket/s3Prefix/s3Region: optional (defaults from backend config)
     - schedule: Cron schedule (optional, default: 0 */4 * * *)
     - retentionDays: Retention in days (optional, default: 7)
     """
@@ -1179,14 +1177,12 @@ def update_community_backup(
             backup_type = request.type or "s3"
             
             # Validate required fields based on type
-            if backup_type == "s3":
-                if not request.s3Bucket:
-                    raise HTTPException(status_code=400, detail="s3Bucket is required for S3 backup")
-            elif backup_type == "filesystem":
+            if backup_type == "filesystem":
                 if not request.filesystem:
                     raise HTTPException(status_code=400, detail="filesystem config is required for filesystem backup")
             else:
-                raise HTTPException(status_code=400, detail="type must be 's3' or 'filesystem'")
+                if backup_type != "s3":
+                    raise HTTPException(status_code=400, detail="type must be 's3' or 'filesystem'")
             
             # Prepare filesystem config if provided
             filesystem_config = None

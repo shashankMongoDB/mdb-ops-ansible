@@ -8,7 +8,6 @@ interface EnableCommunityBackupModalProps {
   onSubmit: (config: BackupConfig) => Promise<void>;
   loading?: boolean;
   deploymentId: string;
-  defaultS3Prefix?: string;
 }
 
 interface BackupConfig {
@@ -30,13 +29,9 @@ export function EnableCommunityBackupModal({
   onClose, 
   onSubmit, 
   loading = false,
-  deploymentId,
-  defaultS3Prefix
+  deploymentId
 }: EnableCommunityBackupModalProps) {
   const [backupType, setBackupType] = useState<'s3' | 'filesystem'>('s3');
-  const [s3Bucket, setS3Bucket] = useState('');
-  const [s3Prefix, setS3Prefix] = useState('');
-  const [s3Region, setS3Region] = useState('us-east-1');
   const [fsBackupHost, setFsBackupHost] = useState('');
   const [fsBackupPath, setFsBackupPath] = useState('/mnt/backups');
   const [fsSubDirectory, setFsSubDirectory] = useState(deploymentId);
@@ -47,15 +42,8 @@ export function EnableCommunityBackupModal({
     e.preventDefault();
     
     if (backupType === 's3') {
-      if (!s3Bucket.trim()) {
-        alert('S3 Bucket is required');
-        return;
-      }
       await onSubmit({
         type: 's3',
-        s3Bucket: s3Bucket.trim(),
-        s3Prefix: s3Prefix.trim(),
-        s3Region: s3Region.trim(),
         schedule: schedule.trim(),
         retentionDays
       });
@@ -162,19 +150,7 @@ export function EnableCommunityBackupModal({
                       <div>
                         <h4 className="text-sm font-semibold text-blue-900 mb-2">Prerequisites for {backupType === 's3' ? 'S3' : 'Filesystem'} Backup</h4>
                         
-                        {backupType === 's3' ? (
-                          <>
-                            <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
-                              <li>The S3 bucket must already exist in your AWS account</li>
-                              <li>The backup CronJob requires IAM permissions: <code className="bg-blue-100 px-1 rounded">s3:PutObject</code>, <code className="bg-blue-100 px-1 rounded">s3:ListBucket</code>, <code className="bg-blue-100 px-1 rounded">s3:GetObject</code>, <code className="bg-blue-100 px-1 rounded">s3:DeleteObject</code></li>
-                              <li><strong>Recommended:</strong> Use IRSA (IAM Roles for Service Accounts) for EKS clusters</li>
-                              <li>Alternative: Configure IAM credentials via node role or Kubernetes secrets</li>
-                            </ul>
-                            <p className="text-xs text-blue-700 mt-2">
-                              💡 <strong>What happens:</strong> The platform will create a Kubernetes CronJob that runs <code className="bg-blue-100 px-1 rounded">mongodump</code> on your schedule and uploads compressed backups to S3.
-                            </p>
-                          </>
-                        ) : (
+                        {backupType === 'filesystem' ? (
                           <>
                             <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
                               <li>The backup storage must be accessible from the Kubernetes cluster</li>
@@ -186,73 +162,14 @@ export function EnableCommunityBackupModal({
                               💡 <strong>What happens:</strong> The platform will validate filesystem reachability, then create a CronJob that runs <code className="bg-blue-100 px-1 rounded">mongodump</code> and writes directly to the mounted path.
                             </p>
                           </>
+                        ) : (
+                          <p className="text-xs text-blue-800">
+                            The platform will create a Kubernetes CronJob that runs <code className="bg-blue-100 px-1 rounded">mongodump</code> using configured default S3 settings. You only need schedule and retention here.
+                          </p>
                         )}
                       </div>
                     </div>
                   </div>
-                  {/* S3 Configuration */}
-                  {backupType === 's3' && (
-                    <>
-                      <div>
-                        <label htmlFor="s3Bucket" className="block text-sm font-medium text-gray-700 mb-1">
-                          S3 Bucket Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          id="s3Bucket"
-                          value={s3Bucket}
-                          onChange={(e) => setS3Bucket(e.target.value)}
-                          className="input w-full"
-                          placeholder="my-mongodb-backups"
-                          required
-                          disabled={loading}
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          The S3 bucket must already exist
-                        </p>
-                      </div>
-
-                      <div>
-                        <label htmlFor="s3Prefix" className="block text-sm font-medium text-gray-700 mb-1">
-                          S3 Prefix / Folder Path
-                        </label>
-                        <input
-                          type="text"
-                          id="s3Prefix"
-                          value={s3Prefix}
-                          onChange={(e) => setS3Prefix(e.target.value)}
-                          className="input w-full"
-                          placeholder={defaultS3Prefix || `${deploymentId}`}
-                          disabled={loading}
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Optional folder path within the bucket. Leave empty to auto-use isolated default: <code className="bg-gray-100 px-1 rounded">{defaultS3Prefix || `<tenant-namespace>/${deploymentId}`}</code>
-                        </p>
-                      </div>
-
-                      <div>
-                        <label htmlFor="s3Region" className="block text-sm font-medium text-gray-700 mb-1">
-                          S3 Region
-                        </label>
-                        <select
-                          id="s3Region"
-                          value={s3Region}
-                          onChange={(e) => setS3Region(e.target.value)}
-                          className="input w-full"
-                          disabled={loading}
-                        >
-                          <option value="us-east-1">us-east-1 (N. Virginia)</option>
-                          <option value="us-east-2">us-east-2 (Ohio)</option>
-                          <option value="us-west-1">us-west-1 (N. California)</option>
-                          <option value="us-west-2">us-west-2 (Oregon)</option>
-                          <option value="eu-west-1">eu-west-1 (Ireland)</option>
-                          <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
-                          <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
-                          <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
 
                   {/* Filesystem Configuration */}
                   {backupType === 'filesystem' && (
@@ -358,7 +275,7 @@ export function EnableCommunityBackupModal({
                   <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                     <p className="text-xs text-yellow-800">
                       ⚠️ <strong>Important:</strong> {backupType === 's3' 
-                        ? 'Ensure the Kubernetes backup service account has IAM access to the S3 bucket before enabling. Without proper permissions, backups will fail.'
+                        ? 'S3 bucket, prefix and region are taken from backend configuration defaults.'
                         : 'Ensure the backup storage is accessible from the Kubernetes cluster (network connectivity and proper mount configuration). The platform will validate reachability before enabling.'}
                     </p>
                   </div>
@@ -374,7 +291,7 @@ export function EnableCommunityBackupModal({
                     </button>
                     <button
                       type="submit"
-                      disabled={loading || (backupType === 's3' && !s3Bucket.trim()) || (backupType === 'filesystem' && (!fsBackupHost.trim() || !fsBackupPath.trim()))}
+                      disabled={loading || (backupType === 'filesystem' && (!fsBackupHost.trim() || !fsBackupPath.trim()))}
                       className="btn-primary"
                     >
                       {loading ? 'Enabling...' : 'Enable Backup'}

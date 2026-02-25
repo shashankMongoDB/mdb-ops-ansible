@@ -557,7 +557,6 @@ export function CommunityBackupPanel({ tenantId, deploymentId }: CommunityBackup
         onSubmit={handleEnableBackup}
         loading={updating}
         deploymentId={deploymentId}
-        defaultS3Prefix={status?.defaultS3Prefix || `${deploymentId}`}
       />
 
       {/* Restore Backup Modal */}

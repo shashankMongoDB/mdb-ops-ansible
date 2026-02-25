@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mongodb
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: om-admin-secret
+  namespace: mongodb
+type: Opaque
+stringData:
+  Username: opsmanager-admin
+  Password: "ChangeMe_StrongPassword_123!"
+  FirstName: Ops
+  LastName: Manager
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: om-genkey-secret
+  namespace: mongodb
+type: Opaque
+stringData:
+  key: "0123456789abcdef0123456789abcdef"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: om-backup-daemon-secret
+  namespace: mongodb
+type: Opaque
+stringData:
+  password: "ChangeMe_BackupDaemon_123!"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongodb-user-password
+  namespace: mongodb
+type: Opaque
+stringData:
+  password: "ChangeMe_AppUser_123!"
+---
+apiVersion: mongodb.com/v1
+kind: MongoDBOpsManager
+metadata:
+  name: om
+  namespace: mongodb
+spec:
+  version: "7.0.4"
+  adminCredentials: om-admin-secret
+  externalConnectivity:
+    type: LoadBalancer
+  applicationDatabase:
+    members: 3
+    version: "7.0.12"
+    podSpec:
+      persistence:
+        single:
+          storage: 20Gi
+  backup:
+    enabled: true
+    opLogStores:
+      - name: oplog1
+        mongodbResourceRef:
+          name: om-db
+    blockStores:
+      - name: blockstore1
+        mongodbResourceRef:
+          name: om-db
+  backupDaemon:
+    credentialRef:
+      name: om-backup-daemon-secret
+  security:
+    certsSecretPrefix: om
+    tls:
+      enabled: true
+---
+apiVersion: mongodb.com/v1
+kind: MongoDB
+metadata:
+  name: app-rs
+  namespace: mongodb
+spec:
+  type: ReplicaSet
+  members: 3
+  version: "7.0.12"
+  opsManager:
+    configMapRef:
+      name: om-om-configmap
+  credentials: om-genkey-secret
+  security:
+    tls:
+      enabled: true
+  users:
+    - name: appuser
+      db: admin
+      passwordSecretRef:
+        name: mongodb-user-password
+      roles:
+        - name: readWriteAnyDatabase
+          db: admin
+      scramCredentialsSecretName: appuser-scram
+  persistent: true
+  podSpec:
+    persistence:
+      single:
+        storage: 20Gi
